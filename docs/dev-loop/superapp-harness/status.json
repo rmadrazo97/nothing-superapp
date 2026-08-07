@@ -1,7 +1,7 @@
 {
   "run_state": "executing",
   "spec_version": 3,
-  "updated_at": "2026-08-07 22:30",
+  "updated_at": "2026-08-07 22:45",
   "tasks": {
     "00-prereqs-and-scaffold": {
       "state": "done",
@@ -22,9 +22,10 @@
       "note": "PASS on iteration 1. pnpm typecheck clean. Design system CSS wired first."
     },
     "03-supabase-migrations-and-rls": {
-      "state": "pending",
+      "state": "done",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Migration 001_initial.sql applied via psql over Supavisor pooler (aws-1-eu-west-1.pooler.supabase.com:6543, transaction mode). All 5 tables created (profiles, preferences, subscriptions, events, app_calorie_entries), RLS enabled on all 5, 6 policies live (owner-only ALL on each + service_role bypass on subscriptions). REST smoke test: anon and service_role both return [] on profiles/subscriptions — anon can't leak, service_role can query without permission error. Region resolution required 1 escape hatch: pooler is on new-style aws-1-* host (not aws-0-*); found via supabase projects list which showed West EU (Ireland). No schema edits, no deviations from spec."
     },
     "04-mini-apps-runtime-sdk": {
       "state": "done",

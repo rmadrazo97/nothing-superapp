@@ -32,3 +32,6 @@ test-results/
 # scratch
 /tmp/
 /working/*
+
+# Supabase CLI cache
+supabase/.temp/

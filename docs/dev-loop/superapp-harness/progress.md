@@ -133,3 +133,37 @@ Append-only lab notebook. Every state transition, worker check-in, watch-mode in
 - **apps/web/.env.local** written with NEXT_PUBLIC_* + server-only vars, split correctly. Verified `.env*` is git-ignored at both root and apps/web level.
 - **[non-blocking risk]** DB password + all creds still sit in local branch (working/.env.credentials.stub was pushed in commit 07e9ed8 before .gitignore fix). Must rotate before any `git push` to a public remote. Currently on `feat/superapp-harness` local-only.
 - **Wave 3 unblocked:** tasks 03 (Supabase migrations), 05 (auth), 06 (Stripe), 09 (Kimi copilot) all have their required env vars.
+
+## 2026-08-07 22:45 — Task 03 → done (Supabase schema + RLS live)
+
+- **Path used:** direct `psql` over Supavisor **transaction pooler** (`aws-1-eu-west-1.pooler.supabase.com:6543`, user `postgres.pqbwzcjiedllzafgczhx`, password URL-encoded).
+- **Escape hatch:** the task prompt suggested `aws-0-eu-central-1.pooler.supabase.com:6543` first, then `db.<ref>.supabase.co:5432` as fallback. Both failed for this project:
+  - `aws-0-*` returned `FATAL: (ENOTFOUND) tenant/user postgres.pqbwzcjiedllzafgczhx not found` across every AWS region tried — this project sits on the newer **`aws-1-*`** Supavisor fleet.
+  - `db.<ref>.supabase.co` didn't resolve in DNS at all (dedicated-DB hosts are being deprecated / not provisioned for new projects on the free tier).
+  - Found the correct region via `supabase projects list` (no auth needed for that command in this shell — CLI already had a cached token) which showed `nothing-superapp` in **West EU (Ireland)** = `eu-west-1`.
+- **Migration:** `supabase/migrations/001_initial.sql` applied with `-v ON_ERROR_STOP=1` — clean run, 6 CREATE TABLE/INDEX, 5 ALTER TABLE (enable RLS), 6 CREATE POLICY. Zero errors, zero warnings.
+- **Verification** (`pg_tables` + `pg_policies`):
+
+  ```
+        tablename      | rowsecurity
+  ---------------------+-------------
+   app_calorie_entries | t
+   events              | t
+   preferences         | t
+   profiles            | t
+   subscriptions       | t
+
+        tablename      |           policyname           | cmd |     roles
+  ---------------------+--------------------------------+-----+----------------
+   app_calorie_entries | app_calorie_entries_owner_all  | ALL | {public}
+   events              | events_owner_all               | ALL | {public}
+   preferences         | preferences_owner_all          | ALL | {public}
+   profiles            | profiles_owner_all             | ALL | {public}
+   subscriptions       | subscriptions_owner_all        | ALL | {public}
+   subscriptions       | subscriptions_service_role_all | ALL | {service_role}
+  ```
+
+  All 5 tables have `rowsecurity=t`; 6 policies live (owner-only ALL on each of 5 + explicit `service_role` bypass on `subscriptions`) — exactly matching `001_initial.sql`.
+- **RLS smoke test** (REST via `/rest/v1/{table}?select=*`): anon key and service_role key both return `[]` on `profiles` and `subscriptions` — no data yet, but critically **no permission errors** in either direction. Confirms RLS is engaged (anon can't see cross-tenant rows) and the service_role bypass works (webhooks path).
+- **No schema deviations.** No dependency additions. No commits (Wave 3 orchestrator will batch).
+- **Unblocks:** 05 (auth — needs `profiles`/`preferences` insert-on-signup), 06 (Stripe webhook — needs `subscriptions` service_role write), 09 (Kimi copilot — reads events / preferences), 12 (calorie-lite — writes `app_calorie_entries` + `events`).
