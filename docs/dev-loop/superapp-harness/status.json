@@ -1,7 +1,7 @@
 {
   "run_state": "executing",
   "spec_version": 3,
-  "updated_at": "2026-08-07 22:45",
+  "updated_at": "2026-08-07 23:20",
   "tasks": {
     "00-prereqs-and-scaffold": {
       "state": "done",
@@ -34,14 +34,16 @@
       "note": "PASS on iteration 1. verify.sh exit 0. All SDK exports present."
     },
     "05-auth-and-session": {
-      "state": "pending",
+      "state": "done",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Auth + session shipped end-to-end for local dev. Files: apps/web/src/lib/supabase/{client,server,middleware}.ts, apps/web/src/proxy.ts, apps/web/src/app/login/page.tsx, apps/web/src/app/auth/callback/route.ts, apps/web/src/app/auth/signout/route.ts, modified apps/web/src/app/page.tsx. Zero new deps (@supabase/{ssr,supabase-js} already installed). Three escape hatches: (1) Next.js 16 renamed Middleware → Proxy — created src/proxy.ts (not middleware.ts) per node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md; build output confirms `ƒ Proxy (Middleware)` registered. (2) Design token names — prompt referenced --color-surface-3 / --radius-2 which don't exist in design-system/styles.css; used the real tokens --color-border-visible, --radius-card, --space-6. Hex-color grep on owned files exits 1 (no matches). (3) Profile upsert semantics — flipped `ignoreDuplicates: true` so returning users don't have subscription_status overwritten back to 'inactive' on every sign-in (task 06 just wired Stripe writes to that same column). pnpm typecheck + pnpm build both clean. Deferred (called out in prompt): Google OAuth Supabase provider config (needs Google Cloud client ID + redirect URI whitelist), Apple Sign-In (needs Apple Developer + p8 key), SharedContextProvider hook-up (task 10)."
     },
     "06-stripe-checkout-and-webhook": {
-      "state": "pending",
+      "state": "needs-review",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Implemented POST /api/stripe/checkout + POST /api/stripe/webhook with signature verification. Stripe SDK v17.7.0; apiVersion pinned to '2025-02-24.acacia' (Stripe.LatestApiVersion in installed types — spec suggested 2025-08-27.basil which the installed SDK doesn't accept). Webhook handles checkout.session.completed, customer.subscription.{created,updated,deleted}, invoice.payment_failed — idempotent upsert keyed on user_id. Attribution via client_reference_id → subscription.metadata → customer.metadata fallback. Conformed to actual subscriptions schema (user_id PK, cancel_at_period_end, no price_id / id / created_at columns — spec docstring was stale). Service-role client at lib/supabase/service.ts owned solely by task 06. Task 05 already had lib/supabase/server.ts landed with exported `createClient` (not `createServerClient` as task-06 spec assumed) — imported that. Typecheck: no new errors from task-06 files (4 pre-existing errors in packages/shared unrelated). Build: `next build` compiled cleanly (Compiled successfully in 192ms) — same pre-existing shared-package typecheck failure blocks final exit code app-wide. No hardcoded colors. User must run `stripe listen --forward-to localhost:3000/api/stripe/webhook` and paste whsec_… into STRIPE_WEBHOOK_SECRET in apps/web/.env.local."
     },
     "07-shell-chrome-tabbar-and-layout": {
       "state": "done",
@@ -55,9 +57,10 @@
       "worker_turn_count": 0
     },
     "09-ai-copilot-endpoint": {
-      "state": "pending",
+      "state": "worker_done",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "POST /api/copilot streams Kimi K2 (model slug kimi-k2.6, OpenAI SDK against api.moonshot.ai/v1). Context assembler reads profiles + preferences + last-20 app_calorie_entries + last-20 events via the user's session client (RLS enforces owner-scoping as defence-in-depth on top of explicit .eq('user_id', userId)). Serialization = pretty JSON, 6000-char cap, evenly truncates entries+events newest-first when over budget; profile/preferences never truncated. SSE frame formats: {\"delta\": token} for content, {\"reasoning\": token} for Kimi's reasoning_content deltas (UI can hide), {\"error\": msg} on upstream failure, [DONE] terminator. Guards: 401 on missing session, 400 on empty/malformed messages, 400 when messages.length > 20. Endpoint writes nothing to the DB. Escape hatch: added allowImportingTsExtensions: true to apps/web/tsconfig.json so the pre-existing .ts extensions in packages/shared/src/{index,types/index}.ts compile — this is the first web-side consumer of @nothing/shared so the latent issue only surfaced now. pnpm typecheck + pnpm build both clean; live Kimi smoke test returned streaming SSE chunks."
     },
     "10-home-grid-and-registry-loader": {
       "state": "pending",
