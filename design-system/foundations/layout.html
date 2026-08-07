@@ -1,0 +1,65 @@
+<!-- @dsCard group="Foundations" name="Layout" subtitle="Spacing, grid, geometry" viewport="640x800" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Layout · Nothing Superapp</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+
+  .step { display: grid; grid-template-columns: 100px 1fr 60px; align-items: center; gap: var(--space-4); padding: var(--space-2) 0; }
+  .step .k { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+  .step .bar { height: 16px; background: var(--color-accent); border-radius: 4px; }
+  .step .px { font-family: var(--font-label); font-size: var(--text-label); text-align: right; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+
+  .grid-demo { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--space-2); }
+  .gcell { height: 48px; background: color-mix(in srgb, var(--color-accent) 18%, transparent); border-radius: 4px; }
+
+  .radius-demo { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+  .rad { padding: var(--space-4); border: 1px solid var(--color-border-visible); background: var(--color-surface); display: flex; flex-direction: column; gap: var(--space-2); }
+  .rad .k { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+  .rad .v { font-family: var(--font-label); color: var(--color-text-display); font-size: var(--text-body); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Spacing scale — density 1× × 8 px</span><span class="idx">01</span></div>
+    <div class="step"><span class="k">space-1</span><span class="bar" style="width: var(--space-1)"></span><span class="px">3.20</span></div>
+    <div class="step"><span class="k">space-2</span><span class="bar" style="width: var(--space-2)"></span><span class="px">6.40</span></div>
+    <div class="step"><span class="k">space-3</span><span class="bar" style="width: var(--space-3)"></span><span class="px">9.60</span></div>
+    <div class="step"><span class="k">space-4</span><span class="bar" style="width: var(--space-4)"></span><span class="px">12.80</span></div>
+    <div class="step"><span class="k">space-6</span><span class="bar" style="width: var(--space-6)"></span><span class="px">19.20</span></div>
+    <div class="step"><span class="k">space-8</span><span class="bar" style="width: var(--space-8)"></span><span class="px">25.60</span></div>
+    <p class="caption" style="margin-top: var(--space-3);">Skips 5 and 7 by design. Spacing is the primary tool for hierarchy — if you need a divider, the spacing is probably wrong.</p>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">12-column grid</span><span class="idx">02</span></div>
+    <div class="grid-demo">
+      <div class="gcell"></div><div class="gcell"></div><div class="gcell"></div><div class="gcell"></div>
+      <div class="gcell"></div><div class="gcell"></div><div class="gcell"></div><div class="gcell"></div>
+      <div class="gcell"></div><div class="gcell"></div><div class="gcell"></div><div class="gcell"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Geometry</span><span class="idx">03</span></div>
+    <div class="radius-demo">
+      <div class="rad" style="border-radius: var(--radius-compact)"><span class="k">radius-compact</span><span class="v">14/2 px</span></div>
+      <div class="rad" style="border-radius: var(--radius-card)"><span class="k">radius-card</span><span class="v">14 px</span></div>
+      <div class="rad" style="border-radius: var(--radius-button)"><span class="k">radius-button</span><span class="v">999px</span></div>
+    </div>
+    <p class="caption" style="margin-top: var(--space-4);">Cards get a moderate radius; buttons are either pill or technical — nothing in between.</p>
+  </div>
+
+</main>
+</body>
+</html>

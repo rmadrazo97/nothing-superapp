@@ -1,0 +1,51 @@
+{
+  "name": "{{SYSTEM_NAME}}",
+  "palette": {
+    "hue": {{HUE}},
+    "band": "{{BAND}}",
+    "scheme": "{{SCHEME}}",
+    "sat": {{SAT}},
+    "pin": {
+      "bg": "{{COLOR_BG}}",
+      "surface": "{{COLOR_SURFACE}}",
+      "surface_raised": "{{COLOR_SURFACE_RAISED}}",
+      "accent": "{{COLOR_ACCENT}}"{{OPTIONAL_ACCENT_2_PIN}}
+    },
+    "bg": "{{COLOR_BG}}",
+    "surface": "{{COLOR_SURFACE}}",
+    "surface_raised": "{{COLOR_SURFACE_RAISED}}",
+    "border": "{{COLOR_BORDER}}",
+    "border_visible": "{{COLOR_BORDER_VISIBLE}}",
+    "text_display": "{{COLOR_TEXT_DISPLAY}}",
+    "text_primary": "{{COLOR_TEXT_PRIMARY}}",
+    "text_secondary": "{{COLOR_TEXT_SECONDARY}}",
+    "text_disabled": "{{COLOR_TEXT_DISABLED}}",
+    "accent": "{{COLOR_ACCENT}}"{{OPTIONAL_ACCENT_2_FIELD}}
+  },
+  "fonts": {
+    "display": {
+      "family": "{{FONT_DISPLAY}}",
+      "class": "{{FONT_DISPLAY_CLASS}}",
+      "weights": {{FONT_DISPLAY_WEIGHTS_JSON}}
+    },
+    "body": {
+      "family": "{{FONT_BODY}}",
+      "class": "{{FONT_BODY_CLASS}}",
+      "weights": {{FONT_BODY_WEIGHTS_JSON}}
+    },
+    "label": {
+      "family": "{{FONT_LABEL}}",
+      "class": "{{FONT_LABEL_CLASS}}",
+      "weights": {{FONT_LABEL_WEIGHTS_JSON}}
+    },
+    "displayWeight": {{FONT_DISPLAY_WEIGHT}},
+    "bodyWeight": {{FONT_BODY_WEIGHT}}
+  },
+  "density": {{DENSITY}},
+  "radiusCard": {{RADIUS_CARD}},
+  "radiusButton": "{{RADIUS_BUTTON}}",
+  "layoutStyle": "{{LAYOUT_STYLE}}",
+  "imageTreatment": "{{IMAGE_TREATMENT}}",
+  "iconSet": "{{ICON_SET}}",
+  "buttonStyle": "{{BUTTON_STYLE}}"
+}

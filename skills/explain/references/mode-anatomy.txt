@@ -1,0 +1,194 @@
+# Mode Anatomy — the shape of each output mode
+
+Three modes, three anatomies. Every artifact matches its mode's shape strictly. Cross-mode mixing (a "slide-style" report or a "scrollable" deck) = failed output.
+
+---
+
+## `report` mode
+
+**Structure:**
+```
+<article>
+  <header>
+    <h1>{{TITLE}}</h1>
+    <p class="lede">{{ONE_PARAGRAPH_SUMMARY}}</p>
+    <p class="meta">{{DATE}} · {{AUDIENCE}} · {{LENGTH_MIN}} min read</p>
+  </header>
+
+  <section id="context">
+    <h2>Context</h2>
+    <p>{{WHY_THIS_MATTERS}}</p>
+    <figure>{{DIAGRAM_IF_ANY}}<figcaption>{{ONE_LINE}}</figcaption></figure>
+  </section>
+
+  <section id="core-concept">
+    <h2>{{THE_MAIN_IDEA}}</h2>
+    ... prose + diagrams alternating ...
+  </section>
+
+  <section id="how-it-works">
+    <h2>How it works</h2>
+    ... step-by-step, each step with a diagram ...
+  </section>
+
+  <section id="worked-example">
+    <h2>Worked example</h2>
+    <p>{{CONCRETE_INSTANCE}}</p>
+  </section>
+
+  <section id="trade-offs" class="page-break-before">
+    <h2>Trade-offs + when-not-to-use</h2>
+    <ul>
+      <li><strong>Trade-off 1:</strong> {{WHAT_YOU_GAIN}} at the cost of {{WHAT_YOU_LOSE}}</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p class="meta">Last updated {{DATE}}. Source at {{URL}}.</p>
+  </footer>
+</article>
+```
+
+**Rules:**
+- ONE `<article>` root; nested `<section>` with `id` attributes for anchor links.
+- Every non-trivial section has at least one `<figure>` with `<figcaption>`.
+- Print-page-breaks: `.page-break-before` class on sections that should start a new page.
+- `<header>` at top has title + lede + meta (date + audience + read-time).
+- `<footer>` at bottom has update date + source URL.
+- Max width: `65ch` on the article — never wider than a comfortable reading measure.
+
+**Length calibration:**
+- Short (< 500 words): 3-4 sections, 1-2 diagrams.
+- Medium (~1500 words): 5-7 sections, 3-5 diagrams.
+- Long (~5000 words): 8-12 sections, 6+ diagrams; consider `landing` mode instead.
+
+---
+
+## `landing` mode
+
+**Structure:**
+```
+<body>
+  <nav class="toc" aria-label="Table of contents">
+    <a href="#hero" class="brand">{{TITLE}}</a>
+    <ol>
+      <li><a href="#section-01">01 — {{SECTION_TITLE}}</a></li>
+      <li><a href="#section-02">02 — {{SECTION_TITLE}}</a></li>
+      ...
+    </ol>
+  </nav>
+
+  <main>
+    <section id="hero" class="hero">
+      <h1>{{TITLE}}</h1>
+      <p class="lede">{{ONE_PARAGRAPH_SUMMARY}}</p>
+      <div class="hero-diagram">{{HERO_SVG}}</div>
+    </section>
+
+    <section id="section-01">
+      <div class="section-head">
+        <span class="section-num">01</span>
+        <h2>{{SECTION_TITLE}}</h2>
+      </div>
+      ...
+    </section>
+
+    ...
+  </main>
+
+  <aside class="scroll-spy" aria-hidden="true">
+    <!-- highlights current section as user scrolls -->
+  </aside>
+
+  <footer>{{META}}</footer>
+
+  <script>
+    // ~20 lines: scroll-spy that adds .active to matching ToC entry
+  </script>
+</body>
+```
+
+**Rules:**
+- Persistent left-sidebar ToC on desktop (`position: sticky`); collapses to a top-drawer on mobile.
+- Every section has `id`, `.section-head` with `.section-num` + `<h2>`.
+- Scroll-spy JS is the ONE piece of JS in landing mode — highlights ToC entry as user scrolls.
+- Anchor deep-links work — clicking a ToC entry scrolls smooth-behavior + updates URL hash.
+- Hero section (`#hero`) is FIRST section, has the one-paragraph pitch + one hero diagram.
+- Cross-links: any reference to another section uses an `<a href="#section-N">` — never linkless prose "as discussed above".
+
+**Cross-linking density:**
+- Light: sequential top-to-bottom read; ~3 cross-refs total.
+- Heavy: hub-and-spoke; each section links to 3-5 others. Use `<aside>` for "see also" callouts.
+
+---
+
+## `slides` mode
+
+**Structure:**
+```
+<body class="deck">
+  <div class="slides" data-current="1">
+    <section class="slide" data-slide="1" data-notes="Opening slide — welcome + establish credibility.">
+      <h1>{{DECK_TITLE}}</h1>
+      <p class="subtitle">{{SUBTITLE}}</p>
+      <p class="meta">{{DATE}} · {{PRESENTER}}</p>
+    </section>
+
+    <section class="slide" data-slide="2" data-notes="The problem — quantify.">
+      <h2>The problem</h2>
+      <p class="big-number">42%</p>
+      <p>of solo devs abandon side projects at the "picking a stack" step.</p>
+    </section>
+
+    <section class="slide slide-diagram" data-slide="3" data-notes="Show the architecture; walk through phases 1-7.">
+      <h2>{{SLIDE_TITLE}}</h2>
+      <div class="slide-content">{{INLINE_SVG_DIAGRAM}}</div>
+    </section>
+
+    <section class="slide slide-fragments" data-slide="4">
+      <h2>{{SLIDE_TITLE}}</h2>
+      <ul>
+        <li class="fragment">First reveal</li>
+        <li class="fragment">Second reveal</li>
+        <li class="fragment">Third reveal</li>
+      </ul>
+    </section>
+
+    ...
+  </div>
+
+  <div class="deck-controls" aria-hidden="true">
+    <button data-action="prev">←</button>
+    <span class="page-counter">1 / 12</span>
+    <button data-action="next">→</button>
+  </div>
+
+  <script>
+    // ~50 lines: keyboard nav (← → home end), fragment reveal (space), presenter view (?p)
+  </script>
+</body>
+```
+
+**Rules:**
+- One `<section class="slide">` per slide, with `data-slide` (1-indexed) and `data-notes` (spoken-word).
+- Aspect ratio: 16:9 fixed via CSS `aspect-ratio: 16 / 9` on `.slide`.
+- Text sizes: title 5-7vh, body 2.5-3vh. Nothing under 2vh (unreadable at projector distance).
+- ONE primary idea per slide + optional supporting diagram or 2-3 bullets. See `references/slides-anatomy.txt`.
+- Fragment reveals via `.fragment` class on children of `.slide-fragments`. Space bar advances fragment; ArrowRight advances slide.
+- Presenter view: `?p=1` in URL shows current + next slide side-by-side + notes below current.
+- Print export: browser's ⌘P produces one slide per page in landscape.
+
+**Deck length:**
+- Short (5-8): pitch or teach-a-concept. Every slide load-bearing.
+- Medium (10-15): standard talk. First slide title, last slide CTA, middle 8-13 are content.
+- Long (20+): consider splitting into multiple decks. Attention fatigues past 20 for one sitting.
+
+---
+
+## Cross-mode NO-GO list
+
+- Do NOT put slides into report (slides look weird in a scrollable doc).
+- Do NOT put a scrollable article into slides (breaks the one-idea-per-slide rule).
+- Do NOT nest a landing page inside a report (report is single-scroll; landing is multi-anchor).
+
+If the user asks for something ambiguous ("a scrollable slide deck", "a report with a nav"), push back: pick ONE mode. Cross-mode = failed brief.

@@ -1,0 +1,116 @@
+# Budget Tiers -- what changes at each
+
+The four tiers, what you can/can't do at each, and the "first paid dollar" upgrade path.
+
+---
+
+## Tier: Free ($0/mo)
+
+### What's included
+- Vercel Hobby OR Cloudflare Pages/Workers Free
+- Supabase Free (500MB DB) OR Neon Free (0.5GB) OR Cloudflare D1 (5GB)
+- Auth via Supabase or Auth.js (unlimited users)
+- Stripe (no monthly fee; only per-transaction cut)
+- Resend Free (3k emails/mo)
+- Sentry Free (5k events/mo)
+- PostHog Free (1M events/mo)
+- GitHub Actions Free (2k mins/mo private, unlimited public)
+- npm publish (free forever)
+- Cloudflare R2 Free (10GB storage, no egress)
+
+### What you accept
+- Vercel commercial-use is technically not allowed on Hobby (fine for MVPs; upgrade before real users).
+- Supabase pauses projects after 7 days of inactivity (fine for MVPs).
+- Neon Free autoscales compute to 0 after 5 min (cold starts ~1s).
+- 100k Workers requests/day cap on Cloudflare Free (fine for anything not viral).
+- EAS Free capped at 30 native builds/mo (fine while iterating).
+
+### Total: $0/mo up to ~500-1000 signed-in DAU on most stacks.
+### Apple/Google/domain costs still apply: $99/yr Apple Dev, $25 one-time Google Play, ~$10-15/yr domain.
+
+---
+
+## Tier: Bootstrap (<$50/mo)
+
+### Upgrade priorities (add in this order)
+1. **Vercel Pro** ($20/mo) — commercial-use compliance, unlimited team collaboration, deploy protection. FIRST upgrade for serious products.
+2. **Supabase Pro** ($25/mo) — 8GB DB, unlimited egress, no pauses. Buy when free DB fills up OR egress becomes a factor.
+3. **Custom domain** ($10-15/yr) — always cheap; get it early.
+4. **Apple Developer** ($99/yr) + **Google Play** ($25 one-time) — required for App Store distribution.
+
+### What you get
+- 10k+ DAU comfortable
+- 8GB Postgres, no pauses, unlimited egress
+- Deploy protection (staging env, IP allowlists)
+- Commercial-use safe
+- Basic priority support
+
+### Total: ~$45-60/mo.
+
+---
+
+## Tier: Funded (<$500/mo)
+
+### Add on top of Bootstrap
+- **Sentry Team** ($26/mo) — 50k events, unlimited replays, alerts.
+- **PostHog paid** (~$0-100/mo, usage-based) — session replays, funnels, A/B tests.
+- **Resend Pro** ($20/mo) — 50k emails/mo, unlimited domains.
+- **Vercel Analytics Pro** ($10/mo) — real-user monitoring, extended retention.
+- **Supabase Team** ($599/mo — skip, jump straight to Enterprise if you need this) OR stick with Pro and shard.
+- **RevenueCat** — free up to $2.5k MTR; after that pay 1% of tracked revenue.
+- **BetterStack Team** ($30/mo) — uptime monitoring, incidents, logs.
+- **Datadog / New Relic** — skip at this tier; overkill.
+
+### Total: ~$150-400/mo depending on volume.
+
+### What this unlocks
+- Team collaboration + audit trails
+- Full observability stack
+- SOC2-ready vendor selection
+- ~100k DAU comfortable
+
+---
+
+## Tier: Enterprise (uncapped)
+
+### Add on top of Funded
+- **Cloud provider bill** (AWS / GCP / Azure) with reserved instances, save-plans, etc.
+- **Datadog / Grafana Enterprise** — real observability.
+- **Auth0 Enterprise** OR **WorkOS** — SSO, SAML, directory sync, compliance.
+- **Segment / Rudderstack** — data plane, event routing.
+- **Cloudflare Enterprise** — dedicated IPs, custom DDoS protection.
+- **PagerDuty** — on-call rotations.
+- **Vercel Enterprise** — custom SLA, dedicated support.
+- Full **IaC** (Terraform + Terragrunt), dedicated DevOps.
+
+### Total: $2k-50k+/mo depending on scale + compliance needs.
+
+---
+
+## Free-to-paid graduation triggers
+
+Watch for these signals in production analytics -- they mean it's time to upgrade the corresponding service:
+
+| Signal | Upgrade |
+|--------|---------|
+| Vercel bandwidth > 80 GB/mo | Vercel Pro ($20) |
+| Vercel function invocations approaching 100k/day | Vercel Pro |
+| Supabase Postgres > 400 MB | Supabase Pro ($25) |
+| Supabase egress > 4 GB/mo cumulative | Supabase Pro |
+| Cloudflare Workers > 80k req/day | Workers Paid ($5) |
+| Sentry > 4k events/mo | Sentry Team ($26) |
+| Resend > 2.5k emails/mo | Resend Pro ($20) |
+| RevenueCat > $2k MTR | Move to paid tier (1% fee kicks in) |
+| Neon compute-hours > 150/mo | Neon Launch ($19) |
+
+---
+
+## Cost calculation cheatsheet
+
+For the blueprint's "Cost envelope" section, use this rough math:
+
+- **Free stack, 100 users:** $0/mo.
+- **Free stack, 1k users:** $0/mo (most stacks hold).
+- **Free stack, 10k users:** typically $25-75/mo (Vercel + Supabase Pro).
+- **Free stack, 100k users:** typically $200-500/mo (Vercel Pro + Supabase Pro + observability + email).
+- **Free stack, 1M users:** talk to a real infra person; you're past this skill's scope.

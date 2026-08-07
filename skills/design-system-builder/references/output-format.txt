@@ -1,0 +1,186 @@
+# Output Format -- File Anatomy (v0.3)
+
+The exact anatomy of every generated file. Nothing outside this list should exist in the output folder.
+
+## `styles.css` -- the ONE file
+
+Order inside the file (do not reorder -- downstream tools scan by section header):
+
+1. **Preamble comment** -- one-line "system-name -- tokens + component classes" pointer to `readme.md`.
+2. **`@import url(...)`** for Google Fonts. All three families (display / body / label) with the exact weights the system uses.
+3. **`:root { ... }`** -- all tokens, in this order:
+   - Ground + surfaces: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-visible`.
+   - Text opacity ladder (4 tiers): `--color-text-display`, `--color-text-primary`, `--color-text-secondary`, `--color-text-disabled`.
+   - Accent + status: `--color-accent`, `--color-accent-subtle`, `--color-success`, `--color-warning`. Optional `--color-accent-2` for duo/poly schemes.
+   - Tonal ramps: `--color-neutral-100..900`, `--color-accent-100..900`, optional `--color-accent-2-100..900`.
+   - Fonts (3 families): `--font-display` + `--font-display-weight`, `--font-body` + `--font-body-weight`, `--font-label`.
+   - Type scale (9 sizes): `--text-display-xl` down to `--text-label`.
+   - Spacing: `--space-1..8` + `--space-12` + `--space-16` (derived from `density x 8`).
+   - Geometry: `--radius-card`, `--radius-compact`, `--radius-button`.
+   - Motion: `--ease-out`, `--dur-fast`, `--dur-medium`.
+4. **`body`** -- background, text color, font-family from tokens. No fixed sizes here beyond the base 16 px.
+5. **Image treatment utility class** -- `.lighten` / `.halftone` / `.duotone` per the choice (or none).
+6. **Base element rules** -- `*` box-sizing, `body` base, `h1..h6` (default to body font -- use `.display-*` for hero), `p`, `a`, `img`, `figure`, `::selection`, `:focus`, `:focus-visible`.
+7. **Type utility classes** -- `.display-xl`, `.display-lg`, `.display-md`, `.label`, `.label-strong`, `.caption`, `.data`, and the four opacity utilities `.text-display`, `.text-primary`, `.text-secondary`, `.text-disabled`, `.text-accent`.
+8. **`.hr` + `.hr-visible`** -- rules (last resort; prefer whitespace).
+9. **Component sections** in this exact order, each preceded by a `/* -- <name> -- */` banner: buttons -> fab -> tags -> forms -> cards -> navigation -> tables -> dialog -> status-line.
+
+Nothing else. Per-page demo-scaffold blocks live in the individual HTML pages' `<style>`, never in `styles.css`.
+
+## Component API -- canonical class list
+
+These class names are the public API. Downstream consumers rely on them.
+
+### Buttons + tags + status (`components/buttons.html`)
+- `.btn` (base) + one of `.btn-primary` | `.btn-secondary` | `.btn-ghost` | `.btn-destructive`
+- `.btn-icon` -- square icon-only variant (min 44 px)
+- `.btn-block` -- full-width
+- `.fab` -- the floating action button (56 px, always accent-filled, one per screen)
+- Inline `<svg>` icons (Phosphor 256 px viewBox, `fill="currentColor"`)
+- `.tag` + one of `.tag-accent` | `.tag-subtle` | `.tag-neutral` | `.tag-outline`
+- `.status-line` + one of `.status-ok` | `.status-warn` | `.status-error` -- bracketed inline status (`[SAVED]`, `[PENDING]`, `[ERROR]`)
+
+### Forms (`components/forms.html`)
+- `.field` -- wraps `<label>` + input (label uses `.label`-style styling automatically)
+- `.input` -- underline default. Add `.input-boxed` for full-border variant.
+- `.radio` with a visually hidden `<input type="radio">` and a `.dot` span
+- `.seg` container + `.seg-opt` per option (segmented control on radios)
+
+### Cards (`components/cards.html`)
+- `.card` (default, bordered on `--color-surface`)
+- `.card-raised` (bordered on `--color-surface-raised` -- for cards on other cards)
+- `.card-accent` (accent-red block -- the one accent card per screen)
+- `.card-hero` -- specialty layout for hero-number cards (display value + unit)
+- Inside: `.card-kicker`, `.card-title`, `.card-body`, `.card-meta`
+- Elevation utilities `.elev-sm` / `.elev-md` / `.elev-lg` -- OPT-IN. Default cards are flat with border.
+
+### Navigation (`components/navigation.html`)
+- `.nav` container with `.nav-brand` (uses `--font-display`) + `<a>` links (use `--font-label`); `aria-current="page"` sets active
+
+### Table (`components/table.html`)
+- `.table` (a `<table>`)
+- `.table td.num` -- right-aligned, Space Mono, tabular-nums
+- `[aria-selected="true"]` on a `<tr>` picks up the accent-bar-plus-raised-bg selection state
+
+### Dialog (`components/dialog.html`)
+- `.dialog-backdrop` outer + `.dialog` inner (`role="dialog"` + `aria-labelledby`)
+- Inside: `.dialog-title`, `.dialog-body`, `.dialog-actions`
+- Destructive primary action uses `.btn-destructive` (accent outline, not filled red)
+
+## Per-page HTML anatomy (foundations + components)
+
+Every foundation and component HTML page follows this shape:
+
+```html
+<!-- @dsCard group="<Foundations|Components>" name="<Name>" subtitle="<one-line>" viewport="640x800" -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><Name> - {{SYSTEM_NAME}}</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    /* Page-specific DEMO scaffold only -- every visual value uses var(--...). */
+    main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+    .section { margin-top: var(--space-12); }
+    .section:first-child { margin-top: 0; }
+    .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+    .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+    /* + section-specific helpers (grids, ramps, etc.) -- ALL using tokens */
+  </style>
+</head>
+<body>
+<main>
+  <div class="section">
+    <div class="head">
+      <span class="label label-strong">Section title</span>
+      <span class="idx">01</span>
+    </div>
+    <!-- content -->
+  </div>
+  <!-- more sections -->
+</main>
+</body>
+</html>
+```
+
+Rules:
+- The `@dsCard` HTML comment on line 1 is optional metadata for Claude Design + doc harnesses. Keep it.
+- `../styles.css` is the ONLY external CSS.
+- The `<style>` block contains only demo scaffolding -- any color / font / spacing inside it comes from `var(--...)`.
+- Every section starts with a `.label` header on the left and a tabular numeric index on the right (`01`, `02`, `03`). This is the editorial "instrument-panel" rhythm.
+
+## `index.html` -- the editorial gallery
+
+NOT a docs page. A curated portfolio.
+
+- Hero (asymmetric): huge display-face brand mark on the left (`clamp(72px, 12vw, 160px)`), swatch strip + `{band} · {scheme}` subtitle on the right.
+- Three sections (Foundations / Components / Theme) each with:
+  - Section head: big 48 px display-face title left, tabular `NN pages` count right.
+  - Tile grid using 12-column layout. First tile in each section is `.tile-wide` (span-8, taller iframe). Remaining tiles are span-4.
+  - Every tile: live `<iframe>` preview (pointer-events disabled), tile name + tabular index on tile meta, small subtitle caption below.
+  - Hover: border switches to `--color-text-primary`, tile lifts 2 px.
+- Footer: `(c) SystemName - Built with design-system-builder` on the left; monospace links `readme` / `theme.json` / `styles.css` on the right.
+
+Responsive: at < 900 px, hero stacks and all tiles go span-12.
+
+## `theme.json` -- the seed (v0.3 schema)
+
+```json
+{
+  "name": "<System name>",
+  "palette": {
+    "hue": <0-360>,
+    "band": "light" | "dark",
+    "scheme": "mono" | "duo" | "polychrome",
+    "sat": <0-1>,
+    "pin": { "bg": "#...", "surface": "#...", "surface_raised": "#...", "accent": "#...", "accent2": "#..." },
+    "bg": "#...", "surface": "#...", "surface_raised": "#...",
+    "border": "#...", "border_visible": "#...",
+    "text_display": "#...", "text_primary": "#...", "text_secondary": "#...", "text_disabled": "#...",
+    "accent": "#...", "accent2": "#..."
+  },
+  "fonts": {
+    "display": { "family": "<name>", "class": "dot-matrix|serif-trans|grotesque|humanist|display", "weights": [400, 700] },
+    "body":    { "family": "<name>", "class": "grotesque|humanist|serif-trans", "weights": [300, 400, 500, 700] },
+    "label":   { "family": "<name>", "class": "mono", "weights": [400, 700] },
+    "displayWeight": <weight>,
+    "bodyWeight": <weight>
+  },
+  "density": <0.7 | 1.0 | 1.25>,
+  "radiusCard": <4-16>,
+  "radiusButton": "999px" | "6px",
+  "layoutStyle": "left" | "centered",
+  "imageTreatment": "none" | "lighten" | "halftone" | "duotone",
+  "iconSet": "phosphor" | "lucide" | "heroicons" | "material",
+  "buttonStyle": "filled-white" | "filled-accent" | "outline" | "ghost"
+}
+```
+
+Do not add fields the skill doesn't consume. If a downstream tool needs extras, they belong in the downstream config.
+
+## `readme.md` -- the human guide (must include, in order)
+
+1. Title + one-line summary -- reads like a designer's intro. Reference `examples/README.txt` for the tone bar.
+2. How to use this -- linking `styles.css`, using classes, "styles.css is source of truth, keep theme.json in step," harness-agnostic.
+3. Direction -- 3-5 sentences on the design POV. The "three-layer rule" (primary / secondary / tertiary) applied to this brand. The one accent moment per screen. The composition rule (asymmetric).
+4. Color -- role list with hex + the opacity ladder + accent-as-signal rule + shadow philosophy.
+5. Type -- the three families named + why + how to use `--font-display` / `--font-body` / `--font-label`. Include weights.
+6. Icons -- set + link.
+7. Interaction states -- the focus ring rule + hover/pressed pattern + `::selection`.
+8. Components -- API table (class - what it is - shown in).
+9. Do -- 4-5 short bullets.
+10. Don't -- 4-5 short bullets.
+11. Files -- inventory (matches `SKILL.md` § "What you produce").
+12. Derived choices (only if any) -- parameters inferred rather than told; listed so the user can correct.
+
+## `thumbnail.html` -- the cover
+
+Two-column layout: 1.6fr brand mark on the accent-red ground (`--color-accent`) + 1fr swatch strip. Brand mark uses `--font-display` at `clamp(80px, 14vw, 200px)` with weight `--font-display-weight`. Subtitle "Design system . v1" (`--font-label`) at top; "{band} . {scheme}" and "{display}/{body}/{label}" pair at bottom. Strip shows bg / surface-raised / text-secondary / text-display as 4 equal horizontal bands.
+
+The ONE exception where the accent gets a full flood: this cover IS the brand's face.
+
+## `theme.html` -- the parameter reference sheet
+
+Single-column card with a 15-row `<dl>`: name, ground, scheme, hue, chroma, display font, body font, label font, density, radius (card), radius (button), layout, buttons, image, icons. Each row is a label-styled `<dt>` + Space-Mono `<dd>`. Uses only tokens.

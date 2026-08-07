@@ -1,0 +1,207 @@
+# Interactive Question Flow -- v0.3
+
+The complete question tree for Phase 2 intake. Ask in batches of 2-4 questions per turn, in the order below. If a brand manual / logo / palette / reference photo was provided in Phase 1, skip any question the materials already answered -- but do still surface those inferred answers in the final lock preview so the user can override.
+
+Every question has: question text, why it matters, options (with `label` + `description` -- use as-is when calling `AskUserQuestion`), and default if the user skips.
+
+---
+
+## Batch 1 -- Foundation (ground + scheme + accent)
+
+### Q1. Ground
+
+- Question: "What ground does the system live on?"
+- Why: Ground drives every downstream choice -- shadow behavior, text-on-tint step selection, whether ramps read light-first or dark-first, whether we optimize for OLED (pure black is free) or paper (near-white beats pure white).
+- Header: `Ground`
+- Options:
+  - `Light` -- Paper / warm off-white. Body copy dark on `#F5F5F5`. Shadows are soft ink-tinted. Editorial default.
+  - `Dark` -- OLED-first. Body copy `#E8E8E8` on `#000000` (yes, pure black -- Nothing default; free power on OLED). Border-first depth.
+  - `Dual (both required)` -- Ship both variants of every token. Costs one extra generation pass; use when the app has a theme switcher.
+- Default: `Dark` for utility / productivity apps; `Light` for editorial / marketing.
+
+### Q2. Scheme
+
+- Question: "How many voices does the palette need?"
+- Why: Scheme decides how many accent ramps we generate and how polychrome the components feel.
+- Header: `Scheme`
+- Options:
+  - `Mono -- one accent` -- A single accent used as line + FAB + status signal. The Nothing default. (Nocturne, Nothing OS.)
+  - `Duo -- two accents` -- Primary + secondary at similar L, ~130 degrees apart in hue. Use when the app has two clearly different action categories. (Broadsheet.)
+  - `Polychrome -- semantic status roles` -- Success (green), warning (amber), danger (accent red), info (secondary text). For data-heavy dashboards.
+- Default: `Mono` -- the modern default; upgrade only on evidence of need.
+
+### Q3. Primary accent
+
+- Question: "What's the accent hue? (I can pick from a curated palette if you don't have one.)"
+- Why: The accent is the one saturated voice; every ramp is generated from it. It also seeds the neutral ramp hue (neutrals inherit the accent's hue at very low chroma so the whole system feels tuned rather than blended).
+- Header: `Accent hue`
+- Options: offer a shortlist from `palette-catalog.txt` matched to the user's stated vibe, always plus "Enter a hex". Nothing OS canonical is `#D71921` (cadmium red).
+- Default: none -- required decision.
+
+---
+
+## Batch 2 -- Typography (the 3-family stack)
+
+Nothing-family systems use display / body / label as three distinct roles. Even if two roles share a family (e.g. Space Grotesk for both body and display), name all three -- the label role must always be a monospace so numerics and instrument-panel labels get tabular-nums and mono density.
+
+### Q4. Type direction
+
+- Question: "What direction should the type take?"
+- Why: Direction gates the display + body shortlist. Serif reads editorial; grotesque reads utility; humanist reads warmth; dot-matrix reads industrial / mechanical.
+- Header: `Type`
+- Options:
+  - `Industrial / dot-matrix` -- Doto (variable dot-matrix) as display + Space Grotesk body + Space Mono label. Nothing OS / Braun / Teenage Engineering. THE Nothing-family default.
+  - `Editorial / serif` -- Fraunces or Source Serif 4 as display + Inter body + Space Mono label. Long-form, warm authority. (Broadsheet.)
+  - `Utility / grotesque` -- Space Grotesk display + Space Grotesk body + Space Mono label. Interface-first, no display flourish. Dev-native.
+  - `Consumer / humanist` -- Public Sans or Figtree display + same body + Space Mono label. Warm, approachable.
+- Default: `Industrial / dot-matrix` if the user said "Nothing", "dot-matrix", "instrument"; `Utility` otherwise.
+
+### Q5. Confirm the exact families
+
+After Q4, offer a shortlist of 2-3 concrete stacks from `type-catalog.txt`. Always include Google Fonts fallbacks. Example for Q4 = Industrial:
+- `Doto / Space Grotesk / Space Mono` (recommended -- the Nothing canonical stack)
+- `Space Grotesk / Space Grotesk / Space Mono` (utility variant -- if the user doesn't want dot-matrix)
+- Any user-specified font (they type it -- we verify it's on Google Fonts before locking)
+
+### Q6. Display weight + body weight
+
+- Question: "Display weight (for hero moments) and body weight (for everything else)?"
+- Why: Weight is one of the two tools we use for hierarchy (the other is size). Default display is 700 (bold enough to hold at 72 px), default body is 400.
+- Options: two dropdowns matched to the chosen families' available weights.
+
+---
+
+## Batch 3 -- Density + geometry
+
+### Q7. Density
+
+- Question: "How dense should the interface feel?"
+- Why: Density multiplies the base spacing unit (8 px). Doesn't scale type.
+- Header: `Density`
+- Options:
+  - `Compact 0.7x` -- Dense tools, admin surfaces, keyboard-driven apps. Braun aesthetic.
+  - `Comfortable 1.0x` -- Consumer default. Nothing OS uses this. Ship this unless you know why not.
+  - `Spacious 1.25x` -- Marketing, long-form, editorial surfaces. Broadsheet uses this.
+- Default: `Comfortable 1.0x`.
+
+### Q8. Radius (card + button)
+
+Two knobs, one question:
+
+- Question: "How sharp are the corners? (Cards vs buttons -- Nothing splits them: cards are moderate, buttons are pill or technical.)"
+- Header: `Radius`
+- Options:
+  - `Card 14 / Button pill (999px)` -- Nothing default. Cards feel considered; buttons feel pressable.
+  - `Card 8 / Button pill` -- Slightly sharper cards, still pill buttons.
+  - `Card 4 / Button 4` -- Fully technical / brutalist. Every corner nearly sharp.
+  - `Card 16 / Button 8` -- Consumer / friendly. Rounder cards, medium-round buttons.
+- Default: `Card 14 / Button pill` -- the Nothing spec.
+
+### Q9. Button style
+
+- Question: "How does the primary action want to read?"
+- Why: Button style is the loudest single decision -- it appears on every screen.
+- Header: `Buttons`
+- Options:
+  - `filled-white` -- White pill on dark ground with black text. The Nothing default. Reads "clean, considered, physical."
+  - `filled-accent` -- Filled accent color with contrast text. Consumer / marketing / conversion-heavy.
+  - `outline` -- Accent border on transparent. Editorial / considered. Nocturne.
+  - `ghost` -- No border, subtle text color. Minimal / dense / admin.
+- Default: `filled-white` on dark grounds; `filled-accent` on light consumer grounds.
+
+---
+
+## Batch 4 -- Media + iconography
+
+### Q10. Image treatment
+
+- Question: "How should photographs look?"
+- Why: Optional but the fastest way to make a system feel like it has an opinion.
+- Header: `Photos`
+- Options:
+  - `None` -- Full-color photography. Consumer default.
+  - `Lighten` -- `mix-blend-mode: lighten` on dark grounds. Photos shot on dark backgrounds disappear into the page. Nocturne.
+  - `Halftone` -- Newsroom / editorial dot-pattern feel. Broadsheet.
+  - `Duotone` -- Two-color reduction. Brand-forward / posterized.
+- Default: `None` if unsure. Ask about photos-on-dark before defaulting to `Lighten`.
+
+### Q11. Icon set
+
+- Question: "Which icon set?"
+- Why: Icon set is a durable dependency; pick and stick to one. All four options are free, open-source, CDN-hostable.
+- Header: `Icons`
+- Options:
+  - `Phosphor` -- Wide, friendly, six weights. Nothing / Nocturne / Broadsheet default.
+  - `Lucide` -- Sharp, single-stroke, dev-native.
+  - `Heroicons` -- Tailwind-native, two variants (solid + outline).
+  - `Material Symbols` -- Google, three fills x three weights.
+- Default: `Phosphor`.
+
+---
+
+## Batch 5 -- Voice + rules (short-answer, not multi-choice)
+
+Do NOT use `AskUserQuestion` for this batch -- it needs free text. Ask conversationally.
+
+### Q12. Voice (one paragraph)
+
+- Question: "In one paragraph -- how should the product SOUND? (I'll paraphrase this into the `readme.md` direction section.) If you have a 'say / don't-say' list, drop that too."
+- Why: Voice separates a design system from a UI kit. Without it the `readme.md` reads like Bootstrap docs.
+- Default: Derive from the brand name + accent choice + type direction.
+
+### Q13. Anything non-negotiable
+
+- Question: "Any hard rules from the brand? (contrast minimums, logo clear-space, forbidden treatments, 'never use pure black', a required font, a required color-mix ratio)"
+- Why: These become the "Don't" section of `readme.md` and the constraints the downstream builder cannot violate.
+- Default: Skip if none.
+
+---
+
+## Lock preview (Phase 2 exit)
+
+Before generating, print a compact preview back to the user:
+
+```
+LOCKED PARAMETERS -- confirm to generate?
+
+  Ground     . dark (OLED pure black)
+  Scheme     . mono
+  Accent     . #D71921  [+]  (Nothing cadmium red)
+  Display    . Doto (weight 700)
+  Body       . Space Grotesk (weight 400)
+  Label      . Space Mono (weight 400, ALL CAPS)
+  Density    . 1.0x (comfortable)
+  Radius     . card 14px / button pill (999px)
+  Buttons    . filled-white (white pill on dark, black text)
+  Photos     . none
+  Icons      . Phosphor
+  Voice      . "Dense, dark, technical. Structure IS ornament. Red is a signal, never decoration."
+  Rules      . no gradients; no default drop shadows; one accent moment per screen
+
+  Reply "lock it" to generate, or tell me what to change.
+```
+
+If the user says "change X to Y", update the lock IN PLACE -- do not re-ask other questions. Regenerate the preview and re-ask for confirmation.
+
+Once confirmed, proceed to Phase 3.
+
+---
+
+## Special routings
+
+### Extract-from-materials path
+
+- Brand manual PDF -- read cover to cover. Pull hex/RGB (trust RGB over hex when they disagree), named fonts + fallbacks, type hierarchy, logo do/don'ts, motif rules. Only ask about anything the manual doesn't cover.
+- Logo (SVG / PNG) -- pull the mark + primary color(s). Ask about ground + type if the logo alone doesn't imply them.
+- Product / lifestyle photos -- read the real palette off them. Photography rarely lies; a printed manual sometimes does.
+- Reference photos of a physical product (like the Nothing Phone) -- capture the specific moves: OLED-black chassis? Cadmium red glyph? Dot-matrix numerics? These are lock-worthy signals.
+- Reference sites -- capture the structural moves (type contrast, whitespace, motion). Ask which specific attribute the user liked; do not clone.
+- Vibe only ("warm editorial, like Aesop" / "Nothing OS with our brand color") -- propose a full lock as a starting point and ask for corrections.
+
+### Exact-tokens path
+
+Skip Batches 1-5. Jump to Phase 3. Verify tokens against the 10 output-rules in `SKILL.md` before generating; ask about anything that would break a rule (missing label font, missing opacity tier, radius > 16 on cards, etc.).
+
+### Ambiguous answers
+
+If a question comes back with hedging ("I don't know, whichever you think"), commit to the default silently -- do not re-ask. The lock preview is the safety net.

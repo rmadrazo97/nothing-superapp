@@ -1,0 +1,134 @@
+# Judge Protocol -- verify evidence, never "review" code
+
+The judge is NOT a code reviewer. The judge is a **verifier**: given a task file (which declares the DoD command) + the actual diff + the DoD command's stdout+exit, the judge answers ONE question: "does the evidence match the definition of done?"
+
+This distinction matters. A reviewer needs to be smart. A verifier needs to be fresh + narrow + cheap. That's why judges are Haiku (or Sonnet for judgment-heavy tasks), not Opus.
+
+---
+
+## Inputs the judge receives
+
+Per task, the judge gets:
+
+1. **The task file** (`docs/dev-loop/<slug>/tasks/NN-<slug>.md`) -- the source of truth for DoD, owned surface, off-limits surface, and acceptance criteria.
+2. **The diff** -- `git diff <base-branch> -- <owned-paths>` (limited to owned surface).
+3. **The DoD command output** -- stdout + stderr + exit code, captured verbatim.
+4. **The worker's status entry** -- what the worker itself said it did (in `progress.md`).
+5. **The judge protocol** (this file, on demand).
+
+The judge does NOT receive:
+- The full codebase (too broad, invites review-mode drift)
+- Chat context (must be fresh)
+- Other tasks' files (out of scope)
+- The advisor's guidance (that's audit-only, in `decisions.md`)
+
+---
+
+## The judge's checklist (fixed, do not deviate)
+
+1. **DoD command passed?** Read exit code. Exit 0 = pass. Any non-zero = fail.
+2. **Owned-surface compliance?** Diff files list ⊆ task's "Files you own" list. Any file outside = fail (`unrequested_changes`).
+3. **Immutable surface untouched?** Diff files ∩ task's "Files off-limits" list = empty. Any hit = fail.
+4. **Acceptance criteria addressed?** For each checkbox in the task's "Acceptance criteria" section, mark met / unmet based on: the diff, the tests in the diff, and the DoD command output. Do NOT execute anything -- read the evidence that's already there.
+5. **Reusable patterns used?** For each item in the task's "Reusable patterns to grep FIRST" section, verify the diff USES it (not re-implements it). Look for the named function/class/token appearing in the diff.
+6. **Stop condition respected?** Worker exited cleanly (didn't run over max_worker_turns and forcibly killed). Check `progress.md` for a bounded exit.
+
+---
+
+## Verdict output shape
+
+Judge returns EXACTLY this JSON structure -- no prose outside it, no extra fields:
+
+```json
+{
+  "verdict": "pass" | "fail",
+  "dod_exit_code": <int>,
+  "dod_output_summary": "<first 200 chars of stdout+stderr, no wrap>",
+  "owned_surface_compliance": true | false,
+  "immutable_surface_untouched": true | false,
+  "acceptance_criteria": [
+    {"criterion": "<verbatim from task file>", "status": "met" | "unmet", "evidence": "<file:line or 'DoD command output'>"}
+  ],
+  "reusable_patterns_used": [
+    {"pattern": "<name>", "used": true | false, "location": "<file:line if used, else null>"}
+  ],
+  "unrequested_changes": ["<file path>", ...],
+  "immutable_touched": ["<file path>", ...],
+  "reasoning": "<one paragraph, max 3 sentences, explaining the verdict>",
+  "if_fail_next_action": "<one-line instruction for the executor's next iteration, or null if verdict is pass>"
+}
+```
+
+Save this object appended to `docs/dev-loop/<slug>/judge-log.md` as a fenced code block under a heading `## Task NN -- iteration K -- <timestamp>`.
+
+---
+
+## Verdict rules (deterministic, do not ask the judge to opine)
+
+Verdict is `fail` if ANY of these is true:
+- `dod_exit_code != 0`
+- `owned_surface_compliance == false`
+- `immutable_surface_untouched == false`
+- Any `acceptance_criteria` has `status == "unmet"`
+
+Verdict is `pass` only when ALL of the above are green.
+
+This is intentionally rule-based, not judgment-based. The judge does not have discretion. If you find yourself asking a judge to "consider whether it's good enough" -- that's a reviewer, not a judge. Use a different phase (or push to advisor consultation) for those calls.
+
+---
+
+## What happens on `fail`
+
+1. Orchestrator reads the verdict.
+2. Increment `judge_iteration_count` for this task in `status.json`.
+3. If `judge_iteration_count > max_judge_iterations` (default 10): task → `failed`. Escalate to user in Phase 7. Do NOT re-queue.
+4. Otherwise: append a `## Judge feedback -- iteration N` section to the task file:
+
+```markdown
+## Judge feedback -- iteration 2
+
+**Verdict:** fail
+**Failed on:** acceptance criterion #4 ("empty state renders 'Log your first meal' CTA")
+**Evidence:** DoD command output showed no matching test assertion
+**Next action:** Add a test for the empty-state CTA in `apps/web/src/app/(app)/calorie/page.test.tsx`. The current diff has no coverage for the empty case.
+
+If unclear, consult the advisor.
+```
+
+5. Set task status → `pending`.
+6. On next orchestrator turn, this task gets re-dispatched to a fresh worker.
+
+---
+
+## Escalation triggers (when the judge gets stuck)
+
+If the same task fails judge 3× in a row with the SAME complaint:
+- The DoD is likely wrong OR the spec has a bug.
+- Orchestrator STOPS re-queuing this task.
+- Sets status → `blocked-needs-review`.
+- Appends to `progress.md`: `[BLOCKED] task NN failed 3× with identical judge complaint; likely spec/DoD bug -- surfacing at Phase 7`.
+- Does NOT halt other tasks -- only this one is paused.
+- At Phase 7, this shows up as a deferred item requiring user attention.
+
+Never let a task loop indefinitely. Bounded stops are how the loop stays productive.
+
+---
+
+## Anti-patterns to reject
+
+- **Judge writing prose feedback.** The judge output shape is fixed. If a judge returns free-form prose, discard and re-invoke -- something in the prompt drifted.
+- **Judge suggesting code improvements.** Not the judge's job. Log it in `judge-log.md` under a `notes:` field if the judge insists, but do NOT treat it as `fail` unless a real criterion is unmet.
+- **Judge running the DoD command itself.** The DoD was already run by the worker. Judge reads the output; does not re-execute (that's an integration test, not a verification).
+- **Judge with Opus tier.** Overkill and expensive. If a task genuinely needs an Opus judge, the acceptance criteria are too vague -- fix the spec, not the judge tier.
+- **Judge chained to another judge.** No meta-judging. One judge per task per iteration.
+
+---
+
+## Cost profile
+
+Per judge invocation (Haiku, typical task):
+- Input: task file (~2k tok) + diff (~1k tok) + DoD output (~500 tok) + protocol (this file, ~1k tok) = ~4.5k input tok
+- Output: verdict JSON (~300 tok)
+- Cost: ~$0.006 per judge call
+
+For an 8-task feature with 2 judge iterations per task on average: 16 judge calls × $0.006 = ~$0.10. Negligible vs. the executor + advisor costs. This is why judges are on by default.

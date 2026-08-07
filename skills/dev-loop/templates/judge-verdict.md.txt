@@ -1,0 +1,33 @@
+## Task {{TASK_ID}} — iteration {{ITERATION}} — {{TIMESTAMP}}
+
+```json
+{
+  "verdict": "{{VERDICT}}",
+  "dod_exit_code": {{DOD_EXIT_CODE}},
+  "dod_output_summary": "{{DOD_OUTPUT_SUMMARY}}",
+  "owned_surface_compliance": {{OWNED_COMPLIANCE}},
+  "immutable_surface_untouched": {{IMMUTABLE_COMPLIANCE}},
+  "acceptance_criteria": [
+    {{ACCEPTANCE_CRITERIA_STATUS_ARRAY}}
+  ],
+  "reusable_patterns_used": [
+    {{REUSABLE_PATTERNS_STATUS_ARRAY}}
+  ],
+  "unrequested_changes": {{UNREQUESTED_CHANGES_ARRAY}},
+  "immutable_touched": {{IMMUTABLE_TOUCHED_ARRAY}},
+  "reasoning": "{{REASONING_PARAGRAPH}}",
+  "if_fail_next_action": {{IF_FAIL_NEXT_ACTION_STRING_OR_NULL}}
+}
+```
+
+**Human-readable summary (auto-generated):**
+
+- **Verdict:** {{VERDICT_UPPERCASE}}
+- **DoD command:** exit {{DOD_EXIT_CODE}} — `{{DOD_OUTPUT_SUMMARY}}`
+- **Owned surface:** {{OWNED_COMPLIANCE_HUMAN}}
+- **Immutable surface:** {{IMMUTABLE_COMPLIANCE_HUMAN}}
+- **Acceptance criteria:** {{ACCEPTANCE_MET_COUNT}} / {{ACCEPTANCE_TOTAL_COUNT}} met
+- **Reasoning:** {{REASONING_PARAGRAPH}}
+{{IF_FAIL_NEXT_ACTION_BLOCK}}
+
+---

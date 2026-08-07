@@ -1,0 +1,67 @@
+# Type Catalog — Curated Font Pairings
+
+All entries below are **Google Fonts** (free, CDN-hostable, no license worry) or have a canonical Google Fonts fallback. Load via `@import url(...)` at the top of `styles.css`.
+
+## By direction
+
+### Serif — editorial / considered
+
+| Display | Text | Weights | Feel |
+|---|---|---|---|
+| **Source Serif 4** | **Source Serif 4** | 400, 600 | Transitional serif, one family, technical-editorial. (Broadsheet.) |
+| Fraunces | Inter | 400, 700 / 400, 500 | Distinctive display + neutral body. Warm editorial. |
+| Cormorant Garamond | Jost | 400, 700 / 400, 500 | Classical serif + geometric sans. Studio / interiors. |
+| DM Serif Display | DM Sans | 400 / 400, 500 | Display serif + neutral sans. Blogs / long-form. |
+
+### Sans grotesque — modern / neutral (interface default)
+
+| Display | Text | Weights | Feel |
+|---|---|---|---|
+| **Inter** | **Inter** | 400, 500, 600, 700 | One family, densest option. Interface default. (Nocturne.) |
+| Space Grotesk | Inter | 500, 700 / 400, 500 | Mild display contrast, dev-native. |
+| IBM Plex Sans | IBM Plex Serif | 400, 500 / 400, 500 | Technical utility feel. |
+| Söhne (paid) → **Inter fallback** | Söhne → **Inter** | 400, 500 | Premium neutral. Ship Inter until you can license. |
+
+### Sans humanist — warm / approachable
+
+| Display | Text | Weights | Feel |
+|---|---|---|---|
+| **Public Sans** | **Public Sans** | 400, 500, 700 | US-gov spec, one family, very readable. Consumer default. |
+| Figtree | Figtree | 400, 500, 700 | Modern humanist, generous rounding. |
+| Work Sans | Work Sans | 400, 500, 700 | Approachable, wide language coverage. |
+
+### Display + text pair (marketing-forward)
+
+| Display | Text | Weights | Feel |
+|---|---|---|---|
+| Fraunces | Public Sans | 400, 900 / 400, 500 | Highest-contrast pairing here. |
+| DM Serif Display | Inter | 400 / 400, 500 | Editorial header + interface body. |
+| Playfair Display | Inter | 400, 700 / 400, 500 | Classical display + neutral body. |
+
+### Monospace (accessory)
+
+If the system needs a mono for code / stats / technical accents:
+
+| Family | Notes |
+|---|---|
+| JetBrains Mono | The developer default. |
+| IBM Plex Mono | Pairs with any IBM Plex family or Inter. |
+| Space Mono | Distinctive; use sparingly. |
+
+## Rules
+
+- **Two families max per surface.** Display + text. A monospace accessory is allowed but should not exceed 20% of any given screen.
+- **Same family for display + text is the safest ship.** Use two weights (500 heading / 400 body) and let hierarchy come from size.
+- **Google Fonts fallbacks are mandatory when the primary is paid.** Ship the free fallback; upgrade later.
+- **`@import` at the top of `styles.css`, weights only what you use.** Extra weights add ~40KB each.
+
+## Heading weight defaults per direction
+
+| Direction | Heading weight | Body weight |
+|---|---|---|
+| Serif — editorial | 400 or 600 | 400 |
+| Sans grotesque | 500 or 600 | 400 |
+| Sans humanist | 500 or 700 | 400 |
+| Display + text | display: 400 · text: 500 for headings, 400 for body |
+
+Set the chosen weight in `--font-heading-weight` in `styles.css`.

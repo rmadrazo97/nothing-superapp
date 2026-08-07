@@ -1,0 +1,227 @@
+# Phase Anatomy -- deep dive on each of the 7 phases
+
+SKILL.md has the outline. This file has the operating details -- who does what, what state gets written, what the exit criteria are per phase.
+
+---
+
+## Phase 0 -- Size
+
+**Time budget:** 30 seconds. Do NOT over-think.
+
+**Who:** the orchestrator (main Claude), inline. No subagents.
+
+**Inputs:** the raw requirement + a look at the repo tree + `stack-blueprint.md` at a glance.
+
+**Outputs (in your first message to the user):**
+- One-line classification: S / M / L
+- One-line why
+- Estimated task count + parallel opportunity
+- Estimated executor tokens + cost projection
+
+**S tier signals:** single file, < ~50 LOC, no schema/API change, no new dep.
+**M tier signals:** few files in one subsystem, one migration OR one new endpoint, moderate blast radius.
+**L tier signals:** cross-cutting, multiple subsystems, schema + API + UI, or high blast radius.
+
+**Exit:** proceed to Phase 1 immediately. Don't gate here -- Phase 1 is the first user checkpoint.
+
+---
+
+## Phase 1 -- Clarify (interactive intake)
+
+**Time budget:** 1-3 short batches, 2-4 questions each. If more than 3 batches, the requirement was too vague -- push back.
+
+**Who:** orchestrator + user. No subagents.
+
+**Inputs:** raw requirement, plus SILENT reads of:
+- `docs/architecture/stack-blueprint.md`
+- `design-system/styles.css` (or project equivalent)
+- All `docs/dev-loop/*/spec.md` prior specs
+- The relevant module of the codebase (grep for existing patterns adjacent to the requirement)
+
+**Process:** `references/question-flow.txt` full tree.
+
+**Outputs:**
+- The clarified-requirement summary (structured), printed for user review
+- Stack pins list (from blueprint)
+- Design pins list (from styles.css)
+
+**Exit criteria:** explicit "lock it" from user. If user asks for changes, edit in place, reprint, re-ask. Never advance to Phase 2 without a lock.
+
+---
+
+## Phase 2 -- Formalize the spec
+
+**Time budget:** 3-8 minutes wall time (depends on tier).
+
+**Who:**
+- Advisor (Opus or Fable) drafts the spec structure + tricky sections
+- Executor (Sonnet) writes the bulk prose
+- Orchestrator integrates
+
+**Inputs:** Phase 1's clarified summary + stack pins + design pins + reads of the affected code slice.
+
+**Process:**
+1. Advisor call: "Given this clarified requirement and stack pins, produce a spec skeleton using the 13-section template" (`templates/spec.md.txt`).
+2. Executor fills each section, citing files and pinning tech choices.
+3. Orchestrator reviews for the 14 non-negotiable rules (see SKILL.md).
+4. Save to `docs/dev-loop/<slug>/spec.md`.
+
+**Outputs:** `spec.md` written to disk.
+
+**Exit criteria:** spec passes the 14-rule check (verifiable with `scripts/build-taskpack.mjs --validate-spec`). No user gate here -- Phase 4 is the review gate.
+
+---
+
+## Phase 3 -- Decompose
+
+**Time budget:** 2-5 minutes.
+
+**Who:** orchestrator + one advisor call for tier-map + optional executor call for task drafts.
+
+**Inputs:** `spec.md`.
+
+**Process:**
+1. Advisor call: "Given this spec, decompose into tracer-bullet vertical slices ≤ 200 LOC each. List title + one-line intent + rough owned surface + estimated tier."
+2. Orchestrator builds `deps.json` from the advisor's output.
+3. Orchestrator generates `tier-config.yaml` -- harness auto-detected defaults + per-task overrides for any advisor-heavy task.
+4. Executor drafts each `tasks/NN-<slug>.md` file per the 10-section template (`templates/task-brief.md.txt` -- see `references/task-brief-anatomy.txt`).
+5. Orchestrator validates each task: passes the 10-section check + no owned-file overlaps across tasks.
+6. `scripts/build-taskpack.mjs` runs -- writes all files atomically.
+
+**Outputs:**
+- `docs/dev-loop/<slug>/tasks/NN-*.md` (one per task)
+- `docs/dev-loop/<slug>/tier-config.yaml`
+- `docs/dev-loop/<slug>/deps.json`
+
+**Exit criteria:** all task files pass validation. If a task has an owned-file overlap or missing DoD, hard-fail Phase 3 and re-draft (do NOT advance).
+
+---
+
+## Phase 4 -- Approve (Gate A)
+
+**Time budget:** as long as the user needs.
+
+**Who:** orchestrator + user.
+
+**Inputs:** the whole task pack on disk.
+
+**Process:**
+1. Print the compact task list (title, tier, dep) as a table.
+2. Print the total estimated executor tokens + cost projection.
+3. Print any tasks flagged as high-risk (novel algorithm, critical infra, size > 200 LOC forced-split).
+4. Await user response.
+
+User can:
+- Reply "execute" → proceed to Phase 5.
+- Reply "swap tier on task NN to X" → edit `tier-config.yaml`, reprint.
+- Reply "split task NN into A + B" → orchestrator re-drafts, reprints.
+- Reply "merge tasks NN + MM" → orchestrator combines, reprints.
+- Reply "add hard rule: <constraint>" → orchestrator adds to spec + affected tasks, reprints.
+- Reply "cancel" → clean exit, `status.json` marks the pack as archived.
+
+**Exit criteria:** explicit "execute" from user. NEVER proceed to Phase 5 without it.
+
+---
+
+## Phase 5 -- Execute
+
+**Time budget:** unbounded, but every task has a stop condition (default 15 turns).
+
+**Who:** orchestrator + one worker per task (Agent subagents) + advisor calls from workers + user (via watch mode).
+
+**State:**
+- `status.json`: `{task_id: pending|running|done|blocked|failed|drift}`
+- `progress.md`: append-only log of every state transition + worker check-in
+- `decisions.md`: every advisor consultation
+
+**Process (per turn of the orchestrator):**
+
+1. **Read `status.json` + `deps.json` + spec.md** (fresh every turn -- this is the Ralph reload).
+2. **Check for user chat since last turn.** If a message arrived, run `references/watch-mode.txt` protocol:
+   - Is it a spec amendment? → update `spec.md`, mark affected tasks as `drift`, note in `progress.md`.
+   - Is it a question / status query? → answer inline, no state change.
+   - Is it a cancel? → clean exit.
+3. **Compute the ready set** -- tasks with status `pending` AND all `blocked_by` tasks have status `done`.
+4. **Compute the drift set** -- tasks with status `drift` need re-evaluation:
+   - If already `done`, re-run judge with updated DoD → may go back to `pending` if judge fails.
+   - If `running`, mark for restart after current worker turn completes.
+5. **Dispatch workers.** For each task in the ready set, up to `parallel_workers` limit (default 4):
+   - Spawn `Agent` (harness-dependent -- Claude Code Agent tool with `model:` and `context: fork`; on generic harness, serial inline).
+   - Pass ONLY the task file path as the worker's prompt (worker reads the file cold).
+   - Mark task `running` in `status.json`.
+   - Log to `progress.md`: `[2026-08-07 15:23] task 03 dispatched → sonnet-4-6, advisor: opus-4-7`.
+6. **Wait for workers to complete** (async on Claude Code, serial elsewhere).
+7. **On worker completion:**
+   - Worker writes result summary to `progress.md`.
+   - Orchestrator moves task to `judge` (Phase 6).
+8. **Repeat** until `status.json` shows no more `pending` or `running` tasks.
+
+**Watch-mode intercept protocol:** see `references/watch-mode.txt`.
+
+**Exit criteria:** all tasks either `done`, `failed` (after max judge iterations), or `blocked` (blocked by a failed task).
+
+---
+
+## Phase 6 -- Judge (concurrent with Phase 5)
+
+Runs interleaved with Phase 5 -- whenever a worker completes, its output is judged before the orchestrator advances.
+
+**Time budget:** typically < 30s per judge invocation.
+
+**Who:** judge subagent (Haiku default, Sonnet for judgment-heavy tasks). ALWAYS fresh context -- do not reuse a worker's context.
+
+**Inputs:** the completed task file + the actual diff (`git diff main -- <owned-paths>`) + the DoD command's stdout+exit code.
+
+**Process:** see `references/judge-protocol.txt`.
+
+**Outputs:**
+- Verdict object appended to `judge-log.md`
+- Status update in `status.json`
+- On fail: task file gets an appended "## Judge feedback (iteration N)" section with the specific complaint. Task returns to `pending`.
+
+**Exit criteria per task:** either `pass` (task → `done`) OR max_judge_iterations reached (task → `failed`, halt further loops on this task).
+
+---
+
+## Phase 7 -- Deliver (Gate B)
+
+**Time budget:** 1 minute.
+
+**Who:** orchestrator + user.
+
+**Inputs:** the whole `docs/dev-loop/<slug>/` state.
+
+**Process:**
+1. Compute completion summary:
+   - Tasks: N/M done, K failed, J deferred
+   - Branch name + commit count + LOC delta
+   - Feature-level DoD command output
+   - Every deferred item + why
+2. Print report + hand-off options (see SKILL.md § Phase 7).
+3. Await user's choice.
+4. On choice:
+   - (a) `/land-and-deploy` → invoke that skill with the branch name.
+   - (b) `/swarm-dev` for review → invoke that skill in "PR review only" mode.
+   - (c) `gh pr create` → open PR with the spec + task pack linked in body.
+   - (d) nothing → leave branch, mark run complete in `status.json`.
+
+**Exit criteria:** user's explicit choice recorded. Never merges on its own.
+
+---
+
+## Per-tier phase gates
+
+Different tiers gate differently:
+
+| Phase | S tier | M tier | L tier |
+|---|---|---|---|
+| 0 Size | Auto | Auto | Auto |
+| 1 Clarify | 1 batch max | 1-2 batches | 2-3 batches |
+| 2 Spec | inline in orchestrator | executor call | advisor + executor |
+| 3 Decompose | skip (single task) | orchestrator drafts | advisor + orchestrator |
+| 4 Approve | skip (S tier auto-executes if single obvious task) | Gate A required | Gate A required |
+| 5 Execute | inline in orchestrator | 1-2 workers | full fleet |
+| 6 Judge | orchestrator self-judges | Haiku per task | Haiku or Sonnet per task |
+| 7 Deliver | brief summary | Gate B | Gate B |
+
+S tier tasks may skip Phase 3/4/6 if the requirement is truly single-file / single-obvious-change. In that case: Phase 0 → Phase 1 → do the change → Phase 7. Never skip Phase 1 (ambiguity elimination) even on S tier.

@@ -1,0 +1,145 @@
+# Hosting Catalog -- with actual free-tier ceilings
+
+Every hosting option we recommend, with the exact free-tier limits (as of 2026) and the first paid dollar threshold. Update whenever a vendor changes tiers.
+
+Cite the actual number in the blueprint's cost envelope, never a vague "generous free tier".
+
+---
+
+## Vercel
+
+- **Free (Hobby):**
+  - 100 GB bandwidth / mo
+  - 100k Serverless Function invocations / day
+  - 1M Edge Function requests / mo
+  - 1k Middleware invocations / day
+  - Unlimited team members on personal projects
+  - Preview URLs per PR
+  - Fair use CPU (100 hours / mo)
+- **First paid tier:** Pro at $20/user/mo (1 TB bandwidth, 1M function invocations/day, commercial use allowed).
+- **When free is enough:** anything up to a few thousand DAU on a Next.js PWA/web app.
+- **When free breaks:** commercial use policy triggers at consistent traffic; team collaboration on org projects.
+- **Ideal for:** Next.js apps, static sites with edge functions.
+
+## Cloudflare (Pages / Workers / R2 / D1 / KV)
+
+- **Pages Free:** unlimited static sites, 500 builds/mo, unlimited requests, unlimited bandwidth.
+- **Workers Free:** 100k requests/day, 10ms CPU/request. Paid ($5/mo) = 10M requests/mo + 30s CPU.
+- **R2 Free:** 10 GB storage, 1M Class A ops/mo, 10M Class B ops/mo. NO egress fees ever.
+- **D1 Free:** 5M rows read/day, 100k rows written/day, 5 GB storage.
+- **KV Free:** 100k reads/day, 1k writes/day, 1 GB storage.
+- **When free is enough:** basically anything not doing crazy CPU work. Workers free-tier is 100k req/day which is a lot.
+- **First paid dollar:** $5/mo Workers Paid unlocks the ecosystem.
+- **Ideal for:** edge-first apps, static sites, cost-sensitive at scale (R2's zero egress is a killer feature).
+
+## Fly.io
+
+- **Free tier removed 2024** — used to have 3 shared-CPU 256MB VMs free.
+- **Current:** pay-as-you-go with a $5/mo minimum.
+- **First paid dollar:** $5/mo covers a shared-CPU-1x 256MB machine (small server) + tiny Postgres.
+- **When to pick:** long-running server (Node/Bun/Python/Rust), close-to-users deployment, need TCP/UDP.
+- **When to skip:** you don't need long-running; Vercel/Cloudflare cheaper for HTTP.
+- **Ideal for:** Fastify/Hono/Elixir apps, workers, real-time servers.
+
+## Supabase
+
+- **Free (per project):**
+  - 500 MB Postgres storage
+  - 5 GB egress / mo (Postgres data transfer)
+  - 1 GB file storage
+  - 50k monthly active users (Auth)
+  - 500 MB Edge Function invocations
+  - 2 projects free (rest go to paused after 7 days inactivity)
+- **First paid dollar:** Pro at $25/mo (8 GB Postgres, unlimited MAU, no pause).
+- **When free is enough:** MVPs, side projects up to ~1000-5000 users.
+- **When free breaks:** cumulative egress (mobile apps that sync a lot burn 5GB fast); MAU cap at 50k.
+- **Ideal for:** Postgres + auth + storage + realtime in one; BaaS.
+
+## Neon (serverless Postgres)
+
+- **Free:** 0.5 GB storage, 190 compute-hours/mo, 5 GB egress/mo, unlimited branches.
+- **First paid dollar:** Launch at $19/mo (10 GB, 300 compute-hours, autoscaling).
+- **When free is enough:** low-traffic apps, dev/staging branches, prototypes.
+- **Ideal for:** serverless Postgres with branching (feature branches get their own DB).
+
+## Railway
+
+- **Free trial:** $5 one-time credit, then metered ($0.000463/GB-hr RAM, $0.000231/vCPU-hr).
+- **Hobby ($5/mo):** $5 in usage included = ~500 hours of a 512MB service.
+- **When to pick:** Postgres + web + workers all-in-one; hate config.
+- **Ideal for:** full-stack side projects that want everything managed.
+
+## Render
+
+- **Free tier:** 750 hrs/mo of static sites, one 512MB web service (sleeps after 15 min inactivity), Postgres free tier discontinued 2024.
+- **First paid dollar:** $7/mo for always-on web service, $7/mo Postgres 256MB.
+- **When to pick:** want the Heroku-simple UX without Heroku's pricing.
+- **Ideal for:** hobby web apps that need real Postgres + real Node server.
+
+## Firebase
+
+- **Spark (free):** 1 GB Firestore storage, 50k reads/day, 20k writes/day, 5 GB Cloud Storage, unlimited Auth users (email/social), 2M Cloud Functions invocations/mo.
+- **First paid dollar:** Blaze (pay-as-you-go), no monthly minimum, cheap at low traffic.
+- **When to pick:** real-time sync + offline-first mobile, or Google ecosystem integration.
+- **When to skip:** you dislike Google, or Postgres RDBMS is a better fit than Firestore's document model.
+- **Ideal for:** mobile-first apps with offline sync (Firestore's real strength).
+
+## Convex
+
+- **Free:** 1M function calls/mo, 1 GB storage, 8 GB egress, unlimited DB size.
+- **First paid dollar:** Pro at $25/mo.
+- **When to pick:** want reactive DB + backend + TS-native + real-time in one, and don't want to touch SQL.
+- **When to skip:** you want vendor-neutral (Convex is not open-source).
+- **Ideal for:** real-time collab apps, chat, live dashboards.
+
+## Turso (distributed libSQL)
+
+- **Free (Starter):** 500 DBs, 9 GB total, 1B row-reads/mo, 25M writes/mo, unlimited replicas.
+- **First paid dollar:** Scaler at $29/mo.
+- **When to pick:** edge SQLite, per-tenant DBs cheap, offline-first mobile.
+- **Ideal for:** apps where each user/team gets their own DB.
+
+## Hetzner (bare VPS)
+
+- **Cheapest option:** €4.51/mo (~$5) for CX22: 2 vCPU, 4 GB RAM, 40 GB SSD, 20 TB bandwidth.
+- **When to pick:** you want to own the box, know Docker, don't need managed services.
+- **When to skip:** solo dev without ops knowledge.
+- **Ideal for:** self-hosted deployments, control freaks, cost-per-GB games.
+
+## DigitalOcean
+
+- **Droplet:** $4/mo for 512MB / 1 vCPU / 10 GB SSD / 500 GB bandwidth.
+- **App Platform:** free tier 3 static sites; $5/mo web services.
+- **Managed Postgres:** $15/mo starter.
+- **When to pick:** want managed Postgres + simple UI + credit card only.
+
+---
+
+## Deploy pattern matrix (per stack)
+
+Cross-reference to pick the right deploy target per pick:
+
+| Stack | Primary deploy | Free at scale? |
+|---|---|---|
+| Next.js + Supabase | Vercel Hobby + Supabase Free | Yes, to ~1k active users. |
+| Next.js + Neon + Auth.js | Vercel Hobby + Neon Free | Yes, to ~500 users. |
+| Hono + Cloudflare | Workers Free | Yes, to 100k req/day. |
+| Fastify + Postgres | Fly.io ($5/mo) + Neon Free | ~$5/mo minimum. |
+| Astro static | Cloudflare Pages / Vercel Hobby | Yes, indefinitely. |
+| Expo React Native | EAS Free + Supabase Free | Yes, but EAS Free has 30 builds/mo cap. |
+| Capacitor wrapping PWA | Vercel + Capacitor CLI local | Yes; TestFlight/Play Console fees apply for stores. |
+| SwiftUI iOS-only | Xcode Cloud Free (25 hrs/mo) + Supabase Free | Yes, low volume. |
+| MCP server (Node) | Fly.io or Railway ($5/mo) | ~$5/mo minimum. |
+| CLI (npm-distributed) | GitHub Releases (free) + npm publish (free) | Yes. |
+
+---
+
+## Watch-outs (free tier gotchas)
+
+- **Supabase pauses free projects after 7 days inactivity.** Auto-resumes on hit but 5-10s cold start. Fine for MVPs, bad for daily users.
+- **Vercel Free is "personal use only" per ToS.** Commercial products should be on Pro ($20/mo).
+- **Firebase Firestore free tier is per-day, not per-month.** 50k reads/day = ~1.5M/mo — hitting caps in bursts is common.
+- **Cloudflare Workers Free CPU limit is 10ms.** If your endpoint does image transform / crypto, you'll blow past it. Bump to Paid $5/mo.
+- **RevenueCat is free up to $2.5k MTR/mo.** Above that you pay 1% of tracked revenue. Watch the pricing page.
+- **Neon Free autoscales down to 0 compute after 5 min inactivity.** Cold start ~1s. Fine for prototypes, bad for consumer apps.
+- **Fly.io pricing charges per second of machine wall-time,** not per request. A 24/7 tiny machine is ~$3/mo; auto-suspending it makes it ~$1-2/mo.

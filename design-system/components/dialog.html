@@ -1,0 +1,42 @@
+<!-- @dsCard group="Components" name="Dialog" subtitle="Modal + backdrop, destructive-primary pattern" viewport="640x520" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dialog · Nothing Superapp</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .stage { position: relative; height: 380px; border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); }
+  .stage .dialog-backdrop { position: absolute; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Modal</span><span class="idx">01</span></div>
+    <div class="stage">
+      <div class="dialog-backdrop" role="presentation">
+        <div class="dialog" role="dialog" aria-labelledby="dtitle">
+          <span class="label label-strong">Confirm</span>
+          <h3 class="dialog-title" id="dtitle">Delete this project?</h3>
+          <p class="dialog-body">This will permanently remove the project and its 47 assets. This action cannot be undone.</p>
+          <div class="dialog-actions">
+            <button class="btn btn-secondary">Cancel</button>
+            <button class="btn btn-destructive">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption" style="margin-top: var(--space-4);">Destructive primary uses the accent outline — not a red-filled button — so it reads as “stop and read” rather than “tap without thinking”.</p>
+  </div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,233 @@
+# Interactive Question Flow -- stack-architect
+
+Ask in batches of 2-4 per turn. If a PRD / design system / brief was provided in Phase 1, skip anything those files already answered -- but surface inferred answers in the final lock summary so the user can override.
+
+---
+
+## Batch 1 -- Product + primary target
+
+### Q1. Product concept (short-answer, not multi-choice)
+
+"Describe the product in one paragraph -- what does it do, who's it for. I'll paraphrase this into the blueprint's summary."
+
+Skip if a `brief.md` / `PRD.md` was already read.
+
+### Q2. Primary distribution target
+
+Question: "What's the PRIMARY surface the product ships on? (You can add secondary targets next.)"
+Header: `Primary target`
+Options:
+- `Web (browser only)` -- Desktop-first web app. Cookie-based session. No PWA install. Fastest to ship.
+- `PWA (installable web)` -- Progressive web app. Installs to home screen. Offline-capable. Works on iOS + Android + desktop. Best "one codebase, many surfaces" default.
+- `Native iOS + Android (React Native / Expo)` -- Real native, one codebase (RN + Expo). App Store distribution.
+- `Native iOS + Android (Capacitor from PWA)` -- Wrap the PWA in native shells. Same codebase as web + PWA.
+- `Native iOS only (SwiftUI)` -- Apple-only, deep platform integration.
+- `Cross-platform desktop (Tauri)` -- Rust core + web UI. macOS + Windows + Linux.
+- `API-only (backend service)` -- No UI. REST or GraphQL.
+- `MCP server` -- Model Context Protocol server exposed to Claude/Cursor/etc.
+- `CLI` -- Command-line tool.
+- `Other -- I'll describe it`
+
+Default: `PWA` (broadest reach with one codebase).
+
+### Q3. Secondary targets (multi-select, optional)
+
+Question: "Does the product also ship to other surfaces? (Multi-select -- pick all that apply.)"
+Header: `Also ships to`
+Options: same list as Q2, plus `None -- primary only`.
+
+Default: `None`.
+
+Note: if primary is PWA and secondary picks native, the recipe auto-selects Capacitor (shared codebase). If primary is web and secondary picks native, the recipe splits codebases (rare -- confirm).
+
+---
+
+## Batch 2 -- Technology preferences (skip if user has none)
+
+### Q4. Preferred frontend framework (if any)
+
+Question: "Any preferred frontend framework, or should I pick?"
+Header: `Frontend pref`
+Options:
+- `Next.js (React)` -- The default for PWA + web. Route Handlers give you a backend for free.
+- `Remix (React)` -- If SSR + form-heavy is the primary UX.
+- `SvelteKit` -- If you love Svelte / want smallest JS bundle.
+- `Nuxt (Vue)` -- If team knows Vue.
+- `Astro` -- Content-heavy sites with light interactivity.
+- `SolidStart` -- Bleeding-edge React-alternative.
+- `You pick`
+
+Default: `Next.js` for PWA/web; `Expo Router` for React Native; framework-specific for native.
+
+### Q5. Preferred backend approach
+
+Question: "How should the backend look?"
+Header: `Backend`
+Options:
+- `Frontend-integrated (Next.js Route Handlers / Remix actions / SvelteKit endpoints)` -- One codebase, one deploy. Simplest.
+- `Backend-as-a-Service (Supabase / Firebase / Convex)` -- Managed Postgres + auth + storage + real-time. Fastest for CRUD.
+- `Serverless functions (Cloudflare Workers / AWS Lambda)` -- Edge-first, pay-per-request, sub-100ms cold starts on Cloudflare.
+- `Long-running server (Fastify / Hono / FastAPI)` -- When you need websockets, cron, or heavy background jobs.
+- `You pick`
+
+Default: `Frontend-integrated` for CRUD apps; `BaaS` when auth + storage + real-time are needed and you're solo; `Long-running server` when the product IS the API.
+
+### Q6. Preferred database
+
+Question: "Preferred database?"
+Header: `Database`
+Options:
+- `Postgres` -- The default. Relational, robust, extensible, JSON-columns for flexibility.
+- `SQLite` -- If offline-first / edge / mobile. Turso for hosted SQLite.
+- `Cloudflare D1` -- Edge SQLite via Cloudflare. Free tier is generous.
+- `DynamoDB` -- Only if AWS-native + massive scale.
+- `MongoDB` -- Only if the data model is truly document-shaped.
+- `Convex` -- Reactive DB + backend combined. Great DX, has free tier.
+- `None -- client-only` -- Local storage / IndexedDB. Some utilities don't need a server.
+- `You pick`
+
+Default: `Postgres` (Supabase or Neon). `None` if the product is a pure client-side tool.
+
+---
+
+## Batch 3 -- Hosting + auth + payments
+
+### Q7. Preferred hosting
+
+Question: "Any hosting preference, or should I pick free-first?"
+Header: `Hosting`
+Options:
+- `Vercel` -- Best-in-class Next.js DX. Free Hobby tier.
+- `Cloudflare Pages / Workers` -- Cheapest at scale. Free tier: unlimited requests.
+- `Fly.io` -- Long-running servers, close to users. Free-tier deprecated but ~$5/mo.
+- `Railway` -- Postgres + web + workers all-in-one. Free trial then $5/mo.
+- `Netlify` -- Similar to Vercel, less Next.js optimized.
+- `Render` -- Full-stack + managed Postgres.
+- `Self-hosted VPS (Hetzner / DigitalOcean)` -- If control matters more than convenience.
+- `You pick, free-first`
+
+Default: `You pick, free-first` = Vercel Hobby for Next.js PWA, Cloudflare Pages for static, Fly.io for long-running.
+
+### Q8. Auth approach
+
+Question: "What auth do users go through?"
+Header: `Auth`
+Options:
+- `Social OAuth (Google + Apple)` -- The mobile-first default. Handled by Supabase/Clerk/Auth.js.
+- `Email + magic link` -- Passwordless. Least friction after social.
+- `Passkeys (WebAuthn)` -- The future. Growing device support.
+- `Email + password` -- Classic. Only if audience expects it.
+- `SSO (SAML/OIDC)` -- For B2B / enterprise.
+- `Anonymous / device ID` -- No signup. Good for utilities.
+- `You pick`
+
+Default: `Social OAuth (Google + Apple)` for consumer; `Email + magic link` for prosumer; `Anonymous` for pure utility.
+
+### Q9. Payments (if any)
+
+Question: "Does the product take payments?"
+Header: `Payments`
+Options:
+- `No -- free product` -- Skip payments layer.
+- `Subscription (Stripe / RevenueCat)` -- Recurring. Stripe web + RevenueCat native for cross-platform.
+- `One-time (Stripe Checkout)` -- Single purchase per user.
+- `Marketplace (Stripe Connect)` -- Split payouts between multiple sellers.
+- `Crypto (Coinbase Commerce)` -- Only if the product is crypto-native.
+- `Later -- ship free first`
+
+Default: `Subscription` if the product concept mentions "$/mo" or "premium"; else `No`.
+
+---
+
+## Batch 4 -- Budget + team + urgency + rules
+
+### Q10. Budget tier
+
+Question: "What monthly infra budget?"
+Header: `Budget`
+Options:
+- `Free ($0/mo)` -- Must run entirely on free tiers. Accept lower ceilings + potential scale walls.
+- `Bootstrap (<$50/mo)` -- Small paid upgrades where they meaningfully change the product (custom domain, better email deliverability, higher DB tier).
+- `Funded (<$500/mo)` -- All the ergonomic upgrades (Vercel Pro, Supabase Pro, Sentry Team, etc.).
+- `Enterprise (uncapped)` -- Managed everything, SOC2-compliant vendors, dedicated support.
+
+Default: `Free` for side projects; `Bootstrap` for indie SaaS; `Funded` for VC-backed.
+
+### Q11. Team size
+
+Question: "Team size shipping this?"
+Header: `Team`
+Options:
+- `Solo` -- Optimize for one-brain simplicity. Monorepo OK. Skip elaborate CI. No IaC yet.
+- `2-5` -- Monorepo, basic CI, simple deploy previews.
+- `5-15` -- Polyrepo or monorepo with clear ownership. Real CI. Preview envs.
+- `15+` -- Polyrepo, IaC (Terraform), staging + prod, on-call.
+
+Default: `Solo`.
+
+### Q12. Ship urgency
+
+Question: "Ship by when?"
+Header: `Urgency`
+Options:
+- `This week` -- Boring choices only. No new frameworks. Use the "recipe" as-is.
+- `This month` -- Some room to learn one new tool if it saves time downstream.
+- `This quarter` -- Room for one strategic bet (a new framework, a new language).
+- `Whenever` -- Optimize for long-term maintainability over ship speed.
+
+Default: `This month`.
+
+### Q13. Hard rules -- what we WON'T use (short-answer)
+
+Question: "Anything off-limits? (No Firebase, no Vercel, no Google, no npm, must be TypeScript, must run on-prem, etc.) Blank = no constraints."
+
+Skip if user says none.
+
+### Q14. Compliance / geography (short-answer, only ask if relevant)
+
+Ask only if the product handles PII / health / financial data or ships in EU:
+
+Question: "Any compliance or data-residency needs? (GDPR / HIPAA / SOC2 / EU-only, etc.)"
+
+---
+
+## Lock preview (Phase 2 exit)
+
+```
+LOCKED CONSTRAINTS -- confirm to recommend?
+
+  Product        . <one-line concept>
+  Primary        . PWA
+  Secondary      . iOS + Android (Capacitor)
+  Frontend pref  . Next.js (default)
+  Backend pref   . BaaS (Supabase)
+  DB pref        . Postgres
+  Hosting pref   . You pick, free-first
+  Auth           . Social OAuth (Google + Apple)
+  Payments       . Subscription (Stripe + RevenueCat)
+  Budget         . Free ($0/mo)
+  Team           . Solo
+  Urgency        . This week
+  Off-limits     . None
+  Compliance     . GDPR (EU users)
+
+  Reply "recommend it" and I'll propose the full stack.
+```
+
+If the user says "change X to Y", update in place. Do not re-ask other questions.
+
+---
+
+## Special routings
+
+### Fresh product path
+Full flow above.
+
+### One-layer path (skip most)
+Ask only: which layer (frontend / backend / db / auth / payments / infra), what does it connect to (existing stack?), preference, budget, hard rules. Skip target questions.
+
+### Head-to-head path
+Ask: which alternates to compare (max 3), what dimensions matter (cost / DX / scale / lock-in / team-familiarity). Skip most preference questions. Output is a comparison matrix + a recommendation.
+
+### Ambiguous answers
+If the user hedges ("whatever you think"), commit to the default silently. The lock preview is the safety net.

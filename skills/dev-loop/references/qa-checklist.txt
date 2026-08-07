@@ -1,0 +1,105 @@
+# QA Checklist -- before + during + after each loop
+
+Three checkpoints: pre-Phase-4 (before user approves), pre-Phase-7 (before delivery report), and post-Phase-7 (for retro).
+
+---
+
+## Pre-Phase 4 (before printing task pack to user)
+
+### Files exist
+
+- [ ] `docs/dev-loop/<slug>/spec.md` exists and is not the stub template
+- [ ] `docs/dev-loop/<slug>/tier-config.yaml` exists with harness auto-detected fields filled
+- [ ] `docs/dev-loop/<slug>/deps.json` exists and parses as valid JSON
+- [ ] `docs/dev-loop/<slug>/tasks/*.md` -- at least one file, all following the 10-section template
+- [ ] `docs/dev-loop/<slug>/status.json` exists with all tasks marked `pending`
+
+### Spec quality
+
+- [ ] Every one of the 13 spec sections is filled -- no placeholder text
+- [ ] Definition of done is a shell command, not adjectives
+- [ ] Stack pins section cites specific `stack-blueprint.md § N` references
+- [ ] Design pins section names specific classes/tokens from `design-system/styles.css`
+- [ ] Non-goals list has ≥ 3 items (feature is properly bounded)
+- [ ] Rollback plan is a specific procedure, not "revert the commit"
+
+### Task pack integrity
+
+- [ ] Every task has all 10 required sections (see `references/task-brief-anatomy.txt`)
+- [ ] No two tasks share an owned file (grep across task files -- must be zero overlap)
+- [ ] Every task's `blocked_by` list references only real task IDs
+- [ ] Dependency graph is a DAG -- no cycles (validate with `scripts/build-taskpack.mjs --validate-deps`)
+- [ ] Every task ≤ 200 LOC / 3 new files projected, OR has an explicit oversize justification in frontmatter
+- [ ] Every task's DoD command is copy-pasteable and doesn't reference paths outside the task's owned surface
+- [ ] Every task has a stop condition (default 15 turns, or overridden with explicit `max_worker_turns`)
+- [ ] Every task's tier map is filled with valid model names (matching `tier-config.yaml` allowed values)
+
+### Tier config sanity
+
+- [ ] `mode` is one of `advisor` | `direct` | `manual`
+- [ ] `defaults.executor / advisor / judge` are all valid model IDs
+- [ ] For `mode: advisor` on Claude Code: `harness.features.advisor` is true (validated at Phase 0)
+- [ ] For `mode: manual`: `harness.features.parallel_workers` may be false -- that's fine
+
+---
+
+## Pre-Phase 7 (before printing delivery report)
+
+### All tasks reached a terminal state
+
+- [ ] `status.json` shows every task as `done` | `failed` | `blocked-needs-review`
+- [ ] No task in `pending` | `running` | `drift`
+- [ ] If any task is `failed` -- reason is in `judge-log.md` (not a mystery)
+- [ ] If any task is `blocked-needs-review` -- surfaced explicitly in the delivery report
+
+### Feature-level DoD
+
+- [ ] The spec-level DoD command has been run at the branch HEAD
+- [ ] Exit code captured + output logged to `progress.md`
+- [ ] If exit != 0 -- delivery report says so honestly, doesn't hide it
+
+### Branch state
+
+- [ ] Branch exists and is pushed OR is local-only (user's choice; report clearly)
+- [ ] Commits are logical chunks per-task -- not one giant "implement feature" commit
+- [ ] Every commit message references the task ID it belongs to (e.g. `feat(task-03): calorie tile UI`)
+- [ ] `git status` is clean -- no uncommitted changes
+
+### Watch-mode audit
+
+- [ ] Every `[watch]` intercept in `progress.md` has a corresponding spec amendment OR a "no action" note
+- [ ] No orphaned drift state -- if a task was marked `drift`, it either was requeued or the drift was resolved cleanly
+- [ ] Every advisor consultation in `decisions.md` has an "How it was applied" note
+
+### Deferred items
+
+- [ ] Every `blocked-needs-review` task is listed as deferred with a specific next-action
+- [ ] Every user amendment that was rejected (rare) is listed with the reason
+- [ ] Every over-budget signal (executor tokens > budget, advisor tokens > budget) is called out
+
+---
+
+## Post-Phase 7 (retro -- optional but recommended)
+
+### For the current run
+
+- [ ] Did the initial estimate of task count match reality? (delta > ±25% is a signal that Phase 3 sizing was off)
+- [ ] Did any tasks fail 3× with the same complaint? → spec was ambiguous; capture the lesson.
+- [ ] Did the advisor get consulted more than budgeted? → tier assignment was wrong; upgrade executor next time.
+- [ ] Were there watch-mode amendments? → Phase 1 was incomplete; deepen the intake next time.
+
+### For future runs (skill improvements)
+
+- [ ] Any advisor consultation that got the SAME answer twice across tasks → bake into spec template.
+- [ ] Any task type that fell out of the 10 tier-routing rows → add a new row to `references/tier-routing.txt`.
+- [ ] Any judge complaint that's structurally identical to a prior run's complaint → add a check to `templates/spec.md.txt` to catch it earlier.
+
+---
+
+## Handoff QA (before ending the invocation)
+
+- [ ] Delivery report is printed (see SKILL.md § Phase 7)
+- [ ] `status.json` overall `run_state` is set: `done` | `paused` | `cancelled`
+- [ ] `progress.md` has a `## Run closed` section with final timestamp
+- [ ] User has been asked the "next step" question (land/deploy/PR/nothing) and their answer is logged
+- [ ] If handoff to another skill: the invocation is printed for the user to copy-paste (don't auto-invoke)

@@ -1,0 +1,154 @@
+# Phase 1 Question Flow -- eliminate ambiguity in one round-trip
+
+Ask via `AskUserQuestion` (Claude Code) or plain-text prompts (other harnesses). Batches of 2-4 per turn. If the raw requirement OR the files under `docs/` already answer a question, skip it -- do NOT re-ask what is already stated.
+
+Before Phase 1 batches, ALWAYS do these silent reads first:
+- `docs/architecture/stack-blueprint.md` -- pin every tech choice for the spec
+- `design-system/styles.css` (or the project's equivalent) -- pin every visual choice
+- `docs/dev-loop/*/spec.md` (all prior features) -- check for surface overlap
+- The raw requirement text itself, re-read twice
+
+---
+
+## Batch A -- Outcome + scope (skip anything the requirement answered)
+
+### Q1. Concrete outcome
+
+- Question: "When this feature ships, what can a user do that they can't do today?"
+- Why: Forces the requirement into user-observable language before any code. Distinguishes user-facing features from internal refactors -- different spec shape.
+- Format: short-answer, one to two sentences.
+- Header: `Outcome`
+- Default: if the raw requirement is already crisp on this, skip.
+
+### Q2. Non-goals (what stays untouched)
+
+- Question: "What's IN scope, and what's explicitly OUT of scope? A 'non-goals' list is mandatory -- it's how we stop the spec from ballooning."
+- Why: Every feature grows unless bounded. Non-goals list is what the executor uses to refuse tempting side-quests.
+- Format: short-answer, bullet list.
+- Header: `Scope`
+- Default: don't skip. If the user shrugs, propose 3-5 candidate non-goals and let them accept/reject.
+
+### Q3. Owned surface (files/paths the change lives in)
+
+- Question: "Which files or directories does this feature LIVE in? Best guess is fine -- we'll refine at Phase 3."
+- Why: Owned surface anchors the task-decomposition. Also seeds the "off-limits for other tasks" list.
+- Format: short-answer, paths only.
+- Header: `Owned`
+- Default: if the user isn't sure, derive from stack blueprint's folder-convention section + best guess.
+
+### Q4. Immutable surface (files/paths that MUST NOT change)
+
+- Question: "Anything that must NOT be touched by this feature? (public API contracts, migrations already in prod, design tokens, third-party integrations)"
+- Why: Boundary violations are the #1 way agents damage a codebase. Explicit immutability lets the judge hard-fail.
+- Format: short-answer, paths + reasons.
+- Header: `Immutable`
+- Default: at minimum, `design-system/styles.css` + `stack-blueprint.md` + any file with a `# LOCKED` header comment.
+
+---
+
+## Batch B -- Reuse + definition of done
+
+### Q5. Existing patterns to reuse
+
+- Question: "Which existing helpers, hooks, tables, endpoints, or components does this feature reuse? (Reuse > invent. Every reused pattern is one less thing to review.)"
+- Why: Nothing kills a codebase faster than 5 slightly-different versions of the same helper. Force reuse at spec time.
+- Format: short-answer, named items.
+- Header: `Reuse`
+- Default: if the user doesn't know, grep the codebase yourself for likely reusables based on the outcome (Q1), propose them, and confirm.
+
+### Q6. Definition of done (evidence-based)
+
+- Question: "What single shell command / manual check proves this feature shipped correctly? Not adjectives -- an exit code, a screenshot, a test run."
+- Why: The oracle. Every task's DoD builds off this feature-level DoD. Without it, judges have nothing to check.
+- Format: short-answer, ideally a shell one-liner or explicit manual-check sequence.
+- Header: `DoD`
+- Default: propose one based on the stack (`pnpm test <path> && pnpm lint <path>`) and get sign-off.
+
+### Q7. Rollback plan
+
+- Question: "If this ships broken, how do we undo it? (git revert is fine for pure code; DB migrations + Stripe products need explicit rollback plans.)"
+- Why: Ship-week features go to prod fast. A rollback plan is cheap insurance.
+- Format: short-answer.
+- Header: `Rollback`
+- Default: `git revert` for pure code; explicit down-migration for schema; Stripe deactivate for products; feature-flag off for gated rollouts.
+
+---
+
+## Batch C -- Hard constraints (skip if none)
+
+### Q8. Performance budget (only ask if it's a perf-sensitive feature)
+
+- Question: "Any perf budget? (p95 API latency, bundle size cap, first-load KB, TTI)"
+- Header: `Perf`
+- Default: skip unless the feature touches request-path, bundle, or a critical rendering surface.
+
+### Q9. Browser / platform support minimum
+
+- Question: "Minimum browser / OS / device support this feature needs to work on?"
+- Header: `Support`
+- Default: inherit from stack blueprint's Support section.
+
+### Q10. Data-model changes
+
+- Question: "Does this feature need new DB tables / columns / migrations? Give me the shape best-guess."
+- Why: Migrations are the most-fragile surface. Naming them early prevents naming churn during execution.
+- Format: short-answer, Drizzle-ish schema sketch OK.
+- Header: `Data`
+- Default: skip if the feature is pure UI or pure client-side.
+
+---
+
+## Clarified-requirement summary (Phase 1 exit)
+
+Before Phase 2, print:
+
+```
+CLARIFIED REQUIREMENT -- <feature-slug>
+
+  Outcome     . <one sentence from Q1>
+  Scope       . in: <bullets>  out: <bullets from Q2>
+  Owned       . <paths from Q3>
+  Immutable   . <paths from Q4>
+  Reuse       . <named items from Q5>
+  DoD         . <shell command from Q6>
+  Rollback    . <one-line from Q7>
+  Perf        . <from Q8 or "none">
+  Support     . <from Q9 or "inherits from stack blueprint">
+  Data        . <schema sketch from Q10 or "no schema change">
+
+  Stack pins (from stack-blueprint.md):
+    - <every choice this feature depends on, cited by § number>
+
+  Design pins (from design-system/styles.css):
+    - <every class / token this feature will use>
+
+  Reply "lock it" to draft the formal spec (Phase 2), or tell me what to change.
+```
+
+If the user says "change X to Y", update in place and reprint. Do NOT re-ask questions the summary already reflects.
+
+---
+
+## Special routings
+
+### Requirement-came-from-conversation path
+
+If the user's request is essentially "we've been talking about X, let's build it," and the prior turns in the conversation have all the answers -- SKIP THE BATCHES. Synthesize the clarified-requirement summary from the conversation and go straight to the summary + lock gate. This mirrors the `to-prd` skill's "no interview" mode.
+
+### Requirement-is-a-bug-fix path
+
+Bug fixes have a different Phase 1 shape:
+- Q1 becomes: "What's the wrong behavior, and what's the correct behavior?"
+- Q6 becomes: "What test asserts the correct behavior? (If none exists, that's task 01.)"
+- Skip Q3, Q4 -- bug scope is usually named in the bug report itself.
+- Add a Q3': "Root cause -- have you diagnosed it, or should the loop investigate first?"
+
+### Requirement-is-a-refactor path
+
+Refactors have no user-facing outcome. Different Phase 1:
+- Q1 becomes: "What pain does this refactor relieve? (e.g. 'settings module is 1200 lines and untestable')"
+- Q6 becomes: "The behavior MUST NOT change. What test suite proves that?" + "What NEW property does the refactor add? (testability, extensibility, perf)"
+
+### Ambiguous answers
+
+If a user hedges ("I don't know, whichever"), commit to the default silently. The Phase 1 summary + lock gate is the safety net.

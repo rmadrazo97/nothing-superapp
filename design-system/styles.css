@@ -1,0 +1,351 @@
+/* Nothing Superapp — design-system tokens and component classes.
+   This file is the source of truth for the system's look. Retune here and see readme.md. */
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  /* — ground + surfaces — */
+  --color-bg:              #000000;
+  --color-surface:         #111111;
+  --color-surface-raised:  #1A1A1A;
+  --color-border:          #222222;           /* decorative dividers */
+  --color-border-visible:  #333333;   /* intentional borders */
+
+  /* — text opacity ladder (4 tiers — the whole hierarchy) — */
+  --color-text-display:    #FFFFFF;     /* hero numbers, headlines */
+  --color-text-primary:    #E8E8E8;     /* body copy */
+  --color-text-secondary:  #999999;   /* labels, captions */
+  --color-text-disabled:   #666666;    /* disabled, timestamps */
+
+  /* — accent (a signal light, never a decoration) — */
+  --color-accent:          #D71921;
+  --color-accent-subtle:   color-mix(in srgb, #D71921 15%, transparent);
+
+  /* — status (encode data values, not chrome) — */
+  --color-success: #4A9E5C;
+  --color-warning: #D4A843;
+
+  /* — tonal ramps (primitive tier, OKLCH-derived — regen via scripts/generate-ramps.mjs) — */
+  --color-neutral-100: #faf3f2;
+  --color-neutral-200: #eae3e1;
+  --color-neutral-300: #d3cccb;
+  --color-neutral-400: #b3acab;
+  --color-neutral-500: #97908f;
+  --color-neutral-600: #76706f;
+  --color-neutral-700: #575150;
+  --color-neutral-800: #373130;
+  --color-neutral-900: #1a1514;
+
+  --color-accent-100: #ffb3a3;
+  --color-accent-200: #ffa293;
+  --color-accent-300: #ff8a7d;
+  --color-accent-400: #ff685e;
+  --color-accent-500: #fb4742;
+  --color-accent-600: #d3111d;
+  --color-accent-700: #ab0000;
+  --color-accent-800: #800000;
+  --color-accent-900: #550000;
+
+
+  /* — type: 3-family stack (display / body / label) — */
+  --font-display:          "Doto", "Space Mono", "SF Mono", monospace;
+  --font-display-weight:   700;
+  --font-body:             "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body-weight:      400;
+  --font-label:            "Space Mono", "SF Mono", Menlo, monospace;
+
+  /* — type scale (fixed; density does NOT scale type) — */
+  --text-display-xl:  72px;   /* --lh 1.0  --tracking -0.03em  — hero numbers, time */
+  --text-display-lg:  48px;   /* --lh 1.05 --tracking -0.02em  — section heroes */
+  --text-display-md:  36px;   /* --lh 1.1  --tracking -0.02em  — page titles */
+  --text-heading:     24px;   /* --lh 1.2  --tracking -0.01em  — section headings */
+  --text-subheading:  18px;   /* --lh 1.3  --tracking 0        — subsections */
+  --text-body:        16px;   /* --lh 1.5  --tracking 0        — body */
+  --text-body-sm:     14px;   /* --lh 1.5  --tracking 0.01em   — secondary body */
+  --text-caption:     12px;   /* --lh 1.4  --tracking 0.04em   — timestamps */
+  --text-label:       11px;   /* --lh 1.2  --tracking 0.08em UPPER — instrument labels */
+
+  /* — spacing (density 1× × 8px baseline; skips 5 + 7 by design) — */
+  --space-1: 3.20px;
+  --space-2: 6.40px;
+  --space-3: 9.60px;
+  --space-4: 12.80px;
+  --space-6: 19.20px;
+  --space-8: 25.60px;
+  --space-12: calc(var(--space-8) * 1.5);
+  --space-16: calc(var(--space-8) * 2);
+
+  /* — geometry — */
+  --radius-card:    14px;      /* cards, tiles, inputs */
+  --radius-compact: calc(14px * 0.5);   /* small chips, tags */
+  --radius-button:  999px;      /* pill (999px) or technical (4-8px) */
+
+  /* — motion — */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur-fast:   120ms;
+  --dur-medium: 220ms;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+/* — image treatment (none) — */
+/* No image treatment class — photographs render as-is. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Base layer — plain elements. No frameworks. No build step.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: var(--text-body); line-height: 1.5; font-weight: var(--font-body-weight); -webkit-font-smoothing: antialiased; }
+
+/* Headings default to body font (Space Grotesk). Use .display-* utilities for hero moments. */
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-body); font-weight: 400; margin: 0; }
+h1 { font-size: var(--text-display-md); line-height: 1.1;  letter-spacing: -0.02em; }
+h2 { font-size: var(--text-heading);    line-height: 1.2;  letter-spacing: -0.01em; }
+h3 { font-size: var(--text-subheading); line-height: 1.3; }
+h4 { font-size: var(--text-body);       line-height: 1.5; font-weight: 500; }
+p  { margin: 0; }
+a  { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { color: var(--color-text-display); }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+::selection { background: var(--color-accent-subtle); color: var(--color-text-display); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* — display type utilities (Doto / display face — 36px+ only) — */
+.display-xl { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: var(--text-display-xl); line-height: 1.0;  letter-spacing: -0.03em; color: var(--color-text-display); }
+.display-lg { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: var(--text-display-lg); line-height: 1.05; letter-spacing: -0.02em; color: var(--color-text-display); }
+.display-md { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: var(--text-display-md); line-height: 1.1;  letter-spacing: -0.02em; color: var(--color-text-display); }
+
+/* — label type (Space Mono ALL CAPS — the "instrument panel" tone) — */
+.label { font-family: var(--font-label); font-size: var(--text-label); line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+.label-strong { color: var(--color-text-primary); }
+.caption { font-family: var(--font-body); font-size: var(--text-caption); line-height: 1.4; letter-spacing: 0.04em; color: var(--color-text-secondary); }
+
+/* — data/number type (Space Mono, monospaced numerals) — */
+.data { font-family: var(--font-label); font-variant-numeric: tabular-nums; }
+
+/* — opacity utilities (the whole hierarchy in one place) — */
+.text-display   { color: var(--color-text-display); }
+.text-primary   { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-disabled  { color: var(--color-text-disabled); }
+.text-accent    { color: var(--color-accent); }
+
+/* — rules (last resort — prefer whitespace) — */
+.hr { height: 1px; border: 0; margin: var(--space-6) 0; background: var(--color-border); }
+.hr-visible { background: var(--color-border-visible); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Component layer — border-first (no default shadows).
+   Elevation utilities are opt-in for "card floating on colored ground".
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* — buttons (Space Mono, ALL CAPS, min-height 44px — a click, not a chime) — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  font-family: var(--font-label); font-weight: 500;
+  font-size: var(--text-body-sm); line-height: 1;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  min-height: 44px; padding: 12px 24px;
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  color: var(--color-text-primary);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.btn svg { display: block; }
+.btn:disabled { color: var(--color-text-disabled); border-color: var(--color-border); cursor: not-allowed; }
+
+.btn-primary { background: var(--color-text-display); color: var(--color-bg); border-color: var(--color-text-display); }
+.btn-primary:hover  { background: color-mix(in srgb, var(--color-text-display) 88%, transparent); border-color: transparent; }
+.btn-primary:active { background: color-mix(in srgb, var(--color-text-display) 78%, transparent); border-color: transparent; }
+.btn-secondary { border-color: var(--color-border-visible); color: var(--color-text-primary); }
+.btn-secondary:hover  { border-color: var(--color-text-primary); color: var(--color-text-display); }
+.btn-secondary:active { background: var(--color-surface-raised); }
+.btn-destructive { color: var(--color-accent); border-color: var(--color-accent); }
+.btn-destructive:hover  { background: var(--color-accent-subtle); }
+.btn-destructive:active { background: color-mix(in srgb, var(--color-accent) 25%, transparent); }
+.btn-ghost { padding-inline: 8px; color: var(--color-text-secondary); }
+.btn-ghost:hover  { color: var(--color-text-display); }
+.btn-ghost:active { color: var(--color-text-primary); }
+
+.btn-icon { min-width: 44px; padding: 0; width: 44px; height: 44px; }
+.btn-block { width: 100%; }
+
+/* Floating action button — a bold red pill (used for the one moment of interruption per screen) */
+.fab {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 999px;
+  background: var(--color-accent); color: var(--color-text-display);
+  border: 0; cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.fab:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--color-accent) 92%, white); }
+.fab:active { transform: translateY(0); }
+
+/* — tags (small labels — ALL CAPS Space Mono) — */
+.tag {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-label); font-size: var(--text-label);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: var(--radius-compact);
+}
+.tag-accent  { background: var(--color-accent); color: var(--color-text-display); }
+.tag-subtle  { background: var(--color-accent-subtle); color: var(--color-accent); }
+.tag-neutral { background: var(--color-surface-raised); color: var(--color-text-secondary); }
+.tag-outline { border: 1px solid var(--color-border-visible); color: var(--color-text-secondary); }
+
+/* — inputs (underline preferred; full-border for form density) — */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+.input {
+  width: 100%; min-height: 44px;
+  padding: 10px 14px; font: inherit;
+  font-family: var(--font-label); font-size: var(--text-body-sm);
+  color: var(--color-text-primary); caret-color: var(--color-accent);
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--color-border-visible);
+  border-radius: 0;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.input::placeholder { color: var(--color-text-disabled); }
+.input:hover { border-bottom-color: var(--color-text-secondary); }
+.input:focus-visible { border-bottom-color: var(--color-text-primary); outline: none; }
+textarea.input { min-height: 96px; resize: vertical; padding-top: 12px; }
+
+/* Boxed input variant */
+.input-boxed {
+  border: 1px solid var(--color-border-visible);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.input-boxed:focus-visible { border-color: var(--color-text-primary); outline: none; }
+
+.radio { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: var(--text-body-sm); position: relative; }
+.radio input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.radio .dot {
+  width: 18px; height: 18px; flex: none; border-radius: 999px;
+  border: 1.5px solid var(--color-border-visible);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.radio:hover .dot { border-color: var(--color-text-secondary); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--color-border-visible);
+  border-radius: var(--radius-button);
+  padding: 3px;
+  gap: 2px;
+}
+.seg-opt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 16px; font-family: var(--font-label); font-size: var(--text-body-sm);
+  letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+  border-radius: calc(var(--radius-button) - 3px);
+  color: var(--color-text-secondary);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.seg-opt input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-text-display); }
+.seg-opt:not(:has(input:checked)):hover { color: var(--color-text-primary); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* — cards / tiles — the primary layout primitive (border-first, no default shadow) — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.card-raised { background: var(--color-surface-raised); border-color: var(--color-border-visible); }
+.card-accent { background: var(--color-accent); color: var(--color-text-display); border-color: var(--color-accent); }
+.card-accent .card-kicker { color: color-mix(in srgb, var(--color-text-display) 80%, transparent); }
+.card-accent .card-meta   { color: color-mix(in srgb, var(--color-text-display) 70%, transparent); }
+
+.card-kicker { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+.card-title  { font-family: var(--font-body);  font-size: var(--text-subheading); line-height: 1.3; font-weight: 500; color: var(--color-text-display); margin: 0; }
+.card-body   { margin: 0; font-size: var(--text-body-sm); color: var(--color-text-primary); flex: 1; }
+.card-meta   { display: flex; align-items: center; gap: 8px; font-family: var(--font-label); font-size: var(--text-caption); letter-spacing: 0.06em; color: var(--color-text-secondary); }
+
+/* Hero card — the one break-the-pattern moment per screen. Big Doto number, tiny label. */
+.card-hero {
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--space-2);
+  min-height: 180px;
+}
+.card-hero .value  { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: var(--text-display-xl); line-height: 1; letter-spacing: -0.03em; color: var(--color-text-display); }
+.card-hero .unit   { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); align-self: end; }
+
+/* Optional elevation (opt-in for "card floating on a colored ground" — the reference-image case) */
+.elev-sm { box-shadow: 0 2px 8px  color-mix(in srgb, #000 20%, transparent); }
+.elev-md { box-shadow: 0 8px 24px color-mix(in srgb, #000 28%, transparent); }
+.elev-lg { box-shadow: 0 16px 48px color-mix(in srgb, #000 36%, transparent); }
+
+/* — navigation (bracketed / piped — the "instrument panel" tone) — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+.nav-brand { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: var(--text-heading); letter-spacing: -0.02em; margin-right: auto; color: var(--color-text-display); }
+.nav a {
+  font-family: var(--font-label); font-size: var(--text-label);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-text-disabled); text-decoration: none;
+  padding: 4px 0;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.nav a:hover { color: var(--color-text-primary); }
+.nav a[aria-current='page'] { color: var(--color-text-display); }
+
+/* — tables (Space Mono numerics, no zebra) — */
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); }
+.table th {
+  text-align: left; font-family: var(--font-label);
+  font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-text-secondary); font-weight: 400;
+  padding: 12px 16px; border-bottom: 1px solid var(--color-border-visible);
+}
+.table td { padding: 14px 16px; border-bottom: 1px solid var(--color-border); color: var(--color-text-primary); }
+.table td.num { font-family: var(--font-label); font-variant-numeric: tabular-nums; text-align: right; color: var(--color-text-display); }
+.table tbody tr:hover td { background: var(--color-surface-raised); }
+.table tbody tr[aria-selected="true"] td { background: var(--color-surface-raised); box-shadow: inset 2px 0 0 var(--color-accent); }
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, #000 60%, transparent);
+  backdrop-filter: blur(2px);
+}
+.dialog {
+  width: min(480px, 100%);
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-visible);
+}
+.dialog-title   { font-family: var(--font-body); font-weight: 500; font-size: var(--text-heading); color: var(--color-text-display); }
+.dialog-body    { font-size: var(--text-body); color: var(--color-text-primary); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-2); }
+
+/* — progress + status inline text — */
+.status-line { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+.status-line::before { content: '['; }
+.status-line::after  { content: ']'; }
+.status-ok    { color: var(--color-success); }
+.status-warn  { color: var(--color-warning); }
+.status-error { color: var(--color-accent); }

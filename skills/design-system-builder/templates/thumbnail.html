@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{SYSTEM_NAME}} — cover</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    html, body { height: 100%; }
+    body { margin: 0; display: grid; grid-template-columns: 1.6fr 1fr; background: var(--color-accent); font-family: var(--font-body); overflow: hidden; }
+    .mark { display: flex; flex-direction: column; justify-content: space-between; padding: 56px; overflow: hidden; }
+    .mark .kicker { font-family: var(--font-label); font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text-display) 70%, transparent); }
+    .mark h1 { margin: 0; color: var(--color-text-display); font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: clamp(80px, 14vw, 200px); line-height: 0.86; letter-spacing: -0.04em; }
+    .mark .meta { display: flex; justify-content: space-between; align-items: end; }
+    .mark .meta span { font-family: var(--font-label); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text-display) 70%, transparent); }
+    .strip { display: grid; grid-template-rows: repeat(4, 1fr); }
+    .strip i { display: block; }
+  </style>
+</head>
+<body>
+  <div class="mark">
+    <span class="kicker">Design system · v1</span>
+    <div>
+      <h1>{{SYSTEM_NAME}}</h1>
+      <div class="meta" style="margin-top: 40px">
+        <span>{{BAND}} · {{SCHEME}}</span>
+        <span>{{FONT_DISPLAY}} / {{FONT_BODY}} / {{FONT_LABEL}}</span>
+      </div>
+    </div>
+  </div>
+  <aside class="strip">
+    <i style="background: var(--color-bg)"></i>
+    <i style="background: var(--color-surface-raised)"></i>
+    <i style="background: var(--color-text-secondary)"></i>
+    <i style="background: var(--color-text-display)"></i>
+  </aside>
+</body>
+</html>

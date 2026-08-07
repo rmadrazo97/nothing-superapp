@@ -1,0 +1,229 @@
+# Watch Mode — consume user chat during Phase 5-6 as spec amendments (v0.2)
+
+Once the user says "execute" at Phase 4, dev-loop runs Phases 5-6 without gating. But the user might realize mid-flight that the spec is wrong, or a new constraint emerged, or a task is going the wrong direction. Watch mode is the protocol for handling that WITHOUT halting the loop.
+
+Core principle: **user chat is not chatter — it might be a spec amendment**. Every message during Phase 5-6 gets classified. Class A (spec amendments) require **explicit user confirmation before writing** — silent mutation is unrecoverable. Class C (questions) get answered inline without state change.
+
+**v0.2 changes from v0.1** (Fable panel review, applied):
+- Class A is now a **two-step commit** (classify + preview → user confirms → then write). No more silent spec mutation.
+- Drift matrix `done → pending` now runs an **impact filter** (Haiku call) to check if the amendment actually affects the completed task before invalidating.
+- Race conditions closed via **monotonic `spec_version`** — every spec.md write bumps it; every dispatch stamps it; every worker echoes it; every judge stamps it; verdicts against stale versions are discarded.
+- Watch mode **auto-off in more contexts** (CI env, no-TTY, generic harness, Ralph loops). Class D (cancel) always honored regardless.
+
+---
+
+## The intercept protocol
+
+At the top of EVERY orchestrator turn during Phase 5-6:
+
+1. **Check for user chat since last orchestrator turn.**
+2. If none → proceed with normal Phase 5 dispatch.
+3. If yes → run the classifier below, take the mapped action, then proceed.
+
+Never advance to worker dispatch without processing pending user chat first. This is what makes watch mode "watch" rather than "ignore".
+
+---
+
+## Message classifier — 5 classes
+
+### Class A — Spec amendment (structural change) — CONFIRM-GATED
+
+Signals (positive):
+- Says "change X to Y" / "add [thing] to the spec" / "the [thing] should [new behavior]"
+- References a spec section by number or a task by ID
+- Introduces a new acceptance criterion or non-goal
+- Changes a stack pin or design pin
+
+Signals (negative — treat as Class C question, NOT amendment):
+- Starts with `?` (explicit question prefix)
+- Contains "should we / wdyt / thinking about / considering / what if / could we"
+- Ends with a question mark
+- Uses conditional modals ("might", "could", "possibly")
+
+**Two-step commit action:**
+
+1. Classify + DRAFT the amendment diff to spec.md IN MEMORY. Do NOT write yet.
+2. Print to user:
+```
+[watch] I read this as a spec amendment. Preview:
+
+  spec.md § <section>:
+    - <line removed>
+    + <line added>
+
+  Affected tasks (if applied): [02, 04]
+
+  Reply "yes" to apply · "no" to treat as a question · or edit the summary and I'll re-preview.
+```
+3. **WAIT for user response.** Do NOT proceed with dispatch until user replies.
+4. If "yes" → write to spec.md, bump `spec_version`, mark affected tasks (see impact filter below), log to `progress.md`. Print `[watch] spec.md v<N> applied. Requeued <N> task(s). Continuing.`
+5. If "no" → treat original message as Class C (question), answer inline.
+6. If user edits the summary → re-draft the diff, re-preview, loop.
+
+**Never write to spec.md without an explicit "yes".** This is the single most important safety rail in watch mode.
+
+### Class B — Task-specific direction change
+
+Signals:
+- Says "for task NN, do X differently" / "task MM should use Y instead"
+- Doesn't require changing the spec, just how one task interprets it
+
+**Action** (no confirm gate — blast radius is one task, easily reverted):
+1. Print: `[watch] Task-level direction change for task NN detected.`
+2. Append the user's message verbatim to the task file under `## User direction (mid-flight)`.
+3. Mark task NN as `pending` (if `running`, wait for worker to complete then re-dispatch; if `done`, redo).
+4. Log to `progress.md`.
+5. Print: `[watch] task NN updated. Continuing.`
+
+### Class C — Question / status query
+
+Signals:
+- Prefixed with `?`
+- "How's it going?" / "What's the status of task NN?" / "Why did task 03 fail?" / "What's the current cost estimate?"
+- Any negative signal from Class A
+
+Action:
+1. Answer inline in a plain user-facing message. Read `status.json`, `progress.md`, `judge-log.md` to answer accurately.
+2. Do NOT modify any state.
+3. Do NOT re-dispatch.
+4. Return to normal orchestrator flow on next turn.
+
+### Class D — Cancel / halt — ALWAYS HONORED
+
+Signals:
+- "Stop" / "cancel" / "abort" / "pause the loop" / "halt"
+
+Action (works even when watch_mode is OFF — cancel is a control-plane signal, not a spec signal):
+1. Print: `[watch] Halt requested. Finishing in-flight workers, then stopping.`
+2. Do NOT dispatch new workers.
+3. Wait for `running` tasks to complete their current worker turn (do NOT kill mid-turn — that produces half-written files).
+4. Once all workers idle, print the current state: what's done, what was in-flight, what was pending.
+5. Update `status.json` — set overall `run_state: paused`.
+6. Print: `[watch] Loop paused. Resume with /dev-loop resume, or start a new run with /dev-loop.`
+7. Exit orchestrator turn.
+
+### Class E — Ambiguous / unclassifiable
+
+Action:
+1. Ask the user to clarify: "I got your message but I'm not sure if it's a spec amendment (I'll preview + confirm), a task-level tweak (I'll apply immediately), or just a question. Which is it?"
+2. Do NOT change state until user answers.
+3. Once user classifies, take action per that class.
+
+---
+
+## Impact filter — done → pending decision
+
+When the orchestrator applies a Class A amendment, it must decide which tasks are affected. `running`, `failed`, and `pending` tasks with an intersecting owned surface OR named-section reference get marked `drift` unconditionally. **`done` tasks are different** — re-executing a passed task can regress it on re-judge for reasons unrelated to the amendment, AND it burns tokens re-running work.
+
+For each `done` task in the candidate affected set, run a cheap Haiku call:
+
+```
+Amendment: <diff of spec.md>
+
+Task NN's owned surface: <list from task file>
+Task NN's acceptance criteria: <list from task file>
+
+Does this amendment change the correctness of task NN's completed work?
+Reply exactly one of: yes / no / uncertain
+```
+
+- `no` → leave task `done`, log `[watch] Amendment does not affect task NN (done, preserved).`
+- `yes` → mark `drift`, will requeue as `pending` on next turn.
+- `uncertain` → surface to user with the task NN's judge verdict + a suggested action; do NOT auto-invalidate.
+
+Filter cost: ~$0.001 per done-task per amendment. Trivially cheap vs re-running a whole task.
+
+---
+
+## Drift handling detail
+
+When a task is marked `drift`:
+
+### If task was `running`:
+- Current worker turn is IN FLIGHT. Do NOT kill it (killing mid-turn corrupts files).
+- Wait for current turn to complete.
+- When worker reports back with `read_spec_version: X`, orchestrator compares to current `spec_version`:
+  - If worker's version matches current: their output is fresh — proceed to judge.
+  - If worker's version is stale: discard their verdict, reset task to `pending`. Task file already has the amendment appended.
+
+### If task was `done`:
+- Ran impact filter above. Only marked `drift` if filter said `yes` or `uncertain`.
+- Reset status to `pending`. Move the "done" entry in `judge-log.md` under a `## Superseded by amendment at <timestamp>` heading (keep audit trail).
+- Task will be re-executed and re-judged against amended spec.
+
+### If task was `failed`:
+- Amendment might resolve the failure (or make it worse).
+- Reset status to `pending`, clear iteration count — give it a fresh 10 iterations.
+- Note in task file: "Amended after previous failure — prior judge complaints may or may not still apply".
+
+---
+
+## Race conditions — closed via monotonic spec_version
+
+v0.1 relied on `spec.md` mtime for stale-detection. Mtime has 1-second resolution on many filesystems and is not monotonic under clock skew. **v0.2 uses monotonic `spec_version` instead.**
+
+**Protocol:**
+1. `spec.md` header carries `spec_version: N` (starts at 1 at Phase 2, bumps by 1 on every Class A confirm-applied amendment).
+2. When orchestrator dispatches a worker: writes `spec_version_at_dispatch: N` in the task's frontmatter (via mutation of the task file BEFORE handing to worker).
+3. Worker echoes `read_spec_version: N` in every `progress.md` entry.
+4. Judge stamps `judged_against_spec_version: N` in every verdict.
+5. Before accepting ANY worker/judge verdict: if current `spec_version > recorded version` → discard verdict, requeue task.
+
+This is ~30 lines of orchestrator code, deterministic, no clock dependency, closes all three races honestly:
+- Worker mid-write vs orchestrator amendment: worker's next turn sees `spec_version` bumped, reloads spec, replans.
+- Judge verdict stale: orchestrator rejects verdicts against older spec_version.
+- Parallel workers see different spec: each stamps its own `read_spec_version`; judge only accepts if it matches current.
+
+**Trade-off:** the orchestrator MUST mutate a task file (task frontmatter's `spec_version_at_dispatch` field) at dispatch time. Rule 16 forbids workers from doing this — orchestrator has a carve-out. Fine because the orchestrator IS the arbitrator of these files.
+
+*Implementation status: `scripts/run-orchestrator.mjs` and `scripts/watch-drift.mjs` currently use mtime. Migration to spec_version scheduled for v0.3. Until then, treat the mtime path as a soft mitigation — the confirm gate on Class A is the primary safeguard.*
+
+---
+
+## User expectations for watch mode
+
+Print this **banner at Phase 5 start** (not just quiet activation):
+
+```
+▶ Phase 5 executing. Watch mode ON.
+
+  Any message you send now might be a spec amendment.
+  - Prefix with "?" to ask a question without amending.
+  - Say "stop" / "cancel" to halt the loop cleanly.
+  - Spec amendments will PREVIEW + CONFIRM before writing.
+
+  Progress at any time: read docs/dev-loop/<slug>/status.json or progress.md.
+```
+
+This sets the contract explicitly. Users know what will happen to their chatter.
+
+Every intercept ALSO prints a `[watch]` line naming exactly what class it classified and what action it's taking. No silent mutations.
+
+---
+
+## When watch mode is OFF (auto + manual)
+
+**Auto-off** (dev-loop detects and disables silently, prints a note):
+- `mode: manual` in tier-config
+- `harness: generic` (no interactive chat channel)
+- No TTY detected (`process.stdout.isTTY === false`)
+- CI environment (any of `CI=true`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`, `BUILDKITE`, `JENKINS_HOME`)
+- Ralph loop invocation (env var `DEV_LOOP_RALPH=1`)
+
+**Manual-off:** set `watch_mode: false` in `tier-config.yaml` explicitly.
+
+**When OFF:**
+- Class A / B / C / E messages are logged to `progress.md` but not acted on.
+- **Class D (cancel) is ALWAYS honored** — cancel is a control-plane signal, not a spec-plane signal. Even in fully-unattended CI runs, a `stop` in the input stream halts the loop cleanly.
+- The Phase 5 banner still prints, but with "Watch mode OFF" and instructions on how to interact if needed (send a Class D or edit spec.md manually).
+
+---
+
+## Anti-patterns the Fable panel flagged
+
+- **Silent Class A mutation** (v0.1 bug — fixed by confirm gate).
+- **Blind `done → pending` on any intersecting amendment** (v0.1 bug — fixed by impact filter).
+- **Mtime-based race mitigation** (v0.1 partial — v0.3 will replace with spec_version).
+- **Watch mode ON in CI** (v0.1 bug — auto-off added).
+- **Class D swallowed when watch off** (v0.1 bug — always-honor added).
+- **Steelman opposing view:** "no watch mode. Phase 4 is the reshape gate. Cancel + re-invoke is 30s and has zero corruption surface." — legitimate view. Watch mode's value is real ONLY if Class A is confirm-gated. With the v0.2 gate in place, defense holds.

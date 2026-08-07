@@ -1,0 +1,237 @@
+# Stack Catalog -- by role
+
+Every role a full-stack product needs, with 2-4 vetted options and when to reach for each. Ordered by likely fit for a green-field consumer/prosumer product in 2026.
+
+---
+
+## Frontend framework (web/PWA)
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Next.js 16 + React 19** | Default for anything React. PWA-capable via `next-pwa`. Route Handlers = free backend. | Team hates React or wants smallest bundle. | The safest boring pick. Deep Vercel integration. |
+| **Remix (React Router 7)** | Form-heavy CRUD apps. Progressive enhancement without JS. | Marketing sites (Astro fits better). | Merged with React Router 7. Same team, more mature nested-routing. |
+| **SvelteKit** | Want smallest JS bundle + best DX. Small-team. | Team is React-first. | Superb DX. Ecosystem smaller than React. |
+| **Nuxt 4 (Vue)** | Team knows Vue. | Team doesn't know Vue. | Excellent. Pick only if Vue is already the org standard. |
+| **Astro** | Content-heavy, marketing, docs, blogs. Islands architecture. | Anything app-shaped. | Ship pure HTML for static, hydrate only what needs interactivity. |
+| **SolidStart** | Want React-like DX + fine-grained reactivity. | Team wants library depth. | Ecosystem thinner than React. Early adopter. |
+| **Vanilla HTML/CSS + htmx** | Server-rendered CRUD with minimal JS. | Anything with rich client state. | Underrated. Ship in a weekend. |
+
+Default: **Next.js 16** for PWA/web. **Astro** for marketing/landing only.
+
+---
+
+## Native mobile
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Capacitor 6 (wrap the PWA)** | You already have or will build a PWA and want App Store distribution. Solo/small team. | Deep native integration required (custom native views, complex nav gestures). | ONE codebase = web + PWA + iOS + Android. Fastest path from web to App Store. |
+| **Expo (React Native) + Expo Router** | Native-first from day one. Want file-based routing + native modules. | You want a PWA too (Capacitor's cheaper). | The React Native default. EAS Build handles native compilation. |
+| **React Native (bare)** | You need a custom native module Expo can't wrap. | You don't. Use Expo first, eject only if needed. | Bare workflow is more work. Only if forced. |
+| **SwiftUI (iOS only)** | iOS-only product, deep platform features (widgets, Live Activities, App Intents, HealthKit customization). | Android required. | Best-in-class Apple integration. Locks you to Apple. |
+| **Kotlin Compose (Android only)** | Android-only. | iOS required. | Same trade-off as SwiftUI, other side. |
+| **Flutter** | You want ONE codebase for iOS + Android + web + desktop and don't mind Dart. | Team prefers React/JS. | Excellent perf. Dart is the barrier. |
+
+Default: **Capacitor 6** if the primary target is PWA; **Expo** if native-first; **SwiftUI** only for iOS-only apps that need deep Apple integration.
+
+---
+
+## Cross-platform desktop
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Tauri 2** | Small binaries, memory-efficient, Rust core. macOS + Windows + Linux + iOS + Android (2.0). | Team can't touch Rust for platform bugs. | Ships ~5MB apps vs Electron's ~120MB. |
+| **Electron** | Ship in a week from web code. Rich ecosystem. | Care about binary size, memory, or battery. | The safe boring choice. Slack, VSCode, Discord. |
+
+Default: **Tauri 2** for new desktop; **Electron** only if the team already knows it and needs to ship fast.
+
+---
+
+## Backend framework (long-running)
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Hono** | Edge-first (Cloudflare Workers), TypeScript, minimal, fast. | Long-running features (websockets need Durable Objects). | Best-in-class DX for edge. |
+| **Fastify** | Node long-running server, deep plugin ecosystem, mature. | Edge-first target. | The PromptVM backend uses this. |
+| **Elysia (Bun)** | You've committed to Bun. Fastest Node-alt HTTP. | You need Node ecosystem compat. | New; production-worthy but ecosystem is younger. |
+| **NestJS** | Enterprise-scale, DI-first, big teams. | Solo dev. | Ergonomic for teams; overkill for indies. |
+| **FastAPI (Python)** | ML-heavy backend, or team is Python-first. | JS/TS team. | Great docs, great DX. |
+| **Actix / Axum (Rust)** | Performance-critical, team knows Rust. | Anything else. | Overkill for CRUD. |
+| **Phoenix (Elixir)** | Realtime + resilience, LiveView, big concurrent workloads. | Team doesn't know Elixir. | The Discord / WhatsApp scale story. |
+
+Default: **Hono** for edge/serverless; **Fastify** for traditional Node servers.
+
+---
+
+## Database
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Postgres** (Supabase, Neon, Fly Postgres, Railway) | The default. Relational, JSON-columns, full-text, extensions. | Never a bad choice for OLTP. | Supabase = Postgres + auth + storage + realtime. Neon = serverless Postgres, branch DBs. |
+| **SQLite (Turso / D1)** | Edge, mobile, offline-first. | Multi-region writes. | Turso = distributed libSQL. Cloudflare D1 = free edge SQLite. |
+| **Convex** | Reactive DB + backend. TypeScript-native. | Vendor lock-in aversion. | Free tier: 1M function calls / mo. Beautiful DX. |
+| **PlanetScale (MySQL)** | Massive scale, need horizontal sharding. | Small/medium apps. | Free tier removed 2024. |
+| **DynamoDB** | AWS-native, single-digit-ms at any scale. | Not on AWS. | Steep learning curve. |
+| **MongoDB** | Truly document-shaped data (variable schema per record). | Anything relational. | Don't default to it -- Postgres JSON columns beat it for most cases. |
+| **None (client-only)** | Pure client-side utility. localStorage / IndexedDB / OPFS. | Multi-device sync needed. | Real option for offline-first tools. |
+
+Default: **Supabase Postgres** for BaaS convenience; **Neon** for serverless; **Cloudflare D1** for edge + free.
+
+---
+
+## ORM / query layer
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Drizzle** | TypeScript-first, SQL-shaped API, lightweight. | You want a query builder that hides SQL. | The PromptVM backend uses this. Excellent DX. |
+| **Prisma** | You want the query builder + migrations tightly integrated. | Bundle size sensitive. | Slower cold starts than Drizzle. |
+| **Kysely** | Type-safe SQL builder. Least magic. | You want migrations built-in (Kysely is query-only). | Great with any query framework. |
+| **Raw SQL (postgres.js)** | You know SQL and don't want abstraction. | Team not comfortable with SQL. | Fastest, most flexible. |
+
+Default: **Drizzle** for greenfield TypeScript. **Raw SQL** if the team wants it.
+
+---
+
+## Auth
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Supabase Auth** | Already using Supabase. Free tier is generous. | Not using Supabase. | Postgres row-level security is the killer feature. |
+| **Auth.js (NextAuth)** | Next.js + you want provider variety + you're OK managing sessions. | Non-Next.js. | Free, unlimited users. |
+| **Clerk** | Best-in-class hosted auth UX. Prebuilt UI components. | Cost-sensitive at scale (10k MAU tier). | Free up to 10k MAU. Then $25/mo. |
+| **Better Auth** | Want a code-first alternative to Clerk. Full TS types. | Want prebuilt UI. | 2024 newcomer. Great DX. |
+| **WorkOS** | B2B / SSO / SAML / directory sync. | Consumer app. | Free up to 1M users; SSO is $125/mo/connection. |
+| **Custom (Lucia -> passkeys)** | Full control, no vendor. | Solo dev on tight timeline. | You own the security-critical path. |
+
+Default: **Supabase Auth** when using Supabase; **Auth.js** for Next.js standalone; **Clerk** if UX polish > cost sensitivity.
+
+---
+
+## Payments
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Stripe** | Web/PWA payments. The universal default. | Native-only apps (App Store rules force RC). | Test mode + Checkout = ship in a day. |
+| **RevenueCat** | Cross-platform IAP + subscription unification (iOS + Android + web). | Web-only. | Free up to $2.5k MTR/mo. |
+| **Stripe Connect** | Marketplace / split payouts. | Simple direct sale. | More work; only when needed. |
+| **Paddle** | Merchant-of-record model (they handle VAT/tax globally). | US-only + fine handling tax. | Higher fees; less DX. |
+| **Coinbase Commerce** | Crypto-native product. | Anything else. | Niche. |
+
+Default: **Stripe** for web/PWA; **Stripe + RevenueCat** for cross-platform subscriptions.
+
+---
+
+## Storage
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Supabase Storage** | Using Supabase. S3-compatible. Free 1GB. | Not using Supabase. | Simple. Row-level policies for auth. |
+| **Cloudflare R2** | Massive cost savings vs S3 (no egress). | Ecosystem depends on S3 SDK compat (though R2 speaks S3). | Free 10GB storage + 1M reads/mo. |
+| **AWS S3** | You're on AWS anyway. | Anything else -- R2 is cheaper. | The classic. |
+| **UploadThing** | Managed upload endpoint + client SDK for Next.js. | Non-Next.js. | Great DX for image/video uploads. |
+
+Default: **Supabase Storage** with Supabase stack; **Cloudflare R2** for cost-sensitive at scale.
+
+---
+
+## Email (transactional)
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Resend** | Great DX, React email components. | Bulk marketing (use ConvertKit). | Free: 3k emails/mo. |
+| **Postmark** | Best deliverability. | Cost-sensitive (no free tier). | $15/mo starter. |
+| **AWS SES** | Cheapest at scale. | Small volume (setup complexity). | $0.10 / 1000 emails. |
+| **Mailgun** | Legacy default. | Any of the above. | Fine but Resend has better DX. |
+
+Default: **Resend**.
+
+---
+
+## Analytics
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Vercel Analytics** | Deployed on Vercel. Zero-config. | Not on Vercel. | Free: 2.5k events/mo. |
+| **Plausible** | Privacy-first, no cookies, EU-hosted. | Need heatmaps / session replay. | $9/mo. |
+| **PostHog** | Product analytics + feature flags + session replay + A/B in one tool. | Simple page-view tracking only. | Free: 1M events/mo. |
+| **Umami** | Self-hosted, open-source. | Don't want to run infra. | Free (self-host) or $9/mo cloud. |
+
+Default: **Vercel Analytics** if on Vercel; **PostHog** for product analytics; **Plausible** for privacy-first marketing sites.
+
+---
+
+## Error tracking
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Sentry** | Best-in-class errors + performance + release tracking. | Extreme cost sensitivity. | Free: 5k errors + 10k perf events/mo. |
+| **Highlight** | Session replay + errors together, open-source. | Enterprise scale. | Free: 500 sessions/mo. |
+| **BetterStack (Logtail)** | Logs + errors + uptime in one. | You already have Sentry. | Free tier available. |
+
+Default: **Sentry**.
+
+---
+
+## CI/CD
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **GitHub Actions** | Repo is on GitHub. | Not. | Free: 2k mins/mo private, unlimited public. |
+| **Vercel deploys** | Deployed on Vercel. Preview URLs per PR. | Non-Next.js or non-Vercel. | Built-in. |
+| **Cloudflare Pages CI** | Deployed on Cloudflare Pages. | Not. | Free: 500 builds/mo. |
+| **Railway CI** | On Railway. | Not. | Auto-deploys on push. |
+| **CircleCI / Buildkite** | Enterprise scale + complex matrix builds. | Solo/small. | Overkill for indies. |
+
+Default: **GitHub Actions** + platform-native deploys (Vercel/Cloudflare/Railway auto-deploy).
+
+---
+
+## Monitoring / logs
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Axiom** | Structured logs, JSON-first, generous free tier. | Simple stdout logging suffices. | Free: 500GB ingest/mo. |
+| **BetterStack (Logtail)** | Logs + uptime in one tool. | You want split concerns. | Free: 10M lines/mo. |
+| **Datadog** | Enterprise, everything-in-one. | Cost is a factor. | Expensive at scale. |
+| **Cloudflare Logpush** | On Cloudflare, want raw log stream. | Not on Cloudflare. | Free with Workers Pro. |
+
+Default: **Axiom** for structured logs; **BetterStack** for uptime + logs together.
+
+---
+
+## Feature flags / experimentation
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **PostHog** | Already using it for analytics. | Not. | Free tier includes flags. |
+| **GrowthBook** | Open-source flags + experiments. | Want zero-config hosted. | Self-host or free cloud. |
+| **LaunchDarkly** | Enterprise scale, need audit + governance. | Small team. | Expensive. |
+| **Vercel Flags** | On Vercel, want edge-fast flags. | Not on Vercel. | Free. Newer. |
+| **Config file + env var** | Solo dev, only 2-3 flags. | Any real experimentation. | Underrated for MVPs. |
+
+Default: **Config file** for MVPs; **PostHog** or **Vercel Flags** as the product grows.
+
+---
+
+## MCP server framework (if target = MCP)
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **@modelcontextprotocol/sdk (TypeScript)** | Node/Bun/Deno host. | Non-Node runtime. | The reference. |
+| **@modelcontextprotocol/sdk (Python)** | Python-first, ML tooling adjacent. | JS ecosystem-first. | Also official. |
+| **FastMCP (Python)** | Python + want minimal boilerplate. | Not Python. | Nice DX layer. |
+
+Default: **@modelcontextprotocol/sdk (TypeScript)** unless the surrounding tooling is Python.
+
+---
+
+## CLI framework (if target = CLI)
+
+| Option | When to pick | When to skip | Notes |
+|---|---|---|---|
+| **Ink** | Interactive TUIs in React. | Just want args parsing. | Great for wizards. |
+| **Commander / Yargs (Node)** | Node CLI with subcommands. | You need TUI. | Commander is simpler; Yargs has more features. |
+| **oclif** | Extensible plugin-based CLI (like Heroku's). | Small CLI. | Overkill for indies. |
+| **Cobra (Go)** | Distributable single-binary CLI. | Team is JS-first. | The PromptVM CLI uses this. |
+| **Clap (Rust)** | Fastest, single-binary, no runtime. | Team isn't Rust. | Best for perf-critical tools. |
+
+Default: **Commander** for quick Node CLIs; **Cobra** for distributable single-binary; **Ink** for TUI wizards.

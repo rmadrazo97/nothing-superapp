@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" name="Navigation" subtitle="Instrument-panel bar" viewport="640x360" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Navigation · Nothing Superapp</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .chrome { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Header bar</span><span class="idx">01</span></div>
+    <div class="chrome">
+      <nav class="nav">
+        <div class="nav-brand">Nothing Superapp</div>
+        <a href="#" aria-current="page">Home</a>
+        <a href="#">Docs</a>
+        <a href="#">Pricing</a>
+        <a href="#">Sign in</a>
+      </nav>
+    </div>
+    <p class="caption" style="margin-top: var(--space-3);">Active link marked with <code style="font-family: var(--font-label);">aria-current="page"</code>. Brand uses the display face; nav items use the label face — the instrument-panel voice.</p>
+  </div>
+
+</main>
+</body>
+</html>

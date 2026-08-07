@@ -1,0 +1,130 @@
+# Token Architecture -- v0.3
+
+Two ideas do the heavy lifting: a **three-tier token model** (primitive / semantic / component) and a **four-tier text opacity ladder** that IS the hierarchy on a monochrome ground. Everything else is derivation.
+
+## Three tiers
+
+```
+Primitive (raw values, ramps)
+       |
+       v (reference)
+Semantic (roles: bg / surface / text_display / accent / font_display / space_2 / radius_card)
+       |
+       v (reference)
+Component (per-component vars -- optional escape hatch)
+```
+
+- Primitive: the OKLCH-generated 100-900 tonal ramps (`--color-neutral-100..900`, `--color-accent-100..900`, ...) and pinned roles from `theme.json`.
+- Semantic: the roles the rest of the CSS reaches for -- `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-text-display`, `--color-text-primary`, `--color-text-secondary`, `--color-text-disabled`, `--color-accent`, `--color-border`, `--color-border-visible`, `--font-display`, `--font-body`, `--font-label`, `--space-1..8`, `--radius-card`, `--radius-button`. **These are what components use.**
+- Component: local variables inside a component's block -- e.g. `--fab-bg: var(--color-accent)` inside `.fab`. Optional. Only introduce when a component has 4+ distinct color roles. The base component layer here does not use them.
+
+## The four-tier text opacity ladder (the hierarchy on a monochrome ground)
+
+On a monochrome ground you cannot use color for hierarchy -- color IS reserved for the accent event. So the whole hierarchy collapses to opacity:
+
+| Token | Dark ground | Light ground | Contrast on ground | Use |
+|-------|-------------|--------------|--------------------|-----|
+| `--color-text-display`   | `#FFFFFF` | `#000000` | max | Hero numbers, headlines. ONE per screen. |
+| `--color-text-primary`   | `#E8E8E8` | `#1A1A1A` | 16:1 | Body copy, primary content. |
+| `--color-text-secondary` | `#999999` | `#666666` | 6:1 | Labels, captions, metadata. |
+| `--color-text-disabled`  | `#666666` | `#999999` | 4:1 | Disabled, timestamps, hints. |
+
+**This is the tier system.** Every heading, every body, every label, every caption reaches for one of these four. There are no other text colors. The accent (`--color-accent`) is used on interactive UI, tags, and status-line -- not for body copy hierarchy.
+
+## The three-family type stack (display / body / label)
+
+Every system defines all three roles, even if two share a family. The label role MUST be a monospace so numerics and instrument-panel labels get tabular-nums.
+
+| Role | Token | Nothing default | Editorial default | Rules |
+|------|-------|-----------------|-------------------|-------|
+| Display | `--font-display` | Doto (variable dot-matrix, Google Fonts 2024) | Fraunces or Source Serif 4 | 36 px+ ONLY. Hero numbers, hero headings, the one break-the-pattern moment. Never body. |
+| Body | `--font-body` | Space Grotesk (Colophon Foundry) | Inter | Body copy, headings, buttons, most UI. Weights 300/400/500/700. |
+| Label | `--font-label` | Space Mono (Colophon Foundry) | Space Mono | ALL CAPS with 0.08em tracking. All numeric readouts with tabular-nums. Instrument-panel voice. |
+
+Utility helper classes in `styles.css`: `.display-xl`, `.display-lg`, `.display-md`, `.label`, `.caption`, `.data`, plus the four opacity utilities `.text-display`, `.text-primary`, `.text-secondary`, `.text-disabled`.
+
+## The color pipeline
+
+Given user inputs (ground + accent hex), the pipeline is:
+
+1. **Pin the roles.** From ground:
+   - Light: `--color-bg` warm off-white (OKLCH L 0.97, C 0.005), surface `#FFFFFF`, surface-raised `#F0F0F0`, text-display `#000000`, text-primary `#1A1A1A`, text-secondary `#666666`, text-disabled `#999999`.
+   - Dark: `--color-bg` `#000000` (OLED pure black -- power-optimal), surface `#111111`, surface-raised `#1A1A1A`, text-display `#FFFFFF`, text-primary `#E8E8E8`, text-secondary `#999999`, text-disabled `#666666`. Borders `#222222` decorative, `#333333` intentional.
+   - Never pure black text on pure white ground: use the opacity ladder.
+2. **Generate the neutral ramp.** 9 steps from L 0.97 -> L 0.16, C 0.008 (near-neutral, borrowed hue from the accent so neutrals feel tuned rather than grey). Equal perceptual step size (equal L delta).
+3. **Generate the accent ramp.** 9 steps from L 0.97 -> L 0.16 at the accent's own chroma (typically C 0.15-0.20 for vivid accents like Nothing's `#D71921`). H fixed.
+4. **Divider.** `--color-border` `#222222` (dark) / `#E8E8E8` (light). `--color-border-visible` `#333333` / `#CCCCCC`.
+5. **Shadows.** OPT-IN via `.elev-sm/md/lg`. Border-first is the default -- cards use `border: 1px solid var(--color-border)`, not shadows. Drop shadows are for cards on colored grounds (a tile on a red wallpaper).
+
+Deliverable: `scripts/generate-ramps.mjs` does the ramp math. Never eyeball.
+
+## The spacing pipeline
+
+Density knob (0.7 . 1.0 . 1.25) multiplied by an 8 px baseline gives the base unit. Steps skip 5 and 7 intentionally.
+
+| Token | Formula | 0.7x | 1.0x | 1.25x |
+|-------|---------|------|------|-------|
+| `--space-1` | 0.4 x base | 2.24 | 3.20 | 4.00 |
+| `--space-2` | 0.8 x base | 4.48 | 6.40 | 8.00 |
+| `--space-3` | 1.2 x base | 6.72 | 9.60 | 12.00 |
+| `--space-4` | 1.6 x base | 8.96 | 12.80 | 16.00 |
+| `--space-6` | 2.4 x base | 13.44 | 19.20 | 24.00 |
+| `--space-8` | 3.2 x base | 17.92 | 25.60 | 32.00 |
+| `--space-12` | 4.8 x base | 26.88 | 38.40 | 48.00 |
+| `--space-16` | 6.4 x base | 35.84 | 51.20 | 64.00 |
+
+Density moves spacing, never type. Type is a fixed scale.
+
+## The radius pipeline
+
+Two independent knobs -- cards and buttons:
+
+- `--radius-card` -- 4 to 16 px. Nothing default: 14.
+- `--radius-compact` = `--radius-card / 2` (small chips, tags).
+- `--radius-button` -- either "999px" (pill) or a fixed px value (4-8 for technical). Never in between.
+
+## The type scale (fixed)
+
+Density doesn't scale type. Every system uses these sizes:
+
+| Token | Size | Line-height | Letter-spacing | Use |
+|-------|------|-------------|----------------|-----|
+| `--text-display-xl` | 72 | 1.0 | -0.03em | Hero numbers, time |
+| `--text-display-lg` | 48 | 1.05 | -0.02em | Section heroes |
+| `--text-display-md` | 36 | 1.1 | -0.02em | Page titles |
+| `--text-heading`    | 24 | 1.2 | -0.01em | Section headings |
+| `--text-subheading` | 18 | 1.3 | 0 | Subsections |
+| `--text-body`       | 16 | 1.5 | 0 | Body |
+| `--text-body-sm`    | 14 | 1.5 | 0.01em | Secondary body |
+| `--text-caption`    | 12 | 1.4 | 0.04em | Timestamps |
+| `--text-label`      | 11 | 1.2 | 0.08em UPPER | Instrument labels |
+
+Reach for a size at the tag level first (h3 vs h4). Only introduce a new size when the tag alone can't express the hierarchy.
+
+## The button variant pipeline
+
+Four variants generated by `buttonVariantCSS()` in `scripts/build-system.mjs`:
+
+- `filled-white` -- Nothing default. Primary is `background: var(--color-text-display); color: var(--color-bg)`. Pill. Reads clean and physical on OLED.
+- `filled-accent` -- Consumer / marketing. Primary is `background: var(--color-accent); color: var(--color-text-display)`.
+- `outline` -- Editorial. Primary is `color: var(--color-accent); border-color: var(--color-accent)`.
+- `ghost` -- Minimal. Primary is `color: var(--color-accent)`, no border.
+
+The destructive and ghost variants are consistent across all four styles. The FAB (`.fab`) is always red-filled regardless of `buttonStyle` -- it's the "one accent moment" primitive.
+
+## Why we split like this
+
+- **Primitive ramps** make ramps interchangeable -- a different accent hue swaps in without touching the component layer.
+- **Semantic roles** are the CONTRACT with downstream code. Renaming a primitive is safe; renaming a semantic role breaks every consumer.
+- **The four-tier opacity ladder** replaces "text color" with "text level." On a monochrome ground where color is reserved for the accent, opacity is the whole hierarchy -- and enforcing four discrete tiers stops sprawl.
+- **Three font roles** enforces the "two families max per surface + one mono accessory" rule mechanically. If display and body share a family, you still get the third role (label) as monospace -- so tabular numerics stay possible.
+
+## Anti-patterns to reject on sight
+
+- `#000` or `#fff` used as a text color literal. Use the opacity ladder. (Ground can be `#000` on dark for OLED optimization; text still comes through `--color-text-display`.)
+- A component using a raw hex instead of a token.
+- Ramps at drifting chroma across steps -- regenerate.
+- A "gray-500" primitive being used as text directly -- introduce a semantic role.
+- `font-family:` naming a family inline in a component -- swap for `var(--font-*)`.
+- Two accent colors used for chrome hierarchy (one for primary buttons, another for links). Pick one accent; use opacity for hierarchy.
+- Default `box-shadow` on `.card`. Border-first is the base; shadows are opt-in via `.elev-*`.

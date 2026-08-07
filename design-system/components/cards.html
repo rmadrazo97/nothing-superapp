@@ -1,0 +1,73 @@
+<!-- @dsCard group="Components" name="Cards & tiles" subtitle="The primary layout primitive" viewport="640x900" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cards · Nothing Superapp</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Hero card — the pattern break</span><span class="idx">01</span></div>
+    <article class="card card-hero">
+      <span class="value">21</span>
+      <div style="display:flex; flex-direction: column; align-items: flex-end; gap: 4px">
+        <span class="unit">deg · sat cloudy</span>
+        <span class="caption">Saint-Petesburg</span>
+      </div>
+    </article>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Content cards</span><span class="idx">02</span></div>
+    <div class="grid-2">
+      <article class="card">
+        <span class="card-kicker">Today</span>
+        <h3 class="card-title">Design system locked</h3>
+        <p class="card-body">All 11 pages render on the same styles.css. No ad-hoc CSS.</p>
+        <div class="card-meta">3 min read</div>
+      </article>
+      <article class="card card-raised">
+        <span class="card-kicker">Yesterday</span>
+        <h3 class="card-title">Token ramps regenerated</h3>
+        <p class="card-body">OKLCH-based 100–900 across neutral + accent. Perceptually even.</p>
+        <div class="card-meta">2 min read</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Accent card — one per screen, maximum</span><span class="idx">03</span></div>
+    <article class="card card-accent">
+      <span class="card-kicker">Live</span>
+      <h3 class="card-title">Ship / land / deploy</h3>
+      <p class="card-body">The one place a bold accent block belongs — the primary CTA row on a landing page or the “now playing” card in a media surface. Use sparingly.</p>
+      <div class="card-meta">01 usage rule</div>
+    </article>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Elevation — opt-in, for cards on colored ground</span><span class="idx">04</span></div>
+    <div class="grid-3">
+      <div class="card elev-sm"><span class="card-kicker">Elev</span><h3 class="card-title">Small</h3></div>
+      <div class="card elev-md"><span class="card-kicker">Elev</span><h3 class="card-title">Medium</h3></div>
+      <div class="card elev-lg"><span class="card-kicker">Elev</span><h3 class="card-title">Large</h3></div>
+    </div>
+    <p class="caption" style="margin-top: var(--space-4);">Default cards are flat with border separation. Use <code style="font-family: var(--font-label);">.elev-*</code> only when a card floats above a non-default ground.</p>
+  </div>
+
+</main>
+</body>
+</html>

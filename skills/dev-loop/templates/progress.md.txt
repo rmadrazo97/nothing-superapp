@@ -1,0 +1,20 @@
+# Progress log — {{FEATURE_SLUG}}
+
+Append-only lab notebook. Every state transition, every worker check-in, every watch-mode intercept, every advisor consultation summary lands here. Ordered by timestamp, newest at bottom.
+
+Never delete entries. If something is superseded (e.g. amended spec, retracted verdict), append a new entry noting the supersession — do not rewrite history.
+
+---
+
+## Run opened — {{RUN_OPENED_TIMESTAMP}}
+
+**Tier:** {{TIER_SIZE}}
+**Requirement:** {{ONE_LINE_REQUIREMENT}}
+**Task count:** {{TASK_COUNT}}
+**Mode:** {{MODE}}
+**Harness:** {{HARNESS_RUNTIME}} v{{HARNESS_VERSION}}
+**Watch mode:** {{WATCH_MODE}}
+
+---
+
+<!-- Worker check-ins, watch intercepts, and advisor-consultation summaries append below -->

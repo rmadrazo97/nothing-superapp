@@ -1,0 +1,73 @@
+# QA Checklist -- Before Delivery (v0.3)
+
+Run this before printing the handoff line. Fix silently and re-check -- do not report failures to the user unless you need their input.
+
+## Files
+
+- [ ] `styles.css`, `theme.json`, `readme.md`, `index.html`, `thumbnail.html`, `theme.html` at the output root.
+- [ ] `foundations/` contains 5 files: `color.html`, `type.html`, `layout.html`, `icons.html`, `image.html`.
+- [ ] `components/` contains 6 files: `cards.html`, `buttons.html`, `forms.html`, `navigation.html`, `table.html`, `dialog.html`.
+- [ ] No extras (`.DS_Store`, `.bak`, `theme.old.json`, `_manifest.json`).
+
+## Placeholders
+
+- [ ] `grep -rc "{{" <output>` returns 0 for every file. Any hit means the builder was invoked wrong or a template drifted -- fix and rebuild.
+
+## Tokens (`styles.css`)
+
+- [ ] Preamble comment + `@import` for all three font families with the exact weights declared in `theme.json`.
+- [ ] `:root { ... }` has:
+  - Grounds: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-visible`.
+  - Opacity ladder (all 4): `--color-text-display`, `--color-text-primary`, `--color-text-secondary`, `--color-text-disabled`.
+  - Accent + status: `--color-accent`, `--color-accent-subtle`, `--color-success`, `--color-warning`.
+  - Ramps `--color-neutral-100..900` and `--color-accent-100..900` (and `-accent-2-*` if duo/poly).
+  - Fonts (all 3): `--font-display` + `--font-display-weight`, `--font-body` + `--font-body-weight`, `--font-label`.
+  - Type scale (9 vars): `--text-display-xl`, `-lg`, `-md`, `--text-heading`, `-subheading`, `--text-body`, `-body-sm`, `--text-caption`, `--text-label`.
+  - Spacing: `--space-1..8` + `--space-12` + `--space-16`.
+  - Geometry: `--radius-card`, `--radius-compact`, `--radius-button`.
+  - Motion: `--ease-out`, `--dur-fast`, `--dur-medium`.
+
+## Contrast
+
+- [ ] `node scripts/generate-ramps.mjs --contrast --theme <output>/theme.json` returns all PASS.
+- [ ] body text on bg >= 4.5:1 (WCAG AA).
+- [ ] body text on surface >= 4.5:1.
+- [ ] accent on bg >= 3:1 (large-text / UI use). Body copy uses `--color-text-primary`, never the accent.
+- [ ] If any fails, adjust the failing role in `theme.json` (usually text_display or accent) and rebuild -- do not just shift a ramp step.
+
+## Component correctness (grep the whole folder)
+
+- [ ] `rg -Ei "font-family:\s*['\"]?(Inter|Doto|Space |Public Sans|Fraunces|Georgia|Roboto|Helvetica|Arial|system-ui)"` outside `styles.css` -- no font-family literals in demo pages. Every font ref uses `var(--font-*)`.
+- [ ] `rg "outline:\s*none"` -- allowed only inside `:focus { outline: none; }` in `styles.css`. Never on individual components (they'd kill the focus ring).
+- [ ] `rg "box-shadow:"` outside `styles.css` -- should be zero. Elevation is `.elev-*` utility classes, not inline.
+- [ ] Every `<button>` and interactive `<a>` uses a `.btn-*` or `.fab` class (no ad-hoc button styling).
+
+## Semantics + accessibility
+
+- [ ] `.demo-head` (or equivalent scaffold header) is only for section labels inside demo scaffolds, not content headings.
+- [ ] Nav links have `aria-current="page"` on the active one.
+- [ ] Dialog has `role="dialog"` and `aria-labelledby="<title-id>"`.
+- [ ] Icon-only buttons have `aria-label="..."`.
+- [ ] The `[aria-selected="true"]` row in `components/table.html` renders the selection state (accent bar + raised bg).
+
+## `readme.md` quality (the designer's brief)
+
+- [ ] No placeholder strings: `{{...}}`, `<SYSTEM_NAME>`, `TODO`, `TBD`.
+- [ ] Direction paragraph is real prose about THIS system, not the template default. Says WHY, not just WHAT.
+- [ ] Color section names the 4 opacity tiers explicitly and gives the accent-as-signal rule.
+- [ ] Type section names all THREE font roles (display / body / label) and their exact weights.
+- [ ] Do / Don't sections have 4-5 items each, specific to this system.
+- [ ] Files section matches what actually exists.
+- [ ] If any parameter was inferred (not user-specified), it is listed under "Derived choices" so the user can correct.
+
+## `index.html` opens cleanly (via HTTP, not file://)
+
+- [ ] `node scripts/preview.mjs <output>` starts a server on `localhost:8765` (or the next port if 8765 is busy) and opens the browser.
+- [ ] The URL loads: hero renders, all 13 tiles render inside their iframes (foundations x5 + components x6 + theme x2).
+- [ ] No console errors, no missing-font warnings (network 200 on the Google Fonts request).
+- [ ] Hero brand mark uses `--font-display` at the declared weight.
+
+## Handoff
+
+- [ ] Print the two-line handoff from `SKILL.md` § Handoff -- with the `http://localhost:8765/index.html` URL (never a `file://` path).
+- [ ] Offer the natural next step: "Want me to hand `styles.css` + the direction paragraph to `next-gen-landing-builder`, or should we lock it and revisit?"

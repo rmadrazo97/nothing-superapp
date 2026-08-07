@@ -1,0 +1,19 @@
+{
+  "tasks": [
+    { "id": "00-prereqs-and-scaffold",              "blocked_by": [],                                                                                             "blocks": ["01-contract-types-and-schema", "02-monorepo-and-nextjs-scaffold"] },
+    { "id": "01-contract-types-and-schema",          "blocked_by": ["00-prereqs-and-scaffold"],                                                                    "blocks": ["03-supabase-migrations-and-rls", "04-mini-apps-runtime-sdk", "05-auth-and-session", "06-stripe-checkout-and-webhook", "09-ai-copilot-endpoint", "12-reference-mini-app-calorie-lite"] },
+    { "id": "02-monorepo-and-nextjs-scaffold",       "blocked_by": ["00-prereqs-and-scaffold"],                                                                    "blocks": ["05-auth-and-session", "07-shell-chrome-tabbar-and-layout", "10-home-grid-and-registry-loader"] },
+    { "id": "03-supabase-migrations-and-rls",        "blocked_by": ["01-contract-types-and-schema"],                                                               "blocks": ["05-auth-and-session", "06-stripe-checkout-and-webhook", "09-ai-copilot-endpoint", "12-reference-mini-app-calorie-lite"] },
+    { "id": "04-mini-apps-runtime-sdk",              "blocked_by": ["01-contract-types-and-schema"],                                                               "blocks": ["10-home-grid-and-registry-loader", "12-reference-mini-app-calorie-lite"] },
+    { "id": "05-auth-and-session",                   "blocked_by": ["01-contract-types-and-schema", "02-monorepo-and-nextjs-scaffold", "03-supabase-migrations-and-rls"], "blocks": ["08-paywall-middleware-and-entitlement-gate", "11-settings-and-profile-surface"] },
+    { "id": "06-stripe-checkout-and-webhook",        "blocked_by": ["01-contract-types-and-schema", "03-supabase-migrations-and-rls"],                             "blocks": ["08-paywall-middleware-and-entitlement-gate"] },
+    { "id": "07-shell-chrome-tabbar-and-layout",     "blocked_by": ["02-monorepo-and-nextjs-scaffold"],                                                            "blocks": ["10-home-grid-and-registry-loader", "11-settings-and-profile-surface"] },
+    { "id": "08-paywall-middleware-and-entitlement-gate", "blocked_by": ["05-auth-and-session", "06-stripe-checkout-and-webhook"],                                 "blocks": ["10-home-grid-and-registry-loader", "12-reference-mini-app-calorie-lite"] },
+    { "id": "09-ai-copilot-endpoint",                "blocked_by": ["01-contract-types-and-schema", "03-supabase-migrations-and-rls"],                             "blocks": ["13-copilot-tab-ui-and-streaming-render"] },
+    { "id": "10-home-grid-and-registry-loader",      "blocked_by": ["02-monorepo-and-nextjs-scaffold", "04-mini-apps-runtime-sdk", "07-shell-chrome-tabbar-and-layout", "08-paywall-middleware-and-entitlement-gate"], "blocks": ["12-reference-mini-app-calorie-lite", "14-playwright-e2e-full-flow"] },
+    { "id": "11-settings-and-profile-surface",        "blocked_by": ["05-auth-and-session", "07-shell-chrome-tabbar-and-layout"],                                  "blocks": ["14-playwright-e2e-full-flow"] },
+    { "id": "12-reference-mini-app-calorie-lite",    "blocked_by": ["01-contract-types-and-schema", "03-supabase-migrations-and-rls", "04-mini-apps-runtime-sdk", "08-paywall-middleware-and-entitlement-gate", "10-home-grid-and-registry-loader"], "blocks": ["14-playwright-e2e-full-flow"] },
+    { "id": "13-copilot-tab-ui-and-streaming-render", "blocked_by": ["07-shell-chrome-tabbar-and-layout", "09-ai-copilot-endpoint"],                               "blocks": ["14-playwright-e2e-full-flow"] },
+    { "id": "14-playwright-e2e-full-flow",           "blocked_by": ["10-home-grid-and-registry-loader", "11-settings-and-profile-surface", "12-reference-mini-app-calorie-lite", "13-copilot-tab-ui-and-streaming-render"], "blocks": [] }
+  ]
+}

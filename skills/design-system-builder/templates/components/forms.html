@@ -1,0 +1,58 @@
+<!-- @dsCard group="Components" name="Forms" subtitle="Underline inputs, native radios, segmented control" viewport="640x700" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forms · {{SYSTEM_NAME}}</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+  .stack { display: flex; flex-direction: column; gap: var(--space-4); max-width: 420px; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Text inputs — underline default</span><span class="idx">01</span></div>
+    <div class="stack">
+      <div class="field"><label for="email">Email</label><input id="email" type="email" class="input" placeholder="you@studio.com" /></div>
+      <div class="field"><label for="msg">Message</label><textarea id="msg" class="input" placeholder="A short note…"></textarea></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Boxed input variant</span><span class="idx">02</span></div>
+    <div class="stack">
+      <div class="field"><label for="q">Search</label><input id="q" type="search" class="input input-boxed" placeholder="Search tokens…" /></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Radio group</span><span class="idx">03</span></div>
+    <div class="row">
+      <label class="radio"><input type="radio" name="plan" checked /><span class="dot"></span>Free</label>
+      <label class="radio"><input type="radio" name="plan" /><span class="dot"></span>Pro</label>
+      <label class="radio"><input type="radio" name="plan" /><span class="dot"></span>Team</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Segmented control</span><span class="idx">04</span></div>
+    <div class="seg">
+      <label class="seg-opt"><input type="radio" name="view" checked />Day</label>
+      <label class="seg-opt"><input type="radio" name="view" />Week</label>
+      <label class="seg-opt"><input type="radio" name="view" />Month</label>
+    </div>
+    <p class="caption" style="margin-top: var(--space-3);">Native HTML radios styled as pills. Keyboard focus works out of the box.</p>
+  </div>
+
+</main>
+</body>
+</html>

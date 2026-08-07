@@ -1,0 +1,51 @@
+{
+  "name": "Nothing Superapp",
+  "palette": {
+    "hue": 0,
+    "band": "dark",
+    "scheme": "mono",
+    "sat": 0.20,
+    "pin": {
+      "bg": "#000000",
+      "surface": "#111111",
+      "surface_raised": "#1A1A1A",
+      "accent": "#D71921"
+    },
+    "bg": "#000000",
+    "surface": "#111111",
+    "surface_raised": "#1A1A1A",
+    "border": "#222222",
+    "border_visible": "#333333",
+    "text_display": "#FFFFFF",
+    "text_primary": "#E8E8E8",
+    "text_secondary": "#999999",
+    "text_disabled": "#666666",
+    "accent": "#D71921"
+  },
+  "fonts": {
+    "display": {
+      "family": "Doto",
+      "class": "dot-matrix",
+      "weights": [400, 700, 900]
+    },
+    "body": {
+      "family": "Space Grotesk",
+      "class": "grotesque",
+      "weights": [300, 400, 500, 700]
+    },
+    "label": {
+      "family": "Space Mono",
+      "class": "mono",
+      "weights": [400, 700]
+    },
+    "displayWeight": 700,
+    "bodyWeight": 400
+  },
+  "density": 1.0,
+  "radiusCard": 14,
+  "radiusButton": "999px",
+  "layoutStyle": "left",
+  "imageTreatment": "none",
+  "iconSet": "phosphor",
+  "buttonStyle": "filled-white"
+}

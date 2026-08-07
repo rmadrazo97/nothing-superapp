@@ -1,0 +1,106 @@
+<!-- @dsCard group="Foundations" name="Color" subtitle="Roles, text opacity ladder, tonal ramps" viewport="640x820" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Color · {{SYSTEM_NAME}}</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+
+  /* Roles as full-bleed swatches with token name + hex */
+  .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .role { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-card); border: 1px solid var(--color-border); min-height: 120px; justify-content: space-between; }
+  .role .name { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; }
+  .role .hex  { font-family: var(--font-label); font-size: var(--text-body-sm); }
+
+  /* Text opacity ladder */
+  .ladder { display: grid; gap: var(--space-3); }
+  .ladder-row { display: grid; grid-template-columns: 120px 1fr auto; align-items: baseline; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
+  .ladder-row:last-child { border-bottom: 0; }
+  .ladder-row .tag { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-secondary); text-transform: uppercase; padding: 0; background: transparent; }
+  .ladder-row .sample { font-family: var(--font-body); font-size: var(--text-heading); line-height: 1; }
+  .ladder-row .opacity { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.06em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+
+  /* Ramps */
+  .ramp { display: grid; grid-template-columns: 60px repeat(9, 1fr); gap: 4px; align-items: center; margin-top: var(--space-3); }
+  .ramp .rlabel { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+  .ramp .step { height: 44px; border-radius: 6px; position: relative; }
+  .ramp .step::after { content: attr(data-step); position: absolute; left: 4px; bottom: 4px; font-family: var(--font-label); font-size: 9px; color: color-mix(in srgb, var(--color-text-display) 50%, transparent); }
+
+  /* Accent as a signal */
+  .accent-showcase { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-4); align-items: stretch; margin-top: var(--space-4); }
+  .accent-showcase .big { padding: var(--space-6); border-radius: var(--radius-card); background: var(--color-accent); color: var(--color-text-display); display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; }
+  .accent-showcase .big .k { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; }
+  .accent-showcase .big .v { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 72px; line-height: 1; letter-spacing: -0.03em; }
+  .accent-showcase .aside { padding: var(--space-4); border-radius: var(--radius-card); border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: var(--space-3); }
+  .accent-showcase .aside p { font-size: var(--text-body-sm); color: var(--color-text-secondary); margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="section">
+    <div class="head"><span class="label label-strong">Roles</span><span class="idx">01</span></div>
+    <div class="role-grid">
+      <div class="role" style="background: var(--color-bg); border-color: var(--color-border-visible)"><span class="name text-secondary">bg</span><span class="hex text-primary">Ground</span></div>
+      <div class="role" style="background: var(--color-surface)"><span class="name text-secondary">surface</span><span class="hex text-primary">Cards, tiles</span></div>
+      <div class="role" style="background: var(--color-surface-raised)"><span class="name text-secondary">surface-raised</span><span class="hex text-primary">Elevated cards</span></div>
+      <div class="role" style="background: var(--color-accent); border-color: var(--color-accent)"><span class="name" style="color: color-mix(in srgb, var(--color-text-display) 80%, transparent)">accent</span><span class="hex" style="color: var(--color-text-display)">The signal</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Text opacity ladder</span><span class="idx">02</span></div>
+    <div class="ladder">
+      <div class="ladder-row"><span class="tag">display</span><span class="sample text-display">Hero numbers</span><span class="opacity">100%</span></div>
+      <div class="ladder-row"><span class="tag">primary</span><span class="sample text-primary">Body copy</span><span class="opacity">~90%</span></div>
+      <div class="ladder-row"><span class="tag">secondary</span><span class="sample text-secondary">Labels &amp; captions</span><span class="opacity">~60%</span></div>
+      <div class="ladder-row"><span class="tag">disabled</span><span class="sample text-disabled">Timestamps &amp; hints</span><span class="opacity">~40%</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Accent — one moment per screen</span><span class="idx">03</span></div>
+    <div class="accent-showcase">
+      <div class="big"><span class="k">Signal</span><span class="v">01</span></div>
+      <div class="aside">
+        <span class="label">Rule</span>
+        <p>The accent is an interrupt — “look HERE, NOW.” One per screen as a UI element. Never decorative. If nothing is urgent, no accent on the screen.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Tonal ramps</span><span class="idx">04</span></div>
+    <div class="ramp"><span class="rlabel">Neutral</span>
+      <span class="step" data-step="100" style="background: var(--color-neutral-100)"></span>
+      <span class="step" data-step="200" style="background: var(--color-neutral-200)"></span>
+      <span class="step" data-step="300" style="background: var(--color-neutral-300)"></span>
+      <span class="step" data-step="400" style="background: var(--color-neutral-400)"></span>
+      <span class="step" data-step="500" style="background: var(--color-neutral-500)"></span>
+      <span class="step" data-step="600" style="background: var(--color-neutral-600)"></span>
+      <span class="step" data-step="700" style="background: var(--color-neutral-700)"></span>
+      <span class="step" data-step="800" style="background: var(--color-neutral-800)"></span>
+      <span class="step" data-step="900" style="background: var(--color-neutral-900)"></span>
+    </div>
+    <div class="ramp"><span class="rlabel">Accent</span>
+      <span class="step" data-step="100" style="background: var(--color-accent-100)"></span>
+      <span class="step" data-step="200" style="background: var(--color-accent-200)"></span>
+      <span class="step" data-step="300" style="background: var(--color-accent-300)"></span>
+      <span class="step" data-step="400" style="background: var(--color-accent-400)"></span>
+      <span class="step" data-step="500" style="background: var(--color-accent-500)"></span>
+      <span class="step" data-step="600" style="background: var(--color-accent-600)"></span>
+      <span class="step" data-step="700" style="background: var(--color-accent-700)"></span>
+      <span class="step" data-step="800" style="background: var(--color-accent-800)"></span>
+      <span class="step" data-step="900" style="background: var(--color-accent-900)"></span>
+    </div>
+    <p class="caption" style="margin-top: var(--space-4);">Generated in OKLCH on a shared perceptual-lightness scale — the same step of any ramp carries the same visual weight. Regenerate with <code style="font-family: var(--font-label);">scripts/generate-ramps.mjs</code>.</p>
+  </div>
+</main>
+</body>
+</html>

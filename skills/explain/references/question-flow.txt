@@ -1,0 +1,140 @@
+# Phase 1 Question Flow — by mode
+
+Phase 0 asks mode + one-line concept. Phase 1 branches by mode. Always via `AskUserQuestion` (batched 2-4 questions) or plain text.
+
+Silent read BEFORE questioning: `design-system/styles.css` (at repo root). If found, seed the "design pins" answer as "use the repo's design system (detected)".
+
+---
+
+## Shared questions (all modes)
+
+### Q1. Audience
+Header: `Audience`
+Options:
+- `Technical peers` — engineers, architects, senior devs. Assume vocabulary, skip basics.
+- `Executives / non-technical` — decision-makers. Prose over jargon, diagrams over code.
+- `Mixed` — internal cross-functional. Clear jargon on first use; diagrams do a lot of work.
+- `Customers / users` — external. Assume no context; teach through examples.
+
+Default: `Mixed`.
+
+### Q2. Design system pinning (only if `design-system/styles.css` detected)
+Header: `Design pins`
+Options:
+- `Use the repo's design system (detected)` — Recommended. Artifact looks on-brand.
+- `Generic tasteful defaults` — Neutral system. Use when explainer is for external audience unfamiliar with the brand.
+
+If not detected, skip and use generic defaults.
+
+### Q3. Diagram authoring
+Header: `Diagrams`
+Options:
+- `Inline SVG only (I draw them)` — Recommended default. Zero deps, best print fidelity, works file://.
+- `Mermaid opt-in for architecture/flow/sequence` — One CDN script tag. Text-authored, live-rendered, easy to iterate.
+- `Skip diagrams — text only` — For concepts that don't benefit from visualization.
+
+Default: `Inline SVG only`.
+
+---
+
+## Report-mode questions
+
+### Q4. Length target
+Header: `Length`
+Options:
+- `Short — 1 page (< 500 words)` — Executive summary shape.
+- `Medium — 3-5 pages (~1500 words)` — Standard technical explainer.
+- `Long — 10+ pages (~5000 words)` — Deep dive; consider `landing` mode instead if it has natural sections.
+
+### Q5. Delivery
+Header: `Delivery`
+Options:
+- `Screen (browser preview)` — Just localhost + share the URL.
+- `Print / PDF export` — Requires `@media print` polish (always on in report mode).
+- `Both` — Default. Report mode does both well.
+
+Default: `Both`.
+
+### Q6. Sections (short-answer, not multi-choice)
+"List the main sections you want covered, in order. If unsure, I'll propose an outline first."
+
+---
+
+## Landing-mode questions
+
+### Q4. Section count
+Header: `Sections`
+Options:
+- `3-5 sections` — Short concept, home + 2-4 subsections.
+- `5-10 sections` — Standard docs page with sidebar.
+- `10+ sections` — Big explainer; needs a persistent sidebar + search consideration.
+
+### Q5. Cross-linking density
+Header: `Cross-links`
+Options:
+- `Light — sequential flow, few cross-refs` — Read top-to-bottom.
+- `Heavy — hub-and-spoke with many cross-refs` — Non-linear exploration.
+
+### Q6. Section outline (short-answer)
+"Name the sections in order — I'll turn each into an anchor + entry in the ToC."
+
+---
+
+## Slides-mode questions
+
+### Q4. Deck length
+Header: `Deck length`
+Options:
+- `Short — 5-8 slides` — Focused pitch or teach-a-concept.
+- `Medium — 10-15 slides` — Standard demo-day or design review.
+- `Long — 20+ slides` — Full training or all-hands. Consider splitting into multiple decks.
+
+### Q5. Slide flow
+Header: `Flow`
+Options:
+- `Linear (default)` — One-way narrative.
+- `With appendix` — Main deck + backup slides for Q&A.
+- `Branching (state which decision points)` — Multiple paths through the deck.
+
+### Q6. Presenter notes
+Header: `Notes`
+Options:
+- `Yes — draft spoken-word notes per slide` — Produces `presenter-notes.md`.
+- `Skip — I'll write my own notes` — Just the slides.
+
+### Q7. Slide outline (short-answer)
+"One-line title per slide, in order. If unsure, I'll propose an outline first."
+
+---
+
+## The clarified brief (Phase 1 exit)
+
+Print the compact brief. User says "generate" or edits.
+
+```
+BRIEF — <concept slug>
+
+  Mode        · <mode>
+  Concept     · <one-liner>
+  Audience    · <answer>
+  Length      · <answer>
+  Diagrams    · <answer>
+  Design pins · <answer>
+  Delivery    · <answer>
+  Sections    · <bulleted list>
+
+  Reply "generate" or tell me what to change.
+```
+
+---
+
+## Special routings
+
+### Requirement-came-from-conversation
+If the concept is something already discussed at length in this chat, SKIP the intake questions where the answer is obvious from context. Only ask about mode + section outline if unclear.
+
+### Just-a-quick-diagram
+If the user said "just a quick diagram of X", skip most of the flow. Ask only: mode (probably report or slides) + one-line concept. Draft immediately. Iterate.
+
+### Ambiguous answers
+Commit to defaults silently. The brief + generate/edit gate is the safety net.

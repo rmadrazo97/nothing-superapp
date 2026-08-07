@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" name="Table" subtitle="Space Mono numerics, no zebra, selected-row accent bar" viewport="640x480" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Table · Nothing Superapp</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .section { margin-top: var(--space-12); }
+  .section:first-child { margin-top: 0; }
+  .section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .section .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="section">
+    <div class="head"><span class="label label-strong">Data table</span><span class="idx">01</span></div>
+    <table class="table">
+      <thead><tr><th>Project</th><th>Owner</th><th style="text-align: right;">Updated</th><th style="text-align: right;">Status</th></tr></thead>
+      <tbody>
+        <tr><td>Landing rebuild</td><td>A. Madrazo</td><td class="num">2h ago</td><td style="text-align:right"><span class="tag tag-accent">Live</span></td></tr>
+        <tr aria-selected="true"><td>Design tokens</td><td>Design</td><td class="num">Yesterday</td><td style="text-align:right"><span class="tag tag-subtle">Review</span></td></tr>
+        <tr><td>Onboarding v2</td><td>Product</td><td class="num">3d ago</td><td style="text-align:right"><span class="tag tag-outline">Draft</span></td></tr>
+        <tr><td>Marketing site</td><td>Growth</td><td class="num">Last week</td><td style="text-align:right"><span class="tag tag-accent">Live</span></td></tr>
+      </tbody>
+    </table>
+    <p class="caption" style="margin-top: var(--space-4);">No zebra striping — dividers only. Selected row picks up a subtle <code style="font-family: var(--font-label);">--color-surface-raised</code> background plus a 2 px accent bar down the left edge.</p>
+  </div>
+
+</main>
+</body>
+</html>

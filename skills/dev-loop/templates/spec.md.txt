@@ -1,0 +1,93 @@
+# Spec — {{FEATURE_TITLE}}
+
+> **Version:** v1 · **Date:** {{DATE}} · **Status:** Locked at Phase 2 · **Feature slug:** `{{FEATURE_SLUG}}`
+> **Loop:** `docs/dev-loop/{{FEATURE_SLUG}}/`
+> **Source of truth:** this document. When decisions change (via watch mode or manual edits), bump the version + add to the change log at the bottom.
+
+## 1. Concrete outcome (one sentence)
+
+{{OUTCOME_SENTENCE}}
+
+## 2. User stories
+
+{{USER_STORIES_NUMBERED_LIST}}
+
+## 3. Acceptance criteria
+
+Each item is an observable behavior expressible as a test assertion or a manual-check step. Not adjectives.
+
+{{ACCEPTANCE_CRITERIA_CHECKLIST}}
+
+## 4. Non-goals (explicitly OUT of scope)
+
+{{NON_GOALS_LIST}}
+
+## 5. Owned surface
+
+The files / directories this feature lives in. Every task file will name a strict subset of these.
+
+{{OWNED_SURFACE_LIST}}
+
+## 6. Immutable surface (MUST NOT change)
+
+The files / directories this feature MUST NOT touch. Judge hard-fails any task that modifies these.
+
+{{IMMUTABLE_SURFACE_LIST}}
+
+## 7. Stack pins (from stack-blueprint.md)
+
+Every tech choice this feature depends on, cited by blueprint section.
+
+{{STACK_PINS_TABLE}}
+
+## 8. Design pins (from design-system/styles.css)
+
+Every class / token this feature uses. Task files will grep-first these.
+
+{{DESIGN_PINS_LIST}}
+
+## 9. Reusable patterns (grep FIRST before writing)
+
+Named helpers, hooks, tables, endpoints, components already in the codebase that this feature MUST reuse.
+
+{{REUSABLE_PATTERNS_TABLE}}
+
+## 10. Data-model changes
+
+Drizzle schema diffs, new tables/columns/indexes, migration order, down-migration.
+
+{{DATA_MODEL_CHANGES}}
+
+## 11. API surface
+
+New / changed endpoints with request + response types (TypeScript / Zod schemas OK).
+
+{{API_SURFACE}}
+
+## 12. Definition of done (machine-verifiable)
+
+The single shell command that returns exit 0 when this feature ships correctly. This is the oracle for the feature-level judge in Phase 7.
+
+```bash
+{{FEATURE_DOD_COMMAND}}
+```
+
+## 13. Rollback plan
+
+If this ships broken in prod, here's how to undo it:
+
+{{ROLLBACK_PLAN}}
+
+## 14. Assumptions to verify (Phase 3 checks these against code)
+
+Numbered list of every assumption this spec makes about the existing system. Phase 3 verifies each one.
+
+{{ASSUMPTIONS_LIST}}
+
+---
+
+## Change log
+
+| Version | Date | What changed | Why |
+|---|---|---|---|
+| v1 | {{DATE}} | Initial spec | Phase 2 output from dev-loop |

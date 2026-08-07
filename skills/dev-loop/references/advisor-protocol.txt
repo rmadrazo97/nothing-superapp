@@ -1,0 +1,180 @@
+# Advisor Protocol -- how executors consult advisors at decision points
+
+The advisor is NOT called on every turn. It's called at explicit **decision points** listed in the task file. This is what makes the advisor pattern cost-efficient -- Anthropic's benchmark showed Sonnet+Opus-advisor beats Sonnet-alone by 2.7pt on SWE-bench while costing 11.9% LESS than Sonnet alone. Same trick here.
+
+---
+
+## When an executor should consult
+
+The task file's `## When to consult the advisor` section lists the ONLY triggers. Typical triggers:
+- Deciding between two viable technical approaches
+- Interpreting an ambiguous acceptance criterion
+- The DoD command failed 2× with the same error and the executor can't diagnose
+- The task references a "known unknown" that Phase 3 flagged for verification
+- The executor is about to violate an off-limits rule to make progress (STOP and consult -- don't violate)
+
+The executor should NOT consult on:
+- Naming (follow spec)
+- Which files to create (owned + spec are unambiguous)
+- Styling (design system tokens are the answer)
+- Test setup (follow existing test patterns)
+- Anything the spec + task file already answer
+
+Every consultation costs advisor tokens (~$0.01 per call at Opus rates). Budget is `advisor_call_budget` in tier-config (default 15 per task -- and if a task hits that budget, something is wrong with the spec).
+
+---
+
+## How to consult on each harness
+
+### Claude Code (v2.1+) with `/advisor` command
+
+Executor prompt (in the task file) says:
+
+```
+When trigger X fires, invoke the advisor:
+- Say: "Consulting the advisor for <trigger>: <one-line question>"
+- The `/advisor` tool auto-fires
+- Wait for advisor's guidance
+- Apply the guidance, log to decisions.md
+- Continue task execution
+```
+
+The advisor call is transparent to the executor -- Claude Code handles it. No extra worker spawn needed.
+
+### Claude Code (no /advisor set OR pre-v2.1)
+
+Executor prompt (in the task file) says:
+
+```
+When trigger X fires, spawn an advisor subagent:
+1. Use the Task tool
+2. subagent_type: general-purpose (or advisor if the harness has a dedicated one)
+3. model: opus-4-7 (or fable if available; from tier-config's `advisor` field)
+4. effort: high
+5. Prompt: "Act as advisor. The executor working on task NN is at decision point <X>. Context: <last 200 words of executor's log>. Question: <one-line>. Return one paragraph of guidance -- no code, no tool calls, just judgment."
+6. Wait for return, apply, log to decisions.md
+7. Continue
+```
+
+Slightly more expensive than /advisor (advisor pays for the full prompt, not just the delta), but works everywhere.
+
+### Cursor / Windsurf
+
+These generally don't support in-session subagent forks. Fallback:
+
+```
+When trigger X fires:
+- Write the question to `docs/dev-loop/<slug>/advisor-queue.txt` with task_id + trigger
+- STOP execution, exit worker
+- Orchestrator (main session) picks up on next turn
+- Orchestrator either: (a) invokes advisor via the harness's chat window if available, (b) prompts user to answer as advisor, (c) escalates as spec question at Phase 4
+- Answer written to decisions.md
+- Task requeued from checkpoint
+```
+
+Slower (adds a full orchestrator round-trip) but the loop stays coherent.
+
+### Generic (plain terminal, no harness features)
+
+Advisor unavailable. Fallback:
+
+```
+When trigger X fires:
+- STOP execution, exit worker
+- Write question to progress.md with task_id + trigger
+- Return control to user
+- User plays advisor: reads the question, writes answer to decisions.md, resumes the task
+```
+
+This is the `mode: manual` case. User is the advisor.
+
+---
+
+## The advisor's prompt shape (identical across harnesses)
+
+Whether the advisor is `/advisor`, a Task subagent, or a human, they get the same input structure:
+
+```markdown
+# Advisor consultation -- task <NN>: <task_slug>
+
+## Decision point
+<the specific trigger from the task's "When to consult the advisor" list>
+
+## Question
+<one-line specific question the executor needs answered>
+
+## Context (last ~200 words of executor's thinking)
+<pasted from executor's recent output or from progress.md>
+
+## Constraints (from spec + task file)
+- <relevant stack pins>
+- <relevant design pins>
+- <relevant acceptance criteria this decision affects>
+- <off-limits surface this decision must respect>
+
+## Options the executor is weighing (if any)
+- Option A: <one-liner>
+- Option B: <one-liner>
+
+## What we need from you
+- Pick one option (A/B/other) OR propose an option we missed
+- One paragraph of reasoning -- WHY, not just WHAT
+- Any downstream risk we should note (e.g. "this locks us into approach X later")
+
+Do NOT write code. Do NOT call tools. Return ONLY guidance.
+```
+
+Response goes into `decisions.md`:
+
+```markdown
+## Task 03 -- iteration 1 -- 2026-08-07 15:34
+
+**Decision point:** Deciding between server-side vs client-side calorie parsing.
+
+**Advisor's guidance (opus-4-7):**
+> Go client-side with `posthog-js` optimistic UI, backend confirms. The stack pin says
+> we're on Vercel Hobby which has 100k function invocations/day -- if calorie parsing
+> is server-side and each user parses ~3 meals/day, that's 300 users to consume 10%
+> of the daily budget just for parsing. Client-side calls Anthropic API directly
+> (rate-limited per user by their own API key or a proxy). Later we can pull it
+> server-side if we need to add caching or audit trails.
+
+**How it was applied:** Task 03 now uses client-side parse; server route becomes a
+thin proxy that adds an auth header and forwards. Task 02's spec updated.
+
+**Downstream risk:** If we introduce meal-photo parsing later (Task 08 candidate),
+we'll need server-side (photos can't go client-only for cost reasons). Flag now.
+```
+
+---
+
+## Budget enforcement
+
+Per task, per run:
+
+- `advisor_call_budget` (default 15 in `tier-config.yaml`): hard cap.
+- After 10 calls: executor should print a warning: "Approaching advisor budget on task NN."
+- At 15: refuse further calls. Executor must proceed with best judgment OR stop and escalate to user at Phase 7 as a `blocked-budget-exhausted` task.
+
+Per run, across tasks:
+
+- `budgets.total_advisor_tokens_per_run` (default 100k tok, ~$0.75 at Opus rates).
+- If exceeded: `run-orchestrator.mjs` refuses further advisor calls, orchestrator continues without them (executors fall back to best-guess), user warned at Phase 7.
+
+---
+
+## Anti-patterns
+
+- **Consulting the advisor on trivia.** "Should I call this variable `entry` or `record`?" -- No. Naming follows the spec.
+- **Consulting the advisor as a rubber stamp.** "I'm going to do X, is that fine?" -- No. Advisor is for genuine ambiguity. Rubber-stamp questions waste tokens.
+- **Advisor calls without logging.** Every call MUST end up in `decisions.md`. Untracked calls corrupt the audit trail.
+- **Executor overriding advisor without justification.** If the executor's evidence contradicts the advisor's guidance (per Anthropic's advisor doc: "Claude adapts when its own evidence contradicts"), that's fine -- but the executor MUST log the override + reason to `decisions.md` and warn the orchestrator (which surfaces at Phase 7).
+- **Advisor calling other subagents.** The advisor is judgment-only. No tool calls, no delegation. If the advisor needs code inspection, the executor should read the code and pass excerpts INTO the consultation, not the other way around.
+
+---
+
+## When to REMOVE an advisor trigger
+
+If, across multiple runs, a task's advisor triggers always get the same answer, remove that trigger from the task template and bake the decision into the spec instead. This is the "spec absorbs learned decisions" pattern -- specs get better over runs.
+
+`decisions.md` is the source for this refactoring. Grep it periodically for "same advice, same trigger" patterns.

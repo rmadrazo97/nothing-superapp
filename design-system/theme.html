@@ -1,0 +1,43 @@
+<!-- @dsCard group="Theme" name="Parameters" subtitle="Machine-readable seed, human-readable" viewport="640x600" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parameters · Nothing Superapp</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-6); }
+  .head .idx { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .params { border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
+  .row { display: grid; grid-template-columns: 160px 1fr; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
+  .row:last-child { border-bottom: 0; }
+  .row .k { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+  .row .v { font-family: var(--font-label); color: var(--color-text-display); font-size: var(--text-body-sm); }
+</style>
+</head>
+<body>
+<main>
+  <div class="head"><span class="label label-strong">Theme parameters</span><span class="idx">seed</span></div>
+  <div class="params">
+    <div class="row"><span class="k">Name</span><span class="v">Nothing Superapp</span></div>
+    <div class="row"><span class="k">Ground</span><span class="v">dark</span></div>
+    <div class="row"><span class="k">Scheme</span><span class="v">mono</span></div>
+    <div class="row"><span class="k">Hue</span><span class="v">0°</span></div>
+    <div class="row"><span class="k">Chroma</span><span class="v">0.2</span></div>
+    <div class="row"><span class="k">Display</span><span class="v">Doto</span></div>
+    <div class="row"><span class="k">Body</span><span class="v">Space Grotesk</span></div>
+    <div class="row"><span class="k">Label</span><span class="v">Space Mono</span></div>
+    <div class="row"><span class="k">Density</span><span class="v">1×</span></div>
+    <div class="row"><span class="k">Radius (card)</span><span class="v">14 px</span></div>
+    <div class="row"><span class="k">Radius (button)</span><span class="v">999px</span></div>
+    <div class="row"><span class="k">Layout</span><span class="v">left</span></div>
+    <div class="row"><span class="k">Buttons</span><span class="v">filled-white</span></div>
+    <div class="row"><span class="k">Image</span><span class="v">none</span></div>
+    <div class="row"><span class="k">Icons</span><span class="v">phosphor</span></div>
+  </div>
+  <p class="caption" style="margin-top: var(--space-6);">These values seed <code style="font-family: var(--font-label);">styles.css</code>. Retune the tokens directly in the stylesheet and keep <code style="font-family: var(--font-label);">theme.json</code> in step.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,292 @@
+# Target Recipes -- proven full-stack combos per target x budget
+
+Pick the recipe that matches the user's primary target and budget tier. These are known-working combinations, not aspirational stacks.
+
+Every recipe includes: framework / backend / DB / auth / payments / hosting / cost envelope / scaffold command.
+
+---
+
+## Recipe 1: PWA (primary) + Capacitor native shells (secondary)
+
+**When to pick:** consumer app that ships web + iOS + Android from ONE codebase. Nothing Superapp's shape.
+
+### Budget: Free
+
+```
+Frontend       . Next.js 16 (App Router) + React 19
+Styling        . Tailwind CSS v4 + shadcn/ui (or a locked design system's styles.css)
+State          . TanStack Query (server state) + Zustand (client state)
+Forms          . React Hook Form + Zod
+Backend        . Next.js Route Handlers (co-located)
+Database       . Supabase Postgres (Free: 500MB, 5GB egress)
+ORM            . Drizzle (or Supabase JS client directly)
+Auth           . Supabase Auth (Google + Apple OAuth + magic link, unlimited MAU free)
+Storage        . Supabase Storage (Free: 1GB)
+Payments       . Stripe (web) + RevenueCat (native shells)
+Native shells  . Capacitor 6 (iOS + Android)
+Email          . Resend (Free: 3k/mo)
+Deploy         . Vercel Hobby (Free)
+CI/CD          . GitHub Actions (Free: 2k mins/mo)
+Analytics      . PostHog Free (1M events/mo)
+Errors         . Sentry Free (5k events/mo)
+```
+
+**Cost envelope:**
+- $0/mo up to ~500-1000 signed-in daily active users.
+- First paid dollar: Supabase Pro at $25/mo when you hit 500MB DB OR sustained 5GB egress; Vercel Pro at $20/mo for commercial-use compliance.
+- ~$50/mo covers you comfortably to ~10k DAU.
+
+**Scaffold commands:**
+```bash
+# 1. Web + PWA
+npx create-next-app@latest my-app --typescript --tailwind --app --src-dir --import-alias "@/*"
+cd my-app
+npm install @supabase/supabase-js @supabase/ssr drizzle-orm postgres @tanstack/react-query zustand react-hook-form zod
+
+# 2. shadcn/ui
+npx shadcn@latest init
+npx shadcn@latest add button card input dialog form
+
+# 3. Native shells (Capacitor)
+npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
+npx cap init "My App" "com.myapp.app"
+npx cap add ios
+npx cap add android
+
+# 4. Payments (RC for native)
+npm install @revenuecat/purchases-capacitor
+
+# 5. Supabase local dev
+npx supabase init && npx supabase start
+```
+
+### Budget: Bootstrap (<$50/mo)
+
+Everything above, plus:
+- **Vercel Pro** ($20/mo) — commercial-use compliance, better analytics, deploy protection.
+- **Supabase Pro** ($25/mo) — 8GB DB, unlimited egress, no pauses.
+- Total: ~$45/mo.
+
+### Budget: Funded (<$500/mo)
+
+Add:
+- **Sentry Team** ($26/mo) — 50k events, unlimited replays.
+- **PostHog paid** (~$0-100/mo depending on volume).
+- **Cloudflare R2** for media (~$0 storage / cheap egress).
+- **Resend paid** ($20/mo) — 50k emails.
+- **Vercel Enterprise features** (deploy protection, IP allowlists).
+
+---
+
+## Recipe 2: PWA (primary) only, no native
+
+**When to pick:** you want reach without App Store hassle. Ship in a day.
+
+Same as Recipe 1 minus Capacitor / RevenueCat / native shells / TestFlight setup.
+
+Cost envelope: $0/mo up to ~1000-3000 users.
+
+---
+
+## Recipe 3: Edge-first (Cloudflare Workers)
+
+**When to pick:** you want zero-egress + zero-cost-at-scale, and don't need long-running processes.
+
+### Budget: Free
+
+```
+Frontend       . Next.js on Cloudflare Pages (via @cloudflare/next-on-pages) or Astro
+Backend        . Cloudflare Workers (Hono framework)
+Database       . Cloudflare D1 (edge SQLite) or Neon (serverless Postgres)
+ORM            . Drizzle (supports D1 natively)
+Auth           . Better Auth (open-source, edge-compatible)
+Storage        . Cloudflare R2 (10GB free, no egress fees)
+Payments       . Stripe
+Email          . Resend
+Deploy         . Cloudflare Pages + Workers
+CI/CD          . GitHub Actions + Cloudflare CI
+```
+
+**Cost envelope:** $0/mo up to millions of requests. Egress is FREE, which is the killer feature at scale. Paid unlocks at $5/mo Workers Paid (removes 100k/day cap).
+
+**Scaffold:**
+```bash
+npm create cloudflare@latest my-app -- --framework=next
+cd my-app
+npm install drizzle-orm @libsql/client hono
+npx wrangler d1 create my-db
+```
+
+---
+
+## Recipe 4: React Native + Expo (native-first, no web)
+
+**When to pick:** primary target is native iOS + Android from day one, web is not a priority.
+
+### Budget: Free
+
+```
+Framework      . Expo (React Native) + Expo Router
+State          . TanStack Query + Zustand
+Backend        . Supabase (Postgres + Auth + Storage + Edge Functions)
+Auth           . Supabase Auth OR Clerk (better native SDK)
+Payments       . RevenueCat (App Store + Play Store)
+Push notif     . Expo Push (built-in)
+Deploy         . EAS Build (Free: 30 builds/mo)
+Store          . TestFlight + Play Console Internal Testing
+CI/CD          . GitHub Actions + EAS Submit
+```
+
+**Cost envelope:** $0/mo development. Apple Developer $99/yr; Google Play $25 one-time.
+
+**Scaffold:**
+```bash
+npx create-expo-app@latest my-app --template
+cd my-app
+npx expo install @supabase/supabase-js @tanstack/react-query zustand
+eas init && eas build:configure
+```
+
+---
+
+## Recipe 5: iOS-only (SwiftUI)
+
+**When to pick:** iOS-only product, deep Apple integration (HealthKit, Live Activities, App Intents, Vision Pro).
+
+### Budget: Free
+
+```
+Framework      . SwiftUI + Swift 6
+State          . @Observable / SwiftData
+Backend        . Supabase (Postgres) via supabase-swift OR CloudKit (Apple-native, free)
+Auth           . Sign in with Apple + Supabase Auth
+Payments       . StoreKit 2 (Apple's, no third-party fee) + RevenueCat wrapper
+Push notif     . APNs (Apple free)
+Deploy         . Xcode Cloud (Free: 25 hrs/mo)
+Store          . TestFlight + App Store
+```
+
+**Cost envelope:** $99/yr Apple Developer + backend (~$0-25/mo Supabase).
+
+**Scaffold:** Xcode > New Project > iOS App > SwiftUI. Add Swift packages via SPM: `supabase-swift`, `revenuecat-swift`.
+
+---
+
+## Recipe 6: Cross-platform desktop (Tauri)
+
+**When to pick:** ship desktop app to macOS + Windows + Linux; small binary; Rust core.
+
+### Budget: Free
+
+```
+Framework      . Tauri 2 + React/Svelte/Vue frontend
+State          . Zustand (React) or built-in stores
+Backend        . Tauri commands (Rust) for native APIs; HTTP for remote
+Database       . SQLite via tauri-plugin-sql (local); Supabase for cloud sync
+Auth           . OAuth via system browser (tauri-plugin-oauth)
+Deploy         . GitHub Releases (free)
+Auto-update    . Tauri built-in updater
+```
+
+**Cost envelope:** $0/mo. Apple $99/yr for notarization on macOS; Microsoft ~$20 one-time for code signing on Windows (cheap cert vendors like SSL.com).
+
+**Scaffold:**
+```bash
+npm create tauri-app@latest my-app -- --template react-ts
+cd my-app
+npm install
+npm run tauri dev
+```
+
+---
+
+## Recipe 7: API-only backend
+
+**When to pick:** no UI. Serves clients that live elsewhere (mobile app, third-party integrations).
+
+### Budget: Free
+
+```
+Framework      . Hono (edge) OR Fastify (Node) OR FastAPI (Python)
+Runtime        . Cloudflare Workers (Hono) OR Fly.io ($5/mo, Fastify)
+Database       . Neon serverless Postgres (Free: 0.5GB)
+ORM            . Drizzle (Node) OR SQLAlchemy (Python)
+Auth           . JWT + refresh (custom) OR Auth0 M2M (Free: 25 users)
+Docs           . Auto-generated OpenAPI + Scalar UI
+Deploy         . Cloudflare Workers OR Fly.io
+```
+
+**Cost envelope:** $0/mo on Cloudflare Workers (100k req/day); $5/mo on Fly.
+
+**Scaffold:**
+```bash
+# Hono on Cloudflare Workers
+npm create hono@latest my-api -- --template cloudflare-workers
+cd my-api && npm install drizzle-orm @neondatabase/serverless
+```
+
+---
+
+## Recipe 8: MCP server
+
+**When to pick:** you're exposing a tool/data source to Claude / Cursor / other MCP clients.
+
+### Budget: Free
+
+```
+Framework      . @modelcontextprotocol/sdk (TypeScript) OR (Python)
+Runtime        . Node/Bun local process OR Cloudflare Workers (HTTP transport)
+Database       . SQLite (local) OR Cloudflare D1 (hosted) OR none
+Auth           . OAuth 2.1 (per MCP spec) or none for local stdio
+Deploy         . npm publish (for stdio) + Cloudflare Workers (for HTTP)
+Distribution   . `npx @you/your-mcp` for stdio; hosted URL for HTTP
+```
+
+**Cost envelope:** $0/mo. Distribution is a `package.json` + `bin` field.
+
+**Scaffold:**
+```bash
+mkdir my-mcp && cd my-mcp
+npm init -y
+npm install @modelcontextprotocol/sdk zod
+# scaffold from https://modelcontextprotocol.io/quickstart/server
+```
+
+---
+
+## Recipe 9: CLI
+
+**When to pick:** command-line tool for developers.
+
+### Budget: Free
+
+```
+Framework      . Commander (Node, simplest) OR Cobra (Go, single binary)
+Runtime        . Node 18+ (npm distribution) OR Go compiled binary
+Config         . Cosmiconfig (Node) OR Viper (Go)
+Prompts        . @inquirer/prompts (Node) OR Bubble Tea (Go)
+Distribution   . npm publish (Node) OR GitHub Releases + Homebrew tap (Go)
+Update check   . update-notifier (Node)
+```
+
+**Cost envelope:** $0/mo. Distribution is free.
+
+**Scaffold:**
+```bash
+# Node CLI (simplest)
+npm init -y
+npm install commander @inquirer/prompts
+# Set "bin": { "my-cli": "./bin/cli.js" } in package.json
+```
+
+---
+
+## Combining recipes (multi-target)
+
+For products spanning multiple targets, use the primary target's recipe as the base and layer:
+
+- **Primary PWA + secondary native** → Recipe 1 (Capacitor wraps the PWA; shared codebase).
+- **Primary web + secondary API** → Recipe 1 + a `packages/api` workspace using Recipe 7's Hono setup, sharing Zod schemas.
+- **Primary CLI + secondary web dashboard** → Recipe 9 + Recipe 2 for the dashboard, sharing a `packages/core` for the underlying logic.
+
+Multi-target requires a monorepo (pnpm workspaces or Nx). Shared code goes in `packages/*`.

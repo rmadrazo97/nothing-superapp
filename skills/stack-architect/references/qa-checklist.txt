@@ -1,0 +1,72 @@
+# QA Checklist -- Before delivery
+
+Run before printing the handoff line. Fix silently and re-check.
+
+## Structure
+
+- [ ] `stack-blueprint.md` written at the chosen path (default `./stack-blueprint.md`).
+- [ ] All 11 sections present in order: Product summary / Locked decisions / Rationale / Cost envelope / Folder structure / What's shared vs per-target / Scaffold commands / Trade-offs accepted / Migration paths / Next steps / **Prerequisites & Access**.
+- [ ] Header includes `v1` version + date + change-log stub.
+
+## Prerequisites section (§ 11) is complete
+
+- [ ] 11a lists EVERY vendor from the locked stack — check against § 2's decision matrix. Missing any = incomplete.
+- [ ] Each account row cites signup URL + payment-method-at-signup + free-tier ceiling (pulled from `credentials-catalog.txt`).
+- [ ] 11b env vars table lists every key + which service produces it + which side (client / server / both) it's used on.
+- [ ] `.env.example` file is mentioned (with a note that the real `.env.local` is git-ignored).
+- [ ] 11c names all local tools with min versions: Node, package manager, git, and any target-specific IDEs (Xcode for iOS, Android Studio for Android).
+- [ ] 11d config steps are ordered — anything that depends on another service being live is placed after that service's setup.
+- [ ] Analytics / observability service has: SDK per target, first-week event list, replay/privacy posture, reverse-proxy note if applicable (rule 12).
+
+## Placeholders
+
+- [ ] `grep "{{" stack-blueprint.md` returns 0 hits.
+- [ ] No "TBD", "TODO", "FIXME", "<insert>" in the delivered doc.
+
+## Decisions are complete
+
+Every required role is named. Missing any = incomplete blueprint. Check:
+- [ ] Frontend framework
+- [ ] Backend approach (may be "none — client-only")
+- [ ] Database (may be "none — localStorage")
+- [ ] Auth (may be "none — anonymous / device ID")
+- [ ] Payments (may be "none — free product")
+- [ ] Deploy target
+- [ ] Domain strategy (custom / subdomain / none)
+- [ ] Analytics + errors (may be "later")
+- [ ] Version control host (GitHub / GitLab / Codeberg)
+
+## Rationale quality
+
+- [ ] Every major decision cites at least one alternate ("Chose X over Y because...").
+- [ ] Free tier limits are cited with real numbers (e.g. "500 MB DB / 5 GB egress"), not vague words.
+- [ ] Each locked decision has a "Locked by:" line naming the human reason (user preference / budget / target constraint / design system pin).
+
+## Hard-rules compliance
+
+- [ ] The blueprint contains NONE of the services the user said no to (grep for each in the "off-limits" list from intake).
+- [ ] The blueprint respects budget: if user said "Free ($0/mo)", the cost envelope for the first 100-1k users MUST be $0/mo.
+
+## Multi-target coherence
+
+- [ ] If multi-target, explicitly states whether shells share a codebase (Capacitor / Expo) or split (separate SwiftUI + Kotlin).
+- [ ] `What's shared vs per-target` section names every shared artifact (design tokens, TS types, Zod schemas, API contract, auth session).
+- [ ] Folder structure shows the monorepo layout with `apps/*` and `packages/shared/*`.
+
+## Scaffold runnability
+
+- [ ] Every shell command in § 7 is runnable in order — no ordering bugs.
+- [ ] Commands match the picked package manager (npm / pnpm / yarn / bun) throughout.
+- [ ] Version flags are valid for the framework's current stable release.
+- [ ] For each command, a comment says what it produces so the user can spot-check.
+
+## Voice + polish
+
+- [ ] Confident, no hedging ("we could...", "you might want...").
+- [ ] Reads like a staff engineer briefing over coffee — 5-min read, executable immediately.
+- [ ] No mention of "AI-generated" or "based on your input" — the doc reads as if a person wrote it.
+
+## Handoff
+
+- [ ] Print the two-line handoff from `SKILL.md` § Handoff.
+- [ ] Ask: "Want me to scaffold it now (run § 7), or leave it for review?"

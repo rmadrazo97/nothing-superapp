@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{SYSTEM_NAME}} — design system</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* Editorial gallery page — the ONLY page where index-specific chrome is allowed.
+     Every visual token still comes from styles.css. */
+  main { max-width: 1280px; margin: 0 auto; padding: var(--space-12) var(--space-6); }
+
+  /* — hero — asymmetric: brand mark left / palette + meta right — */
+  header.hero { display: grid; grid-template-columns: 1.4fr 1fr; align-items: end; gap: var(--space-8); padding-bottom: var(--space-12); border-bottom: 1px solid var(--color-border); }
+  header.hero h1 { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: clamp(72px, 12vw, 160px); line-height: 0.9; letter-spacing: -0.03em; color: var(--color-text-display); margin: 0; }
+  header.hero .subtitle { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: var(--space-2); }
+  header.hero .swatchbar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  header.hero .swatchbar span { height: 96px; border-radius: 8px; }
+  header.hero .swatchbar .label { grid-column: 1 / -1; display: flex; justify-content: space-between; font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-disabled); margin-top: var(--space-2); }
+
+  /* — section header — big label + right-aligned count — */
+  section { padding: var(--space-12) 0; border-bottom: 1px solid var(--color-border); }
+  section:last-of-type { border-bottom: 0; }
+  section > .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-8); }
+  section > .section-head .kicker { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+  section > .section-head h2 { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 48px; letter-spacing: -0.02em; color: var(--color-text-display); margin: 0; line-height: 1; }
+  section > .section-head .count { font-family: var(--font-label); font-size: var(--text-caption); letter-spacing: 0.06em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+
+  /* — tiles — asymmetric grid with the first tile double-wide as a hero — */
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--space-4); }
+  .tile { grid-column: span 4; display: flex; flex-direction: column; text-decoration: none; color: inherit; border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .tile:hover { border-color: var(--color-text-primary); transform: translateY(-2px); }
+  .tile.tile-wide { grid-column: span 8; }
+  .tile iframe { display: block; width: 100%; height: 320px; border: 0; background: var(--color-bg); pointer-events: none; }
+  .tile.tile-wide iframe { height: 400px; }
+  .tile-meta { display: flex; align-items: baseline; justify-content: space-between; padding: var(--space-4); border-top: 1px solid var(--color-border); gap: var(--space-3); }
+  .tile-name { font-family: var(--font-body); font-weight: 500; font-size: var(--text-subheading); color: var(--color-text-display); }
+  .tile-idx  { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--color-text-disabled); font-variant-numeric: tabular-nums; }
+  .tile-sub  { font-family: var(--font-label); font-size: var(--text-caption); letter-spacing: 0.04em; color: var(--color-text-secondary); text-transform: none; padding: 0 var(--space-4) var(--space-4); }
+
+  /* — footer — */
+  footer { padding: var(--space-12) 0 var(--space-8); display: flex; justify-content: space-between; align-items: baseline; }
+  footer .meta { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-disabled); }
+  footer .meta a { color: var(--color-text-secondary); text-decoration: none; margin-left: 12px; }
+  footer .meta a:hover { color: var(--color-text-display); }
+
+  @media (max-width: 900px) {
+    header.hero { grid-template-columns: 1fr; }
+    .tile, .tile.tile-wide { grid-column: span 12; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div>
+      <div class="subtitle">Design system · v1 · Live preview</div>
+      <h1>{{SYSTEM_NAME}}</h1>
+    </div>
+    <div class="swatchbar">
+      <span style="background: var(--color-bg); border: 1px solid var(--color-border)"></span>
+      <span style="background: var(--color-surface)"></span>
+      <span style="background: var(--color-surface-raised)"></span>
+      <span style="background: var(--color-text-secondary)"></span>
+      <span style="background: var(--color-text-display)"></span>
+      <span style="background: var(--color-accent)"></span>
+      <div class="label"><span>bg → text → accent</span><span>{{BAND}} · {{SCHEME}}</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>Foundations</h2>
+      <div class="count">05 pages</div>
+    </div>
+    <div class="grid">
+      <a class="tile tile-wide" href="foundations/color.html">
+        <iframe src="foundations/color.html" title="Color"></iframe>
+        <div class="tile-meta"><div class="tile-name">Color</div><div class="tile-idx">01</div></div>
+        <div class="tile-sub">Role palette, 4-tier text opacity ladder, OKLCH tonal ramps.</div>
+      </a>
+      <a class="tile" href="foundations/type.html">
+        <iframe src="foundations/type.html" title="Type"></iframe>
+        <div class="tile-meta"><div class="tile-name">Type</div><div class="tile-idx">02</div></div>
+        <div class="tile-sub">Display / body / label — three families, one rhythm.</div>
+      </a>
+      <a class="tile" href="foundations/layout.html">
+        <iframe src="foundations/layout.html" title="Layout"></iframe>
+        <div class="tile-meta"><div class="tile-name">Layout</div><div class="tile-idx">03</div></div>
+        <div class="tile-sub">Spacing scale, 12-column grid, geometry.</div>
+      </a>
+      <a class="tile" href="foundations/icons.html">
+        <iframe src="foundations/icons.html" title="Icons"></iframe>
+        <div class="tile-meta"><div class="tile-name">Icons</div><div class="tile-idx">04</div></div>
+        <div class="tile-sub">Phosphor set, sized for the interface.</div>
+      </a>
+      <a class="tile" href="foundations/image.html">
+        <iframe src="foundations/image.html" title="Image"></iframe>
+        <div class="tile-meta"><div class="tile-name">Image</div><div class="tile-idx">05</div></div>
+        <div class="tile-sub">Photograph treatment and placeholders.</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Components</h2>
+      <div class="count">06 pages</div>
+    </div>
+    <div class="grid">
+      <a class="tile tile-wide" href="components/cards.html">
+        <iframe src="components/cards.html" title="Cards"></iframe>
+        <div class="tile-meta"><div class="tile-name">Cards &amp; tiles</div><div class="tile-idx">06</div></div>
+        <div class="tile-sub">The primary layout primitive: content, hero, and accent variants.</div>
+      </a>
+      <a class="tile" href="components/buttons.html">
+        <iframe src="components/buttons.html" title="Buttons"></iframe>
+        <div class="tile-meta"><div class="tile-name">Buttons &amp; tags</div><div class="tile-idx">07</div></div>
+        <div class="tile-sub">Pill primary, outlined destructive, floating action.</div>
+      </a>
+      <a class="tile" href="components/forms.html">
+        <iframe src="components/forms.html" title="Forms"></iframe>
+        <div class="tile-meta"><div class="tile-name">Forms</div><div class="tile-idx">08</div></div>
+        <div class="tile-sub">Underline inputs, native radios, segmented control.</div>
+      </a>
+      <a class="tile" href="components/navigation.html">
+        <iframe src="components/navigation.html" title="Navigation"></iframe>
+        <div class="tile-meta"><div class="tile-name">Navigation</div><div class="tile-idx">09</div></div>
+        <div class="tile-sub">Bracketed instrument-panel bar.</div>
+      </a>
+      <a class="tile" href="components/table.html">
+        <iframe src="components/table.html" title="Table"></iframe>
+        <div class="tile-meta"><div class="tile-name">Table</div><div class="tile-idx">10</div></div>
+        <div class="tile-sub">Space Mono numerics, no zebra, selected-row accent bar.</div>
+      </a>
+      <a class="tile" href="components/dialog.html">
+        <iframe src="components/dialog.html" title="Dialog"></iframe>
+        <div class="tile-meta"><div class="tile-name">Dialog</div><div class="tile-idx">11</div></div>
+        <div class="tile-sub">Modal + backdrop, destructive-primary action pattern.</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Theme</h2>
+      <div class="count">02 pages</div>
+    </div>
+    <div class="grid">
+      <a class="tile tile-wide" href="thumbnail.html">
+        <iframe src="thumbnail.html" title="Cover"></iframe>
+        <div class="tile-meta"><div class="tile-name">Cover</div><div class="tile-idx">12</div></div>
+        <div class="tile-sub">Brand mark and swatch strip — the system's face.</div>
+      </a>
+      <a class="tile" href="theme.html">
+        <iframe src="theme.html" title="Parameters"></iframe>
+        <div class="tile-meta"><div class="tile-name">Parameters</div><div class="tile-idx">13</div></div>
+        <div class="tile-sub">Machine-readable seed, human-readable.</div>
+      </a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="meta">© {{SYSTEM_NAME}} · Built with design-system-builder</div>
+    <div class="meta"><a href="readme.md">readme</a><a href="theme.json">theme.json</a><a href="styles.css">styles.css</a></div>
+  </footer>
+</main>
+</body>
+</html>

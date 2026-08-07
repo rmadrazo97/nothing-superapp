@@ -1,0 +1,230 @@
+# Task-Brief Anatomy -- the shape every task file follows (v0.2)
+
+Every task in `docs/dev-loop/<slug>/tasks/NN-<slug>.md` is a **self-contained subagent prompt**. A worker gets ONLY this file + the tools its harness provides -- no inline chat context, no additional briefings.
+
+This is what makes the loop resumable. A worker can be spawned cold from a fresh context and produce correct output, because the task file carries every constraint it needs.
+
+**Reading order for a worker (top-down):** the Worker turn protocol + Escape hatch come FIRST so cold readers see the operating manual before object-level instructions. Then outcome (acceptance criteria + DoD) before constraints (ownership + reuse) before mechanics (advisor triggers). This is the reverse of a spec doc -- workers read for how to execute, not to understand.
+
+---
+
+## The 11 required sections (in this order)
+
+### 1. Frontmatter -- tier map + provenance + rollback
+
+```yaml
+---
+task_id: 03
+slug: calorie-tile-ui
+spec_section: "§ 4.2 Calorie tile UI"
+spec_version_at_dispatch: 3
+tier:
+  executor: sonnet-4-6
+  advisor: opus-4-7
+  judge: haiku-4-5
+  advisor_call_budget: 5
+  max_worker_turns: 15
+  max_wall_clock_min: 30
+  max_judge_fail_streak: 3
+tier_rationale:
+  executor: "Sonnet is enough for tile UI; design system tokens make the visual decisions"
+  advisor: "Opus called when UX pattern isn't in design system"
+  judge: "Haiku is fresh + narrow -- checks DoD output, no code judgment"
+blocked_by: [01, 02]
+blocks: [08]
+rollback: "git revert <this-task-commit-range>"    # or: "flag off:feature-calorie" or: "supabase db reset --to <migration>"
+---
+```
+
+Notes:
+- `spec_version_at_dispatch` is what the orchestrator stamped at dispatch. Workers echo `read_spec_version` in their progress entries; judges check they match.
+- `rollback` is REQUIRED. Every task must declare its undo path -- git range for code, flag-off for gated features, migrate-down for schemas.
+- `tier_rationale` retains three separate lines. When a judge fails 3× and the orchestrator considers re-tiering, per-role rationale is what it uses to decide which role to escalate.
+
+### 2. Title + one-line intent
+
+```markdown
+# Task 03 -- Calorie tile UI
+
+One-line intent: Render the calorie tile on the home grid and its detail page, wired to the parsed-macro endpoint from task 02.
+```
+
+### 3. Worker turn protocol (READ FIRST — the operating manual)
+
+The 7-step loop each worker turn runs. This section is BOLD/loud in the template because it's the drift-detection safeguard. If a worker skips this, watch mode's amendments are silently missed.
+
+Currently: step 0 = check `status.json` drift flag; step 1 = re-read spec + task file; step 2 = re-read own last `progress.md` entry; step 3 = pick next unmet acceptance criterion; step 4 = make change + run DoD slice (full DoD every 3rd turn); step 5 = append to `progress.md`; step 6 = if DoD passes fully, STOP; step 7 = advisor if stuck 2×; step 8 = continue until stop condition.
+
+### 4. Escape hatch (READ SECOND — safety rail)
+
+Every hard constraint has a sanctioned STOP-and-report. Explicit escape hatches for:
+- Owned/off-limits violation
+- DoD command unrunnable
+- Reusable pattern doesn't fit
+- Acceptance criterion untestable
+- Hard prohibitions that would force cheating
+
+Prefix section heading with "STOP —" so a cold reader sees it as a mandatory pause point, not a general aside.
+
+### 5. Spec source (citation, not restatement)
+
+```markdown
+## Spec source
+
+Implements § 4.2 of `docs/dev-loop/calorie-tile/spec.md`. Read that section before editing.
+
+Do NOT restate the spec here -- read it. Restating drifts.
+```
+
+### 6. Acceptance criteria (assertion | verification-method pairs)
+
+Each criterion is a two-part row: `assertion | verification method`. Verification method is one of: `unit`, `e2e`, `manual`, `grep`, `dod`. No vague behavioral prose ("feels right", "clean UX").
+
+Format:
+
+```markdown
+- [ ] **Home grid renders a Calorie tile at 375px** using `.card-hero` class · `unit`
+- [ ] **Tapping the tile navigates to `/calorie` route** · `e2e`
+- [ ] **User can type "2 eggs and oats" → parse endpoint → row inserted** · `e2e`
+- [ ] **Empty state shows "Log your first meal" CTA** · `unit`
+- [ ] **UI text uses only design system tokens** (grep for hex codes = 0 hits in owned files) · `grep`
+```
+
+If a criterion has no verification method available, either write the missing verification (test/tool) as an inline sub-task, or STOP per escape hatch.
+
+### 7. Definition of done
+
+Wrapped as a callout:
+
+```markdown
+> **Oracle:** this command MUST return exit 0. If any line fails, task is NOT done.
+
+```bash
+<the DoD command>
+```
+```
+
+Rules:
+- No `|| true`, no `; exit 0`, no `--passWithNoTests`, no `--skip-*` flags that would make the DoD pass while ignoring failures.
+- No `pipefail`-defeating pipes (`grep foo | head` swallows non-zero from grep).
+- Must include an ownership-boundary check: `git diff --name-only main | grep -v '<owned-regex>' | wc -l | grep -q '^0$'` as ONE of the AND-chained checks.
+
+### 8. Ownership boundary (owned + off-limits merged)
+
+Merged into one section because they're the same concept (files this task governs; files it must not).
+
+```markdown
+## Ownership boundary
+
+**Owned** — files you may create or modify. Bare `**` globs are BANNED; enumerate paths or declare a `max_file_count: N` under a subtree root.
+
+- `apps/web/src/app/(app)/calorie/page.tsx` (new)
+- `apps/web/src/components/features/calorie/` (new subtree; max_file_count: 5)
+- `apps/web/src/components/HomeGrid.tsx` (edit: add ONE tile entry; do NOT restructure)
+
+**Off-limits** — files you must NOT touch:
+
+- `design-system/**` (locked)
+- `packages/shared/**` (task 01 owns)
+- `apps/web/src/app/api/**` (task 02 owns)
+- Any file with a `# LOCKED` header comment
+- Orchestrator files (`spec.md`, `tier-config.yaml`, `deps.json`, `status.json`, `progress.md`, `judge-log.md`, `decisions.md`, other tasks' `.md` files) — implicit in Rule 16, restated here for clarity
+```
+
+### 9. Reusable patterns to grep FIRST (reuse > invent)
+
+Named items only. No prose. Each item is grep-able.
+
+```markdown
+## Reusable patterns to grep FIRST
+
+- `.card`, `.card-hero`, `.fab` — from `design-system/styles.css`. Never inline a card style.
+- `useSupabaseUser()` — `apps/web/src/hooks/useSupabaseUser.ts`.
+- `useCalorieEntries()` — task 02 output.
+- `formatMacros()` — `packages/shared/src/format-macros.ts` (task 02).
+```
+
+If the reusable pattern doesn't fit the task's need, STOP per escape hatch.
+
+### 10. Advisor triggers (allowed + forbidden)
+
+Two subsections. Allowed = explicit trigger list. Forbidden = the categories the executor MUST self-decide.
+
+Forbidden list catalogued in the template — reject-on-sight:
+- Naming
+- File creation choices
+- Styling
+- Test setup
+- Refactoring existing code touched
+- Library/dependency choice (stack-locked)
+- Error-message wording
+- "Is this criterion really necessary" (yes; escape-hatch if broken)
+- Performance micro-choices without a spec perf budget
+
+If an executor consults on any forbidden category, the judge flags the decisions.md entry.
+
+### 11. Progress log contract (mandatory per turn)
+
+The exact `progress.md` entry shape. Required so resume-loop and watch-mode drift detection have machine-readable telemetry:
+
+```markdown
+## Task {{TASK_ID}} — turn N — <ISO timestamp>
+
+- **Files touched:** <list>
+- **Acceptance criterion met this turn:** <criterion text or "none">
+- **DoD slice run:** <command> → exit <N>
+- **read_spec_version:** <version>
+- **Next planned:** <one-line>
+```
+
+Missing this shape = task hard-fails for missing telemetry. Bounded verbosity by design (5 fields, no prose).
+
+---
+
+## Optional sections (add if applicable)
+
+### 12. Prototype snippets (when prose fails)
+
+State machine, reducer, type shape more precise than English can express. Trim to decision-rich parts, not a working demo.
+
+### 13. Known unknowns (Phase 3 assumptions to verify)
+
+Assumptions Phase 3 flagged as risky, that this task inherits as "verify FIRST" items.
+
+### 14. Task-specific rollback (overrides frontmatter default)
+
+For tasks with non-standard rollback (Stripe product deactivation, external webhook removal, third-party permission revoke) — spell out the exact procedure. If not present, frontmatter's `rollback` field applies.
+
+---
+
+## Anti-patterns (reject on sight)
+
+Any of these in a task file = the file is broken; regenerate:
+
+- **Missing any of the 11 required sections** — orchestrator refuses to dispatch
+- **Owned list contains bare `**` glob** without a `max_file_count` cap — silent blast-radius escalation
+- **DoD command contains `|| true`, `; exit 0`, `--passWithNoTests`** — hides failures
+- **DoD ownership-boundary check missing** — worker can touch anything and pass
+- **Acceptance criterion phrased as "the user experience feels..."** — unverifiable
+- **Acceptance criterion with no verification method** — pure assertion, no oracle
+- **Advisor triggers include "if unsure"** — unbounded; executor will consult on everything
+- **`tier_rationale` copy-pasted verbatim across tasks** — signals the tier wasn't actually chosen
+- **Spec restated instead of cited** — drift vector; spec.md is source of truth
+- **Frontmatter missing `spec_version_at_dispatch`** — breaks drift detection
+- **Frontmatter missing `rollback`** — breaks Rule 15
+
+---
+
+## Why this shape is non-negotiable
+
+Every deviation costs debuggability:
+
+- Missing tier map → orchestrator can't route the task correctly.
+- Missing `spec_version_at_dispatch` → drift detection is broken; worker may commit against stale spec silently.
+- Missing `rollback` → failed task can't be reverted without archaeology.
+- Missing worker turn protocol → cold worker starts coding without drift-detection or evidence-first framing.
+- Missing escape hatch → cornered worker cheats (minifies identifiers, deletes tests, narrows criteria).
+- Missing DoD command → judge has nothing to verify; task is "done by claim, not by evidence" — the exact failure mode Anthropic's Ralph-loop research calls out.
+- Missing progress-log contract → resume-loop breaks; orchestrator can't detect drift or drive judges.
+
+Every task file that ships to a worker MUST have all 11 required sections. `scripts/build-taskpack.mjs` validates this before writing the file.

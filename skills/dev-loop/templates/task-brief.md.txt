@@ -1,0 +1,160 @@
+---
+task_id: {{TASK_ID}}
+slug: {{TASK_SLUG}}
+spec_section: "{{SPEC_SECTION_REF}}"
+spec_version_at_dispatch: {{SPEC_VERSION}}
+tier:
+  executor: {{EXECUTOR_MODEL}}
+  advisor: {{ADVISOR_MODEL}}
+  judge: {{JUDGE_MODEL}}
+  advisor_call_budget: {{ADVISOR_CALL_BUDGET}}
+  max_worker_turns: {{MAX_WORKER_TURNS}}
+  max_wall_clock_min: {{MAX_WALL_CLOCK_MIN}}
+  max_judge_fail_streak: {{MAX_JUDGE_FAIL_STREAK}}
+tier_rationale:
+  executor: "{{EXECUTOR_WHY}}"
+  advisor: "{{ADVISOR_WHY}}"
+  judge: "{{JUDGE_WHY}}"
+blocked_by: {{BLOCKED_BY_JSON}}
+blocks: {{BLOCKS_JSON}}
+rollback: "{{ROLLBACK_COMMAND}}"
+---
+
+# Task {{TASK_ID}} — {{TASK_TITLE}}
+
+**One-line intent:** {{TASK_INTENT}}
+
+---
+
+## 🔁 Worker turn protocol — READ FIRST, RUN EVERY TURN
+
+This is the operating manual. Every worker turn starts here.
+
+**0.** Check `docs/dev-loop/{{FEATURE_SLUG}}/status.json` — if your task is flagged `drift`, diff `spec.md` against the `spec_version_at_dispatch` in this frontmatter before proceeding. Watch mode may have amended requirements silently.
+
+**1. Re-read** `docs/dev-loop/{{FEATURE_SLUG}}/spec.md` AND this task file (top to bottom). Watch mode may have amended them mid-flight. **This is not optional; drift is silent.** If `spec.md` header shows a `spec_version` newer than this task's `spec_version_at_dispatch`, discard any in-progress plan and re-plan from the new spec.
+
+**2. Re-read your own last entry in `progress.md`** — confirm you're not repeating work.
+
+**3. Pick the next unmet acceptance criterion** (see § "Acceptance criteria" below) and the single hunk that satisfies it. One criterion, one commit-worthy change per turn.
+
+**4. Make the change, run the DoD command's most-relevant slice.** Every 3rd turn, run the FULL DoD command (not just the slice) to catch integration drift.
+
+**5. Append to `progress.md`** with a `## Task {{TASK_ID}} — turn N — <timestamp>` block containing:
+   - What changed (files + hunks)
+   - Which acceptance criterion is now met
+   - `read_spec_version: N` (echo the spec version you worked against)
+   - What remains
+
+**6. If DoD passes fully**: STOP, mark yourself done, exit.
+
+**7. If stuck 2× on the same failure**: consult the advisor per triggers below.
+
+**8. Otherwise**: continue to next turn — but stop at max_worker_turns OR max_wall_clock_min OR max_judge_fail_streak, whichever hits first.
+
+---
+
+## 🛑 STOP — Escape hatch (READ SECOND)
+
+From `codex-first`'s lesson: a cornered worker satisfies the letter of the gates and cheats the spirit. Every hard constraint below has a sanctioned STOP-and-report. **Stop-reports are successful runs.** Working around a constraint is a failed run the judge WILL catch.
+
+If ANY of these blocks you from making honest progress: STOP, write exact diagnosis to `progress.md`, exit — do NOT work around.
+
+- **Owned surface / off-limits violation** would be needed to complete task → STOP, report "task needs to touch <path> which is off-limits because <reason from spec>". Do NOT touch it.
+- **DoD command is unrunnable** (missing script, wrong path, broken assertion) → STOP, report "DoD command references <thing> which doesn't exist / doesn't work". Do NOT modify the DoD command to make it pass.
+- **Reusable pattern doesn't fit** (spec says reuse X, but X's shape is wrong for this case) → STOP, report "reusable pattern X does not fit because Y". Do NOT silently duplicate it.
+- **Acceptance criterion is untestable as written** (vague, unfalsifiable, contradicts another) → STOP, report the ambiguity. Do NOT reinterpret it to be trivially true.
+- **A hard prohibition would force you to** minify identifiers / delete tests / narrow criteria / modify orchestrator files (`spec.md`, `tier-config.yaml`, `deps.json`, other tasks) → STOP. These are structural signals that scope is wrong, not that the rules are wrong.
+
+---
+
+## Spec source
+
+Implements {{SPEC_SECTION_REF}} of `docs/dev-loop/{{FEATURE_SLUG}}/spec.md`. Read that section before editing anything. Do NOT restate the spec here — read it. Restating drifts.
+
+## Acceptance criteria
+
+Each item is a `assertion | verification-method` pair. Every criterion has an explicit method (unit / e2e / manual / grep). Fail-verify = fail-criterion.
+
+{{ACCEPTANCE_CRITERIA_CHECKLIST}}
+
+## Definition of done
+
+> **Oracle:** this command MUST return exit 0. If any line fails, the task is NOT done — no exceptions.
+
+```bash
+{{DOD_COMMAND}}
+```
+
+The judge will run this exact command and read its exit code. Do not paraphrase the DoD — run it. Do not append `|| true`, `; exit 0`, or `--passWithNoTests` — those are anti-patterns and the judge catches them.
+
+## Files you own (Ownership boundary)
+
+**Owned** — files you may create or modify. Bare `**` globs are banned; enumerate paths or declare a `max_file_count` under a subtree root.
+
+{{OWNED_FILES_LIST}}
+
+**Off-limits** — files you must NOT touch (from spec's immutable surface + orchestrator files):
+
+{{OFF_LIMITS_FILES_LIST}}
+
+If needing to modify off-limits to complete the task, STOP per escape hatch above.
+
+## Reusable patterns to grep FIRST (reuse > invent)
+
+Before writing new code, grep for these — if they exist, USE them:
+
+{{REUSABLE_PATTERNS_LIST}}
+
+If you write something that duplicates existing code, the judge WILL fail this task. If the reusable pattern doesn't fit, STOP per escape hatch — do not silently duplicate.
+
+## When to consult the advisor
+
+Consult ONLY on these triggers (see `references/advisor-protocol.txt`):
+
+{{ADVISOR_TRIGGERS_LIST}}
+
+**Do NOT consult the advisor for:**
+
+- Naming (follow spec)
+- Which files to create (spec + owned list are unambiguous)
+- Styling (design system tokens are the answer)
+- Test setup (follow existing patterns under `{{TEST_PATTERN}}`)
+- **Refactoring existing code you touched** (do the minimum change; refactors are a separate task)
+- **Which library / dependency to add** (stack is locked; if not in stack-blueprint, STOP per escape hatch)
+- **Error-message wording** (follow existing patterns in owned files)
+- **Whether an acceptance criterion is "really necessary"** (it is; escape-hatch if broken)
+- **Performance micro-choices** (2ms vs 20ms with no perf budget in spec = self-decide, pick simpler)
+
+Every consultation gets logged to `docs/dev-loop/{{FEATURE_SLUG}}/decisions.md`.
+
+## Progress log contract (mandatory per turn)
+
+Every worker turn MUST append this exact shape to `progress.md`:
+
+```markdown
+## Task {{TASK_ID}} — turn N — <ISO timestamp>
+
+- **Files touched:** <list>
+- **Acceptance criterion met this turn:** <criterion text or "none — infra work only">
+- **DoD slice run:** <command> → exit <N>
+- **read_spec_version:** <version>
+- **Next planned:** <one-line>
+```
+
+The orchestrator reads these to detect drift, judge tier, and resume from mid-loop. Skipping = task marked failed for missing telemetry.
+
+## Stop condition
+
+Whichever hits first:
+
+- Max worker turns: {{MAX_WORKER_TURNS}}
+- Max wall-clock: {{MAX_WALL_CLOCK_MIN}} minutes
+- Max judge-fail streak on this task: {{MAX_JUDGE_FAIL_STREAK}}
+- First unrequested-file-touch (immediate stop)
+
+On stop, write a status report to `progress.md` with (a) what shipped, (b) what remains, (c) any blockers, (d) whether you consulted the advisor and their guidance. Exit even if the DoD command fails.
+
+---
+
+<!-- Judge feedback + spec amendments append below this line -->

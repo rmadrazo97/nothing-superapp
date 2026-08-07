@@ -1,0 +1,140 @@
+# Stack Blueprint — {{PRODUCT_NAME}}
+
+> **Version:** v1 · **Date:** {{DATE}} · **Status:** Locked
+> **Source of truth:** this document. When decisions change, bump the version + add to the change log at the bottom.
+
+## 1. Product summary
+
+{{PRODUCT_SUMMARY_PARAGRAPH}}
+
+- **Primary target:** {{PRIMARY_TARGET}}
+- **Secondary targets:** {{SECONDARY_TARGETS}}
+- **Budget:** {{BUDGET_TIER}}
+- **Team:** {{TEAM_SIZE}} · **Ship urgency:** {{URGENCY}}
+- **Off-limits:** {{HARD_RULES}}
+
+## 2. Locked decisions
+
+| Role | Pick | Alternate considered |
+|---|---|---|
+| Frontend framework | **{{FRONTEND}}** | {{FRONTEND_ALT}} |
+| Styling / components | **{{STYLING}}** | {{STYLING_ALT}} |
+| Client state | **{{STATE}}** | {{STATE_ALT}} |
+| Forms + validation | **{{FORMS}}** | {{FORMS_ALT}} |
+| Backend | **{{BACKEND}}** | {{BACKEND_ALT}} |
+| Database | **{{DATABASE}}** | {{DATABASE_ALT}} |
+| ORM / query | **{{ORM}}** | {{ORM_ALT}} |
+| Auth | **{{AUTH}}** | {{AUTH_ALT}} |
+| Payments | **{{PAYMENTS}}** | {{PAYMENTS_ALT}} |
+| Storage | **{{STORAGE}}** | {{STORAGE_ALT}} |
+| Email | **{{EMAIL}}** | {{EMAIL_ALT}} |
+| Analytics | **{{ANALYTICS}}** | {{ANALYTICS_ALT}} |
+| Errors | **{{ERRORS}}** | {{ERRORS_ALT}} |
+| Deploy (primary) | **{{DEPLOY_PRIMARY}}** | {{DEPLOY_PRIMARY_ALT}} |
+| Native shell(s) | **{{NATIVE_SHELL}}** | {{NATIVE_SHELL_ALT}} |
+| CI/CD | **{{CI}}** | {{CI_ALT}} |
+| Version control host | **{{VCS_HOST}}** | {{VCS_HOST_ALT}} |
+| Package manager | **{{PKG_MGR}}** | {{PKG_MGR_ALT}} |
+| Domain strategy | **{{DOMAIN}}** | — |
+
+## 3. Rationale
+
+### Frontend + backend
+{{RATIONALE_FRONTEND_BACKEND}}
+
+### Database + auth
+{{RATIONALE_DB_AUTH}}
+
+### Multi-target strategy
+{{RATIONALE_MULTITARGET}}
+
+### Hosting
+{{RATIONALE_HOSTING}}
+
+### Payments
+{{RATIONALE_PAYMENTS}}
+
+### Analytics + observability
+{{RATIONALE_ANALYTICS}}
+
+## 4. Cost envelope
+
+{{COST_ENVELOPE_TABLE}}
+
+**Free-tier ceilings (cite the actual numbers that gate the upgrade):**
+{{FREE_TIER_CEILINGS}}
+
+**First paid dollar triggers:**
+{{FIRST_PAID_DOLLAR_TRIGGERS}}
+
+## 5. Folder structure
+
+### Primary: {{PRIMARY_TARGET}}
+```
+{{PRIMARY_FOLDER_TREE}}
+```
+
+{{SECONDARY_FOLDER_TREES}}
+
+**Naming conventions:**
+{{NAMING_CONVENTIONS_TABLE}}
+
+## 6. What's shared vs per-target
+
+{{SHARED_VS_PER_TARGET}}
+
+## 7. Scaffold commands
+
+Run these in order from a fresh directory:
+
+```bash
+{{SCAFFOLD_COMMANDS}}
+```
+
+## 8. Trade-offs accepted
+
+{{TRADEOFFS}}
+
+## 9. Migration paths
+
+If the app takes off, here's how to graduate from the free tier without a rewrite:
+
+{{MIGRATION_PATHS}}
+
+## 10. Next steps
+
+{{NEXT_STEPS}}
+
+## 11. Prerequisites & Access — before you build
+
+Complete this checklist **before** running the scaffold commands in § 7. Missing any of these will block you mid-scaffold and cost 20-60 minutes each to unblock.
+
+### 11a. Accounts to create
+
+{{PREREQ_ACCOUNTS}}
+
+### 11b. Environment variables
+
+Every key the app needs in `.env.local` (dev) and Vercel/hosting environment variables (prod). Never commit these; keep `.env.example` in the repo with placeholder values.
+
+{{PREREQ_ENV_VARS}}
+
+### 11c. Local dev prerequisites
+
+Hardware, OS, and installed software required before `pnpm install` will work end-to-end.
+
+{{PREREQ_LOCAL_DEV}}
+
+### 11d. Configuration steps before scaffold
+
+One-time setup in each service's dashboard, done AFTER creating accounts but BEFORE running scaffold commands.
+
+{{PREREQ_CONFIG_STEPS}}
+
+---
+
+## Change log
+
+| Version | Date | What changed | Why |
+|---|---|---|---|
+| v1 | {{DATE}} | Initial blueprint | Green-field decision from stack-architect |

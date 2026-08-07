@@ -1,0 +1,58 @@
+# tier-config.yaml — model routing for docs/dev-loop/{{FEATURE_SLUG}}/
+# Auto-generated at Phase 3. Hand-edit any field between runs to reshape routing.
+# Schema doc: dev-loop/references/tier-routing.txt
+
+# ─── harness (auto-detected at Phase 0 — do not hand-edit unless you're moving runtimes) ───
+harness:
+  runtime: {{HARNESS_RUNTIME}}          # claude-code | cursor | codex | generic
+  version: {{HARNESS_VERSION}}
+  features:
+    advisor:            {{HAS_ADVISOR}}
+    agent_tool:         {{HAS_AGENT_TOOL}}
+    ask_user_question:  {{HAS_ASK_USER}}
+    subagent_context:   {{HAS_SUBAGENT_CTX}}
+    parallel_workers:   {{HAS_PARALLEL}}
+
+# ─── mode ───
+# advisor : Sonnet-tier executors consult Opus/Fable advisors at decision points (default on Claude Code)
+# direct  : each tier runs bulk work end-to-end (no advisor calls, higher token cost, more predictable)
+# manual  : produce the task pack; a human runs each task through their preferred harness
+mode: {{MODE}}
+
+# ─── watch mode ───
+# When true (default on interactive harnesses), user chat during Phase 5-6 is intercepted and
+# classified as spec amendment / task tweak / question / cancel. See references/watch-mode.txt.
+watch_mode: {{WATCH_MODE}}
+
+# ─── default tier map (applied when a task doesn't override in its own frontmatter) ───
+defaults:
+  executor: {{DEFAULT_EXECUTOR}}
+  advisor:  {{DEFAULT_ADVISOR}}           # null if mode: direct
+  judge:    {{DEFAULT_JUDGE}}
+  advisor_call_budget:   {{ADVISOR_BUDGET_PER_TASK}}   # per task, hard cap
+  max_worker_turns:      {{MAX_WORKER_TURNS}}          # per task, stop condition
+  max_judge_iterations:  {{MAX_JUDGE_ITERATIONS}}      # per task, judge loop cap
+  parallel_workers:      {{PARALLEL_WORKER_LIMIT}}     # simultaneous workers during Phase 5
+
+# ─── per-task overrides ───
+# Any task can also declare tier in its own frontmatter — task frontmatter wins over this section.
+tasks:
+{{PER_TASK_OVERRIDES}}
+
+# ─── fallback rules (activated when harness detection reveals a missing feature) ───
+fallbacks:
+  no_advisor:
+    # If harness has no /advisor and no Agent-subagent capability, use this:
+    replace_with: high_effort_checkpoint   # executor runs at effort: high with an "advisor mode" prompt
+    or_ask_user: true                       # if still stuck, STOP + ask user
+  no_agent_tool:
+    execution: serial                       # run tasks one at a time in the main session
+    workers_are: inline                     # task file is the prompt for the main turn
+  no_ask_user_question:
+    intake: plain_text                      # question flow uses raw prose, no button UIs
+
+# ─── budgets (soft caps — warn at Phase 5, don't hard-stop) ───
+budgets:
+  total_advisor_tokens_per_run:  {{ADVISOR_BUDGET_PER_RUN}}    # ~$0.75 at Opus rates
+  total_executor_tokens_per_run: {{EXECUTOR_BUDGET_PER_RUN}}   # ~$1.50 at Sonnet rates
+  total_judge_tokens_per_run:    {{JUDGE_BUDGET_PER_RUN}}      # ~$0.05 at Haiku rates

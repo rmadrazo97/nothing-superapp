@@ -1,0 +1,38 @@
+# Palette Catalog — Curated Accent Hues
+
+If the user picked "I don't have an accent, pick from a palette" in Q3, offer a shortlist of 4–6 from below. Each entry lists the OKLCH hue, a representative hex, and the feel to help the user (and you) pick.
+
+| Name | Hue (OKLCH °) | Hex (L 0.66) | Feels like |
+|---|---|---|---|
+| Blurple | 289 | `#9184d9` | Product / SaaS / considered (Nocturne accent) |
+| Editorial cyan | 220 | `#0088b0` | Newsroom / classical / print (Broadsheet accent) |
+| Signal magenta | 350 | `#d6006c` | Bold / editorial-secondary / campaign |
+| Olive | 105 | `#575b2c` | Studio / interior / natural (IDEAS wedge from brand-to-design-system worked example) |
+| Ember | 30 | `#c26b26` | Warm / craft / gastronomy |
+| Deep teal | 190 | `#0f7d7c` | Health / calm / clinical |
+| Signal red | 20 | `#c94040` | Sports / alert / high-energy |
+| Graphite | 250 | `#4a4e69` | Neutral / very-restrained / editorial |
+| Monochrome (no accent hue) | 0 (sat 0) | `#e5e5e5` (light) / `#3a3a3a` (dark) | Nothing-brand / brutalist / hardware — the accent is a **step of the neutral ramp**, not a chroma. |
+
+## How to present these to the user
+
+Do NOT dump the whole table into `AskUserQuestion`. Pick 4–6 that fit the user's stated vibe/product, and offer those. If the user has said "editorial" — surface Editorial cyan, Signal magenta, Ember, Graphite. If they said "consumer app" — Blurple, Ember, Deep teal, Signal red. If they said "utility / dev-native" — Blurple, Deep teal, Graphite, Monochrome.
+
+## Rules for picking a hue if the user says "you decide"
+
+1. Read the brand name. Product / dev / SaaS name → Blurple. Editorial / print / long-form → Editorial cyan or Ember. Health / calm → Deep teal.
+2. If the ground is dark and the accent will be used as a line/glow, prefer higher-chroma hues (Blurple, Signal magenta) — they hold saturation against a dark ground.
+3. If the ground is paper/light and the accent will fill button backgrounds, prefer mid-chroma hues (Editorial cyan, Ember, Olive) — very high chroma on light backgrounds looks candy.
+4. **Monochrome** is a legitimate choice — Nothing, Vercel, Linear-early. If the user's brand aesthetic is "brutalist / hardware / dot-matrix / restraint", offer Monochrome and let the user opt out.
+
+## Multi-accent (scheme=duo/poly)
+
+If the scheme is duo or poly, the secondary accent should share LIGHTNESS (L) with the primary but sit ~120–180° away in hue. Broadsheet's `#0088b0` cyan + `#d6006c` magenta is a canonical duo (cyan hue 220 → magenta hue 350 = 130° apart, both at similar L).
+
+For polychrome, add:
+- `--color-success`: hue 145 (leaf), C 0.10, L 0.55
+- `--color-warning`: hue 65 (amber), C 0.14, L 0.68
+- `--color-danger`: hue 25 (red), C 0.15, L 0.55
+- `--color-info`: hue 230 (blue), C 0.10, L 0.58
+
+Never let these override the accent for primary actions — they are semantic (destructive / success / etc.), not aesthetic.

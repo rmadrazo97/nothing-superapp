@@ -1,0 +1,22 @@
+{
+  "run_state": "ready",
+  "spec_version": 1,
+  "updated_at": "2026-08-07 20:15",
+  "tasks": {
+    "00-prereqs-and-scaffold":                      { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "01-contract-types-and-schema":                 { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "02-monorepo-and-nextjs-scaffold":              { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "03-supabase-migrations-and-rls":               { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "04-mini-apps-runtime-sdk":                     { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "05-auth-and-session":                          { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "06-stripe-checkout-and-webhook":               { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "07-shell-chrome-tabbar-and-layout":            { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "08-paywall-middleware-and-entitlement-gate":   { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "09-ai-copilot-endpoint":                       { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "10-home-grid-and-registry-loader":             { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "11-settings-and-profile-surface":              { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "12-reference-mini-app-calorie-lite":           { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "13-copilot-tab-ui-and-streaming-render":       { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
+    "14-playwright-e2e-full-flow":                  { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 }
+  }
+}

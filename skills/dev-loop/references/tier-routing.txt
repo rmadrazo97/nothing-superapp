@@ -1,0 +1,236 @@
+# Tier Routing -- harness-agnostic model + advisor configuration
+
+The dev-loop must work on ANY harness -- Claude Code (best case, has /advisor + Agent tool + per-subagent model selection), Cursor, Windsurf, Codex, or a plain terminal shell. The tier-routing layer is the abstraction that makes this true.
+
+Two ideas:
+
+1. **Harness detection at Phase 0** -- inspect what tier features are available and store them in `tier-config.yaml`.
+2. **Graceful degradation** -- every tier-dependent step has a fallback that still produces the correct output on a lesser harness.
+
+---
+
+## Harness detection (Phase 0)
+
+Run `scripts/detect-harness.mjs` OR read the runtime environment manually. Detect:
+
+| Signal | Claude Code | Cursor | Codex | Generic |
+|---|---|---|---|---|
+| `/advisor` command available | ✓ (v2.1+) | ✗ | ✗ | ✗ |
+| `Agent` tool with `model:` param | ✓ | partial | ✗ | ✗ |
+| `AskUserQuestion` batching | ✓ | ✗ | ✗ | ✗ |
+| Per-subagent context isolation | ✓ | ✗ | ✓ (session forks) | ✗ |
+| File I/O for the task pack | ✓ | ✓ | ✓ | ✓ |
+| Multi-worker parallelism | ✓ (Agent x N) | limited | ✓ (parallel `codex exec`) | ✗ |
+
+Runtime detection heuristic:
+- Environment variable `CLAUDE_CODE_VERSION` set → Claude Code
+- `CURSOR_SESSION` / `.cursor/config.json` present → Cursor
+- `codex` CLI on PATH → Codex-backed workflow available
+- Otherwise → generic (single-model, serial execution, no advisor)
+
+Write results to the top of `tier-config.yaml`:
+
+```yaml
+harness:
+  runtime: claude-code
+  version: 2.1.184
+  features:
+    advisor: true
+    agent_tool: true
+    ask_user_question: true
+    subagent_context: true
+    parallel_workers: true
+```
+
+---
+
+## The `tier-config.yaml` schema
+
+Lives at `docs/dev-loop/<slug>/tier-config.yaml`. User can hand-edit any time between runs.
+
+```yaml
+# ─── harness (auto-detected, do not hand-edit unless changing runtimes) ───
+harness:
+  runtime: claude-code | cursor | codex | generic
+  features:
+    advisor: bool
+    agent_tool: bool
+    ask_user_question: bool
+    subagent_context: bool
+    parallel_workers: bool
+
+# ─── mode ───
+# advisor  : Sonnet-tier executors consult Opus/Fable advisors at decision points (default on Claude Code)
+# direct   : each tier runs its own bulk work end-to-end (no advisor calls, higher token cost)
+# manual   : produce the task pack; a human runs each task through their preferred harness (used on generic runtimes)
+mode: advisor
+
+# ─── default tier map (applied when a task doesn't override) ───
+defaults:
+  executor: sonnet-4-6
+  advisor: opus-4-7               # or null if mode: direct
+  judge: haiku-4-5
+  advisor_call_budget: 15         # per task, hard cap
+  max_worker_turns: 15            # per task, stop condition
+  max_judge_iterations: 10        # per task, judge loop cap
+
+# ─── per-task overrides ───
+# Task files can also specify tier in their own frontmatter -- that wins over this section.
+tasks:
+  01-drizzle-schema:
+    executor: sonnet-4-6
+    advisor: opus-4-7        # schema decisions benefit from advisor
+    judge: haiku-4-5
+  02-parse-endpoint:
+    executor: sonnet-4-6
+    advisor: opus-4-7        # LLM prompt engineering benefits from advisor
+    judge: haiku-4-5
+  03-tile-ui:
+    executor: sonnet-4-6
+    advisor: null            # design system covers all decisions
+    judge: haiku-4-5
+
+# ─── fallback rules ───
+# Applied when the harness detection reveals a missing feature.
+fallbacks:
+  no_advisor:                                # if features.advisor == false
+    replace_with: high_effort_checkpoint     # executor uses effort: high with an "advisor mode" prompt
+    or_ask_user: true                        # if executor still stuck, STOP + ask user
+  no_agent_tool:                             # if features.agent_tool == false
+    execution: serial                        # run tasks one at a time in the main session
+    workers_are: inline                      # no context fork; task file is the prompt for the main turn
+  no_ask_user_question:                      # if features.ask_user_question == false
+    intake: plain_text                       # question flow uses raw prose, no button UIs
+
+# ─── budgets (soft caps -- warn, don't hard-stop) ───
+budgets:
+  total_advisor_tokens_per_run: 100000       # ~$0.75 at Opus rates
+  total_executor_tokens_per_run: 500000      # ~$1.50 at Sonnet rates
+  total_judge_tokens_per_run: 50000          # ~$0.05 at Haiku rates
+  # These are per-invocation. Exceeding warns at Phase 5; user can raise or stop.
+```
+
+---
+
+## Model choices per tier (with harness overrides)
+
+### Executor tier (the bulk-work worker)
+
+| Model | When to pick | Cost / M tok (in/out) |
+|---|---|---|
+| Sonnet 4.6 | **Default.** Routine implementation, refactors, UI, backend CRUD, tests. | $3 / $15 |
+| Haiku 4.5 | Very small tasks (< 50 LOC), doc updates, config tweaks. Advisor mandatory. | $1 / $5 |
+| Opus 4.7 | Novel algorithms, complex state machines, tricky migrations. Skip advisor. | $15 / $75 |
+| Codex (GPT-5.6-sol) | Available via `codex exec` -- delegate implementation-heavy tasks off Claude when the harness supports it (see `codex-first` skill). Flat-rate ChatGPT plan. | Flat (ChatGPT subscription) |
+
+### Advisor tier (consulted at decision points; not on every turn)
+
+| Model | When to pick |
+|---|---|
+| Opus 4.7 | **Default.** Strong at design + architecture decisions. Called per the task's advisor-trigger list. |
+| Fable 5 | When available (Claude Code v2.1.170+, Fable-tier access). Higher tier than Opus. Only accepted advisor for Fable-main; use for the hardest decisions. |
+| Sonnet 4.6 | Fallback when Opus/Fable not available. Same-tier "sanity check" advisor -- catches oversights but doesn't out-think the executor. |
+
+**Model pairing rules** (from `code.claude.com/docs/en/advisor`):
+- Haiku main → Fable / Opus / Sonnet advisor
+- Sonnet 4.6 main → Fable / Opus / Sonnet
+- Sonnet 5 main → Fable / Opus / Sonnet 5 (not Sonnet 4.6)
+- Opus 4.6 main → Fable / Opus / Sonnet 5
+- Opus 4.7+ main → Fable / Opus 4.7+
+- Fable 5 main → Fable only
+
+If you set an incompatible pairing, the advisor is silently NOT attached. Validate at Phase 0 detection.
+
+### Judge tier (fresh-context verifier)
+
+| Model | When to pick |
+|---|---|
+| Haiku 4.5 | **Default.** Fresh, narrow, cheap. Checks DoD command output + owned-boundary compliance. |
+| Sonnet 4.6 | For tasks where the judgment involves reading code (not just command output) -- e.g. novel UX pattern, prompt engineering result quality. |
+
+Never use Opus as a judge -- it's overkill and expensive. The judge is not smarter than the executor; it's fresher.
+
+---
+
+## The three modes explained
+
+### Mode: `advisor` (default on Claude Code)
+
+Executor runs end-to-end at its tier. At each of the task's advisor-trigger points, executor calls the advisor via the harness's mechanism:
+
+- Claude Code with `/advisor` set: executor prompt says "consult the advisor before deciding X" -- Claude auto-uses the advisor tool.
+- Claude Code without `/advisor`: executor spawns a `Task` subagent with `model: opus-4-7, effort: high`, asks the same question, returns to normal execution with the answer.
+
+Cost: ~3× cheaper than running the executor at Opus tier all the way through.
+
+### Mode: `direct` (no advisor -- each task at its declared tier)
+
+Executor at declared tier runs end-to-end. No advisor consultation. Reviewer (a second Sonnet pass) reads the output at the end.
+
+Cost: more predictable, ~1.2× more expensive on average vs advisor mode (Sonnet reviewer instead of Haiku judge + Opus advisor calls).
+
+Use when:
+- The user wants each task to be produced by a single tier ("Opus does implementation, Sonnet reviews" -- the user's original tier map).
+- The harness doesn't reliably support advisor calls.
+- Predictability matters more than cost optimization.
+
+### Mode: `manual` (produce task pack; human runs it)
+
+Phases 1-4 in dev-loop. Phase 5 becomes "here's your task pack -- run each task through your preferred harness." No workers spawned. `run-orchestrator.mjs` prints a punchlist instead of dispatching.
+
+Use when:
+- The harness is generic (plain terminal, no subagent support).
+- The user wants to review each task's output personally before the next task runs.
+- The user is running heterogeneous per-task tools (Codex for one task, Cursor for another).
+
+---
+
+## Graceful degradation matrix
+
+| Missing feature | What to do |
+|---|---|
+| No `/advisor` command | Replace "consult advisor" prompt with a `Task` subagent invocation at `model: opus-4-7, effort: high` OR promote to `AskUserQuestion` if user is present. |
+| No `Agent` tool | Serial execution -- one task at a time in the main session. `run-orchestrator.mjs` becomes a for-loop, not a parallel-dispatch. |
+| No `AskUserQuestion` | Intake at Phase 1 uses plain text prompts. Slower but works. |
+| No context isolation | Workers run inline in the main session. Watch mode is trivial (user is present). |
+| No parallel workers | Serial execution + longer wall time. Judge still runs per-task. |
+| No harness at all (plain terminal) | Mode auto-switches to `manual`. Skill produces the task pack + prints a punchlist. User runs each task with `cat tasks/NN-*.md | claude` (or equivalent). |
+
+---
+
+## Choosing tier per task (the heuristic)
+
+At Phase 3 decomposition, apply this decision matrix per task:
+
+| Signal | Executor | Advisor | Judge |
+|---|---|---|---|
+| Task is < 50 LOC + follows well-known pattern | Sonnet | none | Haiku |
+| Task is 50-200 LOC + well-known pattern | Sonnet | none | Haiku |
+| Task involves novel algorithm / state machine | Sonnet | Opus | Haiku |
+| Task involves LLM prompt engineering (calorie parser, etc.) | Sonnet | Opus | Sonnet (needs to read the prompt output) |
+| Task is a UI tile using design system | Sonnet | none | Haiku |
+| Task is a new UX pattern not in design system | Sonnet | Opus | Sonnet |
+| Task is a schema + migration | Sonnet | Opus (schema decisions matter) | Haiku |
+| Task is a refactor | Sonnet | none | Haiku |
+| Task is documentation | Sonnet | none | none (no judge for docs) |
+| Task is critical infra (auth, payment, security) | Opus | Fable if available, else no advisor | Sonnet (needs code judgment) |
+
+Every override should be justified in the task's `tier_rationale` frontmatter -- one line per role.
+
+---
+
+## Cost projection (per feature, medium tier, advisor mode)
+
+Rough estimate for a typical medium feature (5-8 tasks):
+
+| Role | Tokens (typical) | Cost (typical) |
+|---|---|---|
+| Advisor drafting spec (Opus) | 15k in / 8k out | $0.045 + $0.12 = $0.17 |
+| Executor implementing (Sonnet × 8 tasks) | 40k in / 30k out | $0.12 + $0.45 = $0.57 |
+| Advisor consultations (Opus × 15 calls) | 30k in / 5k out | $0.09 + $0.075 = $0.17 |
+| Judge verifying (Haiku × 8 tasks) | 20k in / 4k out | $0.02 + $0.02 = $0.04 |
+| **Total per feature** | | **~$0.95** |
+
+Compare to running everything at Opus tier: ~$3-5/feature (3-5× more). This is why advisor mode is the default.
+
+At $15-20/mo budget, that's 15-20 medium features per month -- more than a solo dev typically ships.

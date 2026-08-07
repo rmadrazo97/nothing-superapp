@@ -1,0 +1,57 @@
+# tier-config.yaml — docs/dev-loop/superapp-harness/
+# Harness-agnostic model routing for this loop.
+
+harness:
+  runtime: claude-code
+  version: "2.1"
+  features:
+    advisor: false            # this session — advisor calls via Task subagent fallback
+    agent_tool: true
+    ask_user_question: true
+    subagent_context: true
+    parallel_workers: true
+
+mode: advisor
+watch_mode: true
+
+defaults:
+  executor: sonnet-4-6
+  advisor: opus-4-7           # invoked via Task subagent, effort: high
+  judge: haiku-4-5
+  advisor_call_budget: 10
+  max_worker_turns: 20
+  max_wall_clock_min: 40
+  max_judge_iterations: 8
+  parallel_workers: 3
+
+# Per-task overrides — only where a task deviates from defaults
+tasks:
+  00-prereqs-and-scaffold:
+    executor: sonnet-4-6
+    advisor: null             # mechanical work
+    judge: haiku-4-5
+  01-contract-types-and-schema:
+    executor: sonnet-4-6
+    advisor: opus-4-7         # schema decisions benefit from advisor
+    judge: haiku-4-5
+  05-auth-and-session:
+    executor: sonnet-4-6
+    advisor: opus-4-7         # OAuth-provider config is fiddly
+    judge: sonnet-4-6         # judgment needed on the callback flow
+  06-stripe-checkout-and-webhook:
+    executor: sonnet-4-6
+    advisor: opus-4-7
+    judge: sonnet-4-6         # webhook signature validation must be judged closely
+  09-ai-copilot-endpoint:
+    executor: sonnet-4-6
+    advisor: opus-4-7         # prompt engineering + streaming setup
+    judge: sonnet-4-6         # verify no writes + response quality
+  12-reference-mini-app-calorie-lite:
+    executor: sonnet-4-6
+    advisor: null             # POC exists; port is mechanical
+    judge: haiku-4-5
+
+budgets:
+  total_advisor_tokens_per_run: 200000    # ~$1.50 at Opus rates
+  total_executor_tokens_per_run: 800000   # ~$2.40 at Sonnet rates
+  total_judge_tokens_per_run: 80000       # ~$0.08 at Haiku rates
