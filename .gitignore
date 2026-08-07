@@ -31,4 +31,4 @@ test-results/
 
 # scratch
 /tmp/
-/working/scratch/
+/working/*
