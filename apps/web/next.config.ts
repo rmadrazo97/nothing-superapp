@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@nothing/shared',
     '@nothing/mini-apps-runtime',
+    '@nothing-mini-apps/calorie-lite',
     '@nothing-mini-apps/coming-soon',
   ],
   experimental: { typedRoutes: true },

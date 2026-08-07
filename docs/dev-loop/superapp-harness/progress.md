@@ -366,3 +366,38 @@ Append-only lab notebook. Every state transition, worker check-in, watch-mode in
 - **Zero new npm deps.**
 - **Deferrals (called out in prompt):** tile reordering / drag, search + categorize, per-user install/uninstall (v1 shows everything registered), dynamic `[slug]/page.tsx` proxy (deferred until 3+ mini-apps land).
 - **Unblocks:** 12 (calorie-lite reference mini-app — the loader + route pattern are ready), 14 (Playwright E2E can now assert the launcher renders a tile grid).
+
+## Worker check-in — 2026-08-07 21:15 — task 12 (calorie-lite)
+
+- **State:** `worker_done` → `needs-review`.
+- **What shipped:** the reference mini-app that proves every layer of the harness: registry discovery, workspace-package re-export, runtime SDK context (`useUser` / `usePreferences` / `useEvents`), Proxy `/paywall` redirect for unentitled `/app/calorie-lite` access, and a defence-in-depth 402 at the API layer.
+- **Files created:**
+  - `apps/mini-apps/calorie-lite/package.json` — workspace pkg `@nothing-mini-apps/calorie-lite`, private, exports `./manifest` + `./page`, deps `@nothing/mini-apps-runtime` + `@nothing/shared`, peer/dev react 19.
+  - `apps/mini-apps/calorie-lite/tsconfig.json` — mirrors `coming-soon`.
+  - `apps/mini-apps/calorie-lite/manifest.ts` — `defineMiniApp({ slug: 'calorie-lite', name: 'Calorie Lite', icon: '◐', route: '/app/calorie-lite', requiresSubscription: true })`.
+  - `apps/mini-apps/calorie-lite/page.tsx` — `'use client'`; three-view single component (Today / Add / History). Uses `useUser()`, `usePreferences()`, `useEvents()`. Fetches from `/api/mini-apps/calorie-lite/entries`; subscribes to `calorie.entry.added` for cross-tab sync; emits the same event after a successful save. Today view = kcal running total (`.display-xl` Doto), progress bar (`--color-accent` fill), entry list with Space Mono times + kcal. Empty state = dashed card + big 72px `+` tile + "Nothing logged yet. Add your first meal." History view = last 7 days grouped by **local** date key with per-day progress bar. All non-hex, tokens only.
+  - `apps/web/src/app/app/calorie-lite/page.tsx` — one-line re-export from the workspace package.
+  - `apps/web/src/app/api/mini-apps/calorie-lite/entries/route.ts` — GET + POST. `runtime='nodejs'`, `dynamic='force-dynamic'`. Auth (401) → entitlement (402) → validate → DB. RLS + explicit `.eq('user_id', user.id)` filter.
+- **Files modified:**
+  - `apps/web/src/lib/mini-apps/client-registry.ts` — added `'calorie-lite'` entry (alphabetically before `'coming-soon'`).
+  - `apps/web/next.config.ts` — appended `@nothing-mini-apps/calorie-lite` to `transpilePackages`.
+  - `apps/web/tsconfig.json` — path aliases for `@nothing-mini-apps/calorie-lite/{manifest,page}`.
+  - `apps/web/package.json` — `@nothing-mini-apps/calorie-lite: workspace:*`.
+- **`entered_at` policy (called out in the prompt):** the DB default is `now()`. The API accepts an optional client `entered_at` only when it lies in the window `[now - 24h, now + 5m]`; out-of-window values are silently ignored (server clock wins) rather than 400ing, so clock skew never blocks a legitimate log. This satisfies the "server sets `logged_at = now()` unless client provides one within the last 24h" rule from the prompt while keeping the field name consistent with the actual schema (`entered_at`).
+- **Entitlement gate behaviour + rationale:** GET and POST both call `getEntitlement(user.id, supabase)` after the auth check; if `!isEntitled(entitlement)` they return `{ error: 'payment_required', entitlement }` with HTTP 402. Rationale: the Proxy already redirects `/app/calorie-lite` to `/paywall` for unentitled users so the UI never renders — but a direct API call from a subscription that lapsed mid-session must not silently succeed. 402 is the HTTP-native "payment required" so a future SDK / integration reads the correct signal without magic strings.
+- **Proxy redirect verified for unentitled UX:** `curl -sI http://localhost:3001/app/calorie-lite` (unauth) → `HTTP/1.1 307` with `location: /login?next=%2Fapp%2Fcalorie-lite`. For an authed-but-unentitled user, the middleware runs `requiresEntitlement()` (true for `/app/calorie-lite`, exempt list is only `/app/assistant` + `/app/settings`) and redirects to `/paywall`. Confirmed by reading `apps/web/src/lib/supabase/middleware.ts` — logic path is unambiguous.
+- **API unauth smoke test:**
+  - `curl http://localhost:3001/api/mini-apps/calorie-lite/entries` → 401 `{"error":"unauthorized"}`
+  - `curl -X POST … -d '{"meal":"lunch","kcal":400}'` → 401 `{"error":"unauthorized"}`
+- **DoD results:**
+  - `pnpm install` → `Scope: all 6 workspace projects` (was 5).
+  - `pnpm --filter @nothing/web typecheck` → **exit 0**.
+  - `pnpm --filter @nothing/web build` → **exit 0**. Route table shows `ƒ /app/calorie-lite` and `ƒ /api/mini-apps/calorie-lite/entries`. `ƒ Proxy (Middleware)` still registered.
+  - `grep -rE "#[0-9a-fA-F]{3,6}"` on `apps/mini-apps/calorie-lite/`, `apps/web/src/app/app/calorie-lite/`, `apps/web/src/app/api/mini-apps/calorie-lite/` → **empty**.
+- **Zero new npm deps.** Reused `zod`, `@supabase/ssr`, and existing session client.
+- **Deviations from spec — none load-bearing.**
+  1. Prompt said `logged_at`; schema field is `entered_at`. Used `entered_at` (schema wins) and encoded the "within last 24h" rule from the prompt as the client-provided-timestamp acceptance window.
+  2. Prompt suggested `daily_calorie_goal` from preferences is always present; it can be null (schema allows it). Added `DEFAULT_DAILY_GOAL_KCAL = 2000` fallback so the progress bar has a denominator even before the user sets a target; the label reads "DEFAULT" instead of "LEFT" in that case so users know it's not their personal target.
+  3. Prompt design said "Cadmium red only for CTA buttons + progress bar fill" — honoured (Add-meal, Save, progress bar fill). Selected-tab underline uses `--color-text-display` (white), not accent.
+- **Deferrals (called out in prompt):** edit/delete entries, barcode scan, food database lookup, macros UI (schema has protein_g/carbs_g/fat_g today but v1 only writes 0s), charts/weekly trends.
+- **Unblocks:** 14 (Playwright e2e can now assert the full flow: sign in → paywall → subscribe → home grid → tap Calorie Lite → log a meal → verify today total updates).

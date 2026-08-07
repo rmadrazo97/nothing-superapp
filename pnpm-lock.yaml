@@ -8,6 +8,25 @@ importers:
 
   .: {}
 
+  apps/mini-apps/calorie-lite:
+    dependencies:
+      '@nothing/mini-apps-runtime':
+        specifier: workspace:*
+        version: link:../../../packages/mini-apps-runtime
+      '@nothing/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      react:
+        specifier: ^19.0.0
+        version: 19.2.8
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.18
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   apps/mini-apps/coming-soon:
     dependencies:
       '@nothing/mini-apps-runtime':
@@ -26,6 +45,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@nothing-mini-apps/calorie-lite':
+        specifier: workspace:*
+        version: link:../mini-apps/calorie-lite
       '@nothing-mini-apps/coming-soon':
         specifier: workspace:*
         version: link:../mini-apps/coming-soon

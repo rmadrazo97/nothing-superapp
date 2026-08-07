@@ -34,6 +34,10 @@ type MiniAppLoader = () => Promise<{ default: ComponentType }>;
 // One entry per installed mini-app. Keep in slug-alphabetical order so PR
 // diffs stay clean.
 const MINI_APP_COMPONENTS: Record<string, MiniAppLoader> = {
+  'calorie-lite': () =>
+    import('@nothing-mini-apps/calorie-lite/page') as Promise<{
+      default: ComponentType;
+    }>,
   'coming-soon': () =>
     import('@nothing-mini-apps/coming-soon/page') as Promise<{
       default: ComponentType;
