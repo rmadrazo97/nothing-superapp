@@ -76,3 +76,13 @@ Per-task verdicts. Judge = fresh-context verifier (Haiku or Sonnet). Verdict is 
 - **Spec version:** worker echoed `read_spec_version: 3` ← current, no drift
 
 ---
+
+## Task 04 — iteration 1 — 2026-08-07 21:50 — orchestrator inline judge
+
+- **Verdict:** PASS
+- **DoD:** exit 0 · `verify.sh` — tsc clean + runtime smoke test covers event bus roundtrip + defineMiniApp validation + registry helpers
+- **Owned surface:** ✓ ONLY `packages/mini-apps-runtime/**`
+- **Immutable surface:** ✓ apps/web, packages/shared, design-system, docs — all untouched
+- **Reuse:** ✓ imported `SharedContextValue` / `MiniAppManifest` / `EventKind` from `@nothing/shared` — nothing redefined
+- **Note:** shared-context.tsx is `'use client'`-marked (correct for React Context Provider); smoke test skips JSX (Node strip-types doesn't handle JSX) — tsc coverage is sufficient
+- **read_spec_version:** 3 (current)

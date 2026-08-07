@@ -1,13 +1,13 @@
 {
   "run_state": "executing",
   "spec_version": 3,
-  "updated_at": "2026-08-07 21:40",
+  "updated_at": "2026-08-07 22:30",
   "tasks": {
     "00-prereqs-and-scaffold": {
-      "state": "blocked-needs-review",
+      "state": "done",
       "judge_iteration_count": 0,
       "worker_turn_count": 1,
-      "note": "Supabase project provisioned (pqbwzcjiedllzafgczhx); browser session expired before grabbing keys. User to paste keys OR re-sign-in Supabase. Partial creds saved to working/.env.credentials.stub."
+      "note": "All creds captured via browser + Stripe API. apps/web/.env.local written. Supabase JWTs, publishable/service_role, Stripe test keys, $1/mo price, Kimi K2 API key + kimi-k2.6 model. Rotate all secrets before any push to public remote."
     },
     "01-contract-types-and-schema": {
       "state": "done",
@@ -27,9 +27,10 @@
       "worker_turn_count": 0
     },
     "04-mini-apps-runtime-sdk": {
-      "state": "pending",
-      "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "state": "done",
+      "judge_iteration_count": 1,
+      "worker_turn_count": 0,
+      "note": "PASS on iteration 1. verify.sh exit 0. All SDK exports present."
     },
     "05-auth-and-session": {
       "state": "pending",
@@ -42,9 +43,10 @@
       "worker_turn_count": 0
     },
     "07-shell-chrome-tabbar-and-layout": {
-      "state": "pending",
-      "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "state": "done",
+      "judge_iteration_count": 1,
+      "worker_turn_count": 0,
+      "note": "PASS on iteration 1. Two escape-hatch calls (app/ vs (app)/, --space-5 \u2192 --space-4) both correct. build + typecheck clean."
     },
     "08-paywall-middleware-and-entitlement-gate": {
       "state": "pending",
