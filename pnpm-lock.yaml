@@ -8,8 +8,30 @@ importers:
 
   .: {}
 
+  apps/mini-apps/coming-soon:
+    dependencies:
+      '@nothing/mini-apps-runtime':
+        specifier: workspace:*
+        version: link:../../../packages/mini-apps-runtime
+      react:
+        specifier: ^19.0.0
+        version: 19.2.8
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.18
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
+      '@nothing-mini-apps/coming-soon':
+        specifier: workspace:*
+        version: link:../mini-apps/coming-soon
+      '@nothing/mini-apps-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mini-apps-runtime
       '@nothing/shared':
         specifier: workspace:*
         version: link:../../packages/shared

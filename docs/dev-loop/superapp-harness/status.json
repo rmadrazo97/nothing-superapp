@@ -1,7 +1,7 @@
 {
   "run_state": "executing",
   "spec_version": 3,
-  "updated_at": "2026-08-08 00:15",
+  "updated_at": "2026-08-08 09:00",
   "tasks": {
     "00-prereqs-and-scaffold": {
       "state": "done",
@@ -64,9 +64,10 @@
       "note": "POST /api/copilot streams Kimi K2 (model slug kimi-k2.6, OpenAI SDK against api.moonshot.ai/v1). Context assembler reads profiles + preferences + last-20 app_calorie_entries + last-20 events via the user's session client (RLS enforces owner-scoping as defence-in-depth on top of explicit .eq('user_id', userId)). Serialization = pretty JSON, 6000-char cap, evenly truncates entries+events newest-first when over budget; profile/preferences never truncated. SSE frame formats: {\"delta\": token} for content, {\"reasoning\": token} for Kimi's reasoning_content deltas (UI can hide), {\"error\": msg} on upstream failure, [DONE] terminator. Guards: 401 on missing session, 400 on empty/malformed messages, 400 when messages.length > 20. Endpoint writes nothing to the DB. Escape hatch: added allowImportingTsExtensions: true to apps/web/tsconfig.json so the pre-existing .ts extensions in packages/shared/src/{index,types/index}.ts compile — this is the first web-side consumer of @nothing/shared so the latent issue only surfaced now. pnpm typecheck + pnpm build both clean; live Kimi smoke test returned streaming SSE chunks."
     },
     "10-home-grid-and-registry-loader": {
-      "state": "pending",
+      "state": "needs-review",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Launcher shipped end-to-end. Server Component loader at apps/web/src/lib/mini-apps/registry.ts fs-scans apps/mini-apps/*/manifest.ts and parses the defineMiniApp() argument via paren-balanced slice + new Function — chosen over dynamic import() because Turbopack (Next 16) can't bundle runtime-computed specifiers and Node can't natively load .ts. Client HomeGrid at apps/web/src/components/home/HomeGrid.tsx renders auto-fill 140px min tiles with aspect-ratio 1, --color-border-visible outlines, --color-accent lightning badge on locked tiles (opacity 0.5), navigates to /paywall when useEntitlement() says inactive. SharedContextProvider wired via new Client bridge (apps/web/src/components/shell/HarnessContextBridge.tsx) — needed because the events bus can't cross RSC serialization. Placeholder mini-app at apps/mini-apps/coming-soon (workspace package @nothing-mini-apps/coming-soon, exports ./manifest + ./page) proves discovery — grid does NOT hardcode it. Files created: apps/web/src/lib/mini-apps/{registry,client-registry}.ts, apps/web/src/components/home/HomeGrid.tsx, apps/web/src/components/shell/HarnessContextBridge.tsx, apps/web/src/app/app/coming-soon/page.tsx, apps/mini-apps/coming-soon/{package.json,manifest.ts,page.tsx,tsconfig.json}. Files modified: apps/web/src/app/app/page.tsx (Server Component with dynamic='force-dynamic'), apps/web/src/app/app/layout.tsx (fetches user + profile.display_name + preferences from Supabase, wraps in HarnessContextBridge), apps/web/next.config.ts (transpilePackages += @nothing/mini-apps-runtime, @nothing-mini-apps/coming-soon), apps/web/tsconfig.json (path aliases), apps/web/package.json (workspace deps), pnpm-workspace.yaml (apps/mini-apps/* glob + apps/mini-apps exclusion). Escape hatches: (1) --space-5 still missing → --space-4 for tile inner padding; (2) typedRoutes required `as Route` cast on dynamic href; (3) added @types/react as devDep on coming-soon so tsc resolves react/jsx-runtime from that file. DoD: pnpm --filter @nothing/web typecheck exit 0, pnpm --filter @nothing/web build exit 0 (routes include ƒ /app and ƒ /app/coming-soon), hex-color grep on owned files empty, loader smoke-tested standalone against the actual manifest.ts. Zero new npm deps."
     },
     "11-settings-and-profile-surface": {
       "state": "needs-review",

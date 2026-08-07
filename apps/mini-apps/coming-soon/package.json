@@ -1,0 +1,20 @@
+{
+  "name": "@nothing-mini-apps/coming-soon",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./manifest.ts",
+    "./page": "./page.tsx"
+  },
+  "dependencies": {
+    "@nothing/mini-apps-runtime": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -331,3 +331,38 @@ Append-only lab notebook. Every state transition, worker check-in, watch-mode in
 - **Zero new npm deps.** `stripe`, `zod`, `@supabase/ssr` all already installed by earlier tasks.
 - **Deferrals (called out in prompt):** avatar upload UI (needs Supabase Storage setup), delete account, multi-language / a11y polish beyond the essentials (labels + focus targets already in).
 - **Unblocks:** 14 (Playwright E2E full flow — settings page now navigates + persists so the tour can walk profile → preferences → subscribe → sign-out).
+
+## 2026-08-08 — task 10 (home grid + registry loader) worker done → needs-review
+
+- **Scope shipped:** `/app` is now a real launcher. Server Component reads discovered mini-app manifests from disk, hands metadata to a Client `HomeGrid`, which renders one dark ember-outlined tile per mini-app. Task 12 will drop `calorie-lite/` next to the placeholder and it appears automatically.
+- **Files created:**
+  - `apps/mini-apps/coming-soon/{package.json,manifest.ts,page.tsx,tsconfig.json}` — placeholder mini-app; `requiresSubscription: false`; workspace package `@nothing-mini-apps/coming-soon` with `exports` for `./manifest` + `./page`.
+  - `apps/web/src/lib/mini-apps/registry.ts` — server-side loader; fs-scans `apps/mini-apps/*/manifest.ts`, extracts the `defineMiniApp({…})` argument via a controlled paren-balanced slice + `new Function(...)`, validates, caches (dev = re-scan; prod = memoise).
+  - `apps/web/src/lib/mini-apps/client-registry.ts` — slug → `next/dynamic()` dispatch table + `getMiniAppRoute()` helper. Client-safe; enumerates known mini-apps by name because bundlers can't resolve `dynamic(() => import(computed))`.
+  - `apps/web/src/components/home/HomeGrid.tsx` — `'use client'`, `useEntitlement()`, `auto-fill minmax(140px, 1fr)` grid, `aspect-ratio: 1`, thin `--color-border-visible` outline, no shadows. Locked tiles: `opacity 0.5` + `⚡` badge in `--color-accent`; navigate to `/paywall` instead of the mini-app route.
+  - `apps/web/src/components/shell/HarnessContextBridge.tsx` — `'use client'`; instantiates `createEventBus()` inside `useMemo` and wraps children in `<SharedContextProvider>`. Needed because the events bus can't cross the RSC serialization boundary.
+  - `apps/web/src/app/app/coming-soon/page.tsx` — one-line re-export `export { default } from '@nothing-mini-apps/coming-soon/page'`. Locks the URL and lets Next's router discover the route without any dynamic-proxy machinery.
+- **Files modified:**
+  - `apps/web/src/app/app/page.tsx` — was placeholder text; now a Server Component that awaits `loadInstalledMiniApps()` and renders `<HomeGrid>`. `export const dynamic = 'force-dynamic'` because the loader uses `node:fs`.
+  - `apps/web/src/app/app/layout.tsx` — Server Component now reads `auth.getUser()` + profile.display_name + preferences row from Supabase; passes into `<HarnessContextBridge>` around `<Shell>`. Safe defaults when no `preferences` row exists yet (task 11's PATCH creates it on first save).
+  - `apps/web/next.config.ts` — added `@nothing/mini-apps-runtime` and `@nothing-mini-apps/coming-soon` to `transpilePackages`.
+  - `apps/web/tsconfig.json` — added path aliases for `@nothing/mini-apps-runtime[/*]` and the two `@nothing-mini-apps/coming-soon/*` sub-exports.
+  - `apps/web/package.json` — added `@nothing/mini-apps-runtime` and `@nothing-mini-apps/coming-soon` as `workspace:*` deps.
+  - `pnpm-workspace.yaml` — `apps/mini-apps/*` glob (+ `!apps/mini-apps` exclusion so the intermediate dir doesn't try to be its own package).
+- **Registry-loader approach + why (fs-scan + source-parse, not `import()`):** Turbopack (Next 16) can only bundle `import()` calls whose specifier is statically analyzable. A path discovered at runtime via `fs.readdir` is opaque to the compiler — `import(pathToFileURL(...))` works in `next dev` (Node native `.ts` support via strip-types on 22.6+) but breaks during `next build`. Node also can't natively execute `.ts` without a loader. Since we author every manifest and the shape is fixed (`defineMiniApp({...})`), a minimal parser (paren-depth scan → `new Function('return ' + literal)`) is bundler-agnostic, deterministic, and testable end-to-end without a compile step. The mini-app's *component* code still flows through the normal bundler via the workspace-package re-export in `apps/web/src/app/app/<slug>/page.tsx`.
+- **SharedContextProvider wiring (why a client bridge):** `SharedContextValue` includes `events` — an object with `emit`/`subscribe` methods, which the RSC serializer can't send from server → client. So the bridge is a Client Component: it accepts serializable `user` + `preferences` props from the Server layout, constructs the event bus inside `useMemo`, and wraps children in `<SharedContextProvider>`. Every mini-app + copilot component under `/app/*` now has access to `useUser()`, `usePreferences()`, `useEvents()`.
+- **Escape hatches:**
+  1. Original `defineMiniApp` in the runtime SDK defaulted `requiresSubscription: true` with `{ requiresSubscription: true, ...manifest }` — that pattern actually DOES pass an explicit `false` through (spread wins), so the placeholder's `requiresSubscription: false` survives. Verified by evaluating the manifest source with the same `new Function` path the loader uses. No SDK edit needed.
+  2. `apps/web/tsconfig.json` was missing path aliases for the mini-apps runtime + the coming-soon package's `./manifest` and `./page` exports. Added them so `tsc` can resolve the deep imports (`@nothing-mini-apps/coming-soon/page`) even though the runtime uses `exports` map resolution via node_modules symlinks.
+  3. `pnpm-workspace.yaml` `apps/*` glob would have picked up the intermediate `apps/mini-apps` directory as a package. Added a `!apps/mini-apps` exclusion + explicit `apps/mini-apps/*` sub-glob.
+  4. Typed-route friction: `<Link href={dynamicString}>` fails under `typedRoutes` — cast to `as Route` (documented pattern in `node_modules/next/dist/docs/01-app/03-api-reference/05-config/02-typescript.md`).
+  5. `--space-5` still doesn't exist in the design-system tokens (same finding task 07 called out); used `--space-4` for tile inner padding.
+- **DoD results:**
+  - `pnpm install` → picks up new workspace member (`Scope: all 5 workspace projects`).
+  - `pnpm --filter @nothing/web typecheck` → **exit 0**.
+  - `pnpm --filter @nothing/web build` → **exit 0**. Route table shows `ƒ /app` and `ƒ /app/coming-soon` (grep for `coming-soon` in build output returns the route line). Manifest extraction verified against the actual file via a standalone Node smoke test (parsed object matches `{ slug: 'coming-soon', … requiresSubscription: false }`).
+  - `grep -rE "#[0-9a-fA-F]{3,6}"` across `apps/web/src/lib/mini-apps/`, `apps/web/src/components/home/`, `apps/web/src/app/app/page.tsx`, `apps/mini-apps/coming-soon/` → **empty**.
+- **Discovery test:** the registry does NOT hardcode the coming-soon manifest anywhere in the launcher path. Verified by (a) the loader source containing no mini-app names, (b) the smoke test showing fs-scan returned `[ 'coming-soon' ]` from an empty starting point.
+- **Zero new npm deps.**
+- **Deferrals (called out in prompt):** tile reordering / drag, search + categorize, per-user install/uninstall (v1 shows everything registered), dynamic `[slug]/page.tsx` proxy (deferred until 3+ mini-apps land).
+- **Unblocks:** 12 (calorie-lite reference mini-app — the loader + route pattern are ready), 14 (Playwright E2E can now assert the launcher renders a tile grid).

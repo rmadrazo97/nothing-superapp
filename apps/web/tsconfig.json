@@ -22,7 +22,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@nothing/shared": ["../../packages/shared/src"],
-      "@nothing/shared/*": ["../../packages/shared/src/*"]
+      "@nothing/shared/*": ["../../packages/shared/src/*"],
+      "@nothing/mini-apps-runtime": ["../../packages/mini-apps-runtime/src"],
+      "@nothing/mini-apps-runtime/*": ["../../packages/mini-apps-runtime/src/*"],
+      "@nothing-mini-apps/coming-soon/manifest": ["../mini-apps/coming-soon/manifest.ts"],
+      "@nothing-mini-apps/coming-soon/page": ["../mini-apps/coming-soon/page.tsx"]
     }
   },
   "include": [

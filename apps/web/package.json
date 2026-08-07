@@ -24,7 +24,9 @@
     "zod": "^3.23.8",
     "stripe": "^17.0.0",
     "openai": "^4.68.0",
-    "@nothing/shared": "workspace:*"
+    "@nothing/shared": "workspace:*",
+    "@nothing/mini-apps-runtime": "workspace:*",
+    "@nothing-mini-apps/coming-soon": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
