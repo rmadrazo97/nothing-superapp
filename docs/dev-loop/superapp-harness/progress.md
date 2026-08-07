@@ -258,3 +258,76 @@ Append-only lab notebook. Every state transition, worker check-in, watch-mode in
   2. **Apple Sign-In.** Needs Apple Developer enrollment ($99/yr) + p8 key + Services ID + configured return URLs. Add a third button + `provider: 'apple'` branch to `login/page.tsx` once creds are in hand.
   3. **Session hook-up in `SharedContextProvider`.** Task 10 wraps the shell; this task deliberately does not touch `apps/web/src/app/app/layout.tsx`. The user is fetchable server-side via `(await createClient()).auth.getUser()` from `@/lib/supabase/server`.
 - **Unblocks:** 08 (paywall middleware — extends this Proxy with subscription check via `subscriptions` table task 06 now writes), 11 (settings/profile surface — reads `profiles`/`preferences` via `createClient` from `./server.ts`).
+
+## 2026-08-07 23:55 — Task 13 → needs-review (copilot tab UI + streaming render)
+
+- **Files created:**
+  - `apps/web/src/lib/copilot/sse-parser.ts` — `parseCopilotStream(stream)` async generator. Buffers `TextDecoder({ stream: true })` output, splits on `\n\n`, tolerates chunk-boundary splits, ignores blank/`event:`/`id:` lines, yields `{ delta }` / `{ reasoning }` / `{ error }` frames, returns cleanly on `[DONE]`. Releases the underlying `ReadableStreamDefaultReader` in a `finally` block so component unmounts mid-stream don't leak.
+  - `apps/web/src/components/copilot/CopilotChat.tsx` — the surface: header + scrolling message list + fixed composer above the tabbar. Auto-scroll uses a `stickToBottomRef` heuristic (within 40px of scrollHeight - clientHeight) so it doesn't fight the user's scrollback. `send()` snapshots outbound history *before* setState (React batches — closure over `messages` would be stale). Empty state renders 3 suggested prompts that pre-fill the composer.
+  - `apps/web/src/components/copilot/MessageBubble.tsx` — one row. User bubbles right-aligned on `--color-accent`; assistant bubbles left-aligned on `--color-surface-raised`. While streaming with zero content shows a Space-Mono "Thinking…" placeholder.
+  - `apps/web/src/components/copilot/ReasoningDisclosure.tsx` — collapsed-by-default `<button aria-expanded>` + `<pre>`. Space Mono, `--color-text-secondary`, left border rule. Doesn't render at all when reasoning is empty. Streaming state adds an ellipsis to the label.
+  - `apps/web/src/components/copilot/Composer.tsx` — auto-resizing textarea (up to 140px) + primary "Send" button. Enter submits, Shift+Enter newline. Disabled while `busy`.
+- **Files modified:**
+  - `apps/web/src/app/app/assistant/page.tsx` — replaced placeholder with `<CopilotChat/>`. Page stays a server component; only `CopilotChat` and its children are `'use client'`.
+- **SSE parser strategy:** `response.body.getReader()` + `TextDecoder` streaming decode. Buffer + `indexOf('\n\n')` loop yields complete events; partial trailing event is retained for the next chunk. Rejects malformed JSON per-frame (`{ error: 'malformed_frame' }`) instead of throwing, so one bad frame doesn't kill the stream. Chose async generator (not callbacks) so `CopilotChat.send()` can do `for await (const frame of parseCopilotStream(response.body))` — same shape as the eventual test harness.
+- **Reasoning render:** Kimi K2 emits `reasoning_content` deltas BEFORE the visible `content` deltas. In practice you see the "Thinking…" placeholder + a "Reasoning" toggle appear first, reasoning tokens accumulate hidden behind the disclosure, then the visible answer streams in below and replaces the placeholder. Click the "+ Reasoning" chip to reveal the chain-of-thought as monospaced muted text.
+- **Design tokens used:** `--color-accent`, `--color-accent-subtle`, `--color-surface`, `--color-surface-raised`, `--color-border-visible`, `--color-text-primary`, `--color-text-secondary`, `--color-text-display`, `--font-body`, `--font-label`, `--text-body-sm`, `--text-caption`, `--text-label`, `--radius-card`, `--radius-compact`, `--space-1..--space-4`, `--dur-fast`, `--ease-out`. No new tokens introduced; no `#hex` in any owned file.
+- **DoD results:**
+  - `pnpm --filter @nothing/web typecheck` → **exit 0**.
+  - `pnpm --filter @nothing/web build` → **exit 0**. `/app/assistant` prerenders as `○ (Static)` — the shell/page are server-rendered; the client stream only fires on user interaction.
+  - `grep -rE "#[0-9a-fA-F]{3,6}" apps/web/src/app/app/assistant/ apps/web/src/components/copilot/ apps/web/src/lib/copilot/` → **exit 1** (no matches).
+- **Zero new npm deps.** `fetch` + `ReadableStream.getReader()` + `TextDecoder` + React `useState`/`useRef`/`useEffect` only.
+- **Deferrals (called out in spec):** message persistence (would need a new `chat_messages` table + endpoint), multi-conversation threading, tool-use / function calling, voice input, copy-to-clipboard.
+- **Unblocks:** 14 (Playwright E2E full flow — can now assert on rendered assistant bubbles).
+
+
+## 2026-08-07 23:55 — Task 08 → needs-review (paywall + entitlement gate)
+
+- **Files created:**
+  - `apps/web/src/lib/entitlement.ts` — `getEntitlement(userId, supabase)` + pure `deriveEntitlement(sub)` + `isEntitled(entitlement)` + `Entitlement` type. Normalizes the raw DB `status` enum (trialing/active/past_due/canceled/incomplete) into `'active' | 'trialing' | 'inactive'` and enforces the `current_period_end > now` window. A canceled sub still within its paid period keeps access — matches Stripe semantics.
+  - `apps/web/src/app/api/entitlement/route.ts` — auth-gated `GET`, 401 if no session, otherwise `{ entitlement, subscription }`. Force-dynamic, nodejs runtime.
+  - `apps/web/src/app/paywall/page.tsx` — client component with two states: unentitled shows a `$1/month` block + feature list + Subscribe button (POST `/api/stripe/checkout` → `window.location = url`); entitled shows "You're subscribed" + renews/ends date + link back to `/app` + placeholder "Manage subscription" link to `/app/settings`. Design-system tokens only (dark card on dot-grid bg, mirrors `/login`).
+- **Files modified:**
+  - `apps/web/src/lib/supabase/middleware.ts` — added entitlement gate AFTER the auth check. `requiresEntitlement()` returns true for `/app` + `/app/*` EXCEPT `/app/assistant` and `/app/settings` (spec-mandated exemptions so unsubscribed users can chat with the copilot about upgrading and can reach billing). `/paywall` added to `PROTECTED_PREFIXES` so unauthed hits bounce to `/login?next=/paywall`. Gate wrapped in try/catch → fail-open on DB error (logged); the Proxy shouldn't 500 the whole app if Supabase is slow.
+  - `apps/web/src/lib/hooks/use-entitlement.ts` — replaced the task-11 stub (which read Supabase directly from the browser and re-derived entitlement client-side) with a version that fetches `/api/entitlement`. Same derivation runs both server-side (Proxy) and client-side (hook consumers), so no drift. Kept the contract backward-compatible (`entitlement`, `subscription`, `isLoading`); added a `refresh()` field so post-webhook UI can force a re-check.
+- **DoD outputs:**
+  - `pnpm --filter @nothing/web typecheck` → exit 0.
+  - `pnpm --filter @nothing/web build` → exit 0. Route table lists `/paywall` (static) + `/api/entitlement` (dynamic ƒ); `ƒ Proxy (Middleware)` still registered.
+  - `grep -rE "#[0-9a-fA-F]{3,6}"` on all owned files → empty.
+- **Zero new npm packages.**
+- **Escape hatches:**
+  1. `use-entitlement.ts` existed as a task-11 stub — the stub browser-fetched subscriptions directly and would have drifted from `lib/entitlement.ts` derivation. Replaced wholesale (task 11 prompt explicitly said "task 08 owns this file and will overwrite it"). Public shape kept compatible.
+  2. `Entitlement` union includes `'trialing'` distinct from `'active'` so the paywall's "You're subscribed" state can label trial users. `isEntitled()` collapses both to true for gate checks.
+  3. Proxy fails open on entitlement DB error — logs to console, lets the request through. Downstream server components can enforce visually if desired.
+- **Consumer notes:**
+  - **Task 10 (home grid):** `import { useEntitlement } from '@/lib/hooks/use-entitlement'`. When `entitlement === 'inactive'` dim mini-app tiles and surface an inline Subscribe link to `/paywall` (Proxy already redirects on click, but the visual cue avoids a flash and telegraphs the paywall).
+  - **Task 11 (settings):** same hook. `entitlement === 'active' | 'trialing'` → billing card with renews/ends date + a "Manage Subscription" button that will POST to a `/api/stripe/portal` endpoint task 11 adds. `'inactive'` → "Subscribe" link to `/paywall`.
+- **Unblocks:** 10 (home grid can now know entitlement to lock tiles), 12 (calorie-lite mini-app sits behind the paywall gate, so entitled users reach it and unentitled users get bounced to `/paywall`).
+
+## 2026-08-08 00:15 — Task 11 → needs-review (settings + profile surface)
+
+- **Files created:**
+  - `apps/web/src/app/api/profile/route.ts` — `GET` returns the caller's `profiles` row plus `email` from `auth.getUser()` (profiles table doesn't store email; Supabase auth owns it). `PATCH` accepts a `.strict()` Zod body — `display_name` + `locale` only. Server-only fields (`id`, `email`, `subscription_status`, `created_at`, `updated_at`) can never cross the trust boundary because they aren't in the patch schema. Auth-gated via session cookie; RLS on `profiles` is defence-in-depth. `runtime: nodejs`, `dynamic: force-dynamic`.
+  - `apps/web/src/app/api/preferences/route.ts` — `GET` + `PATCH` for the `preferences` table. PATCH is an upsert on `user_id` (first-time save creates the row, subsequent saves patch it). Server always owns `user_id` — never trusted from the client. Client-visible knobs: `notifications_enabled`, `theme` (`'dark' | 'light'`), `daily_calorie_goal` (int 1..20000, nullable). Same auth + runtime posture as `/api/profile`.
+  - `apps/web/src/app/api/stripe/portal/route.ts` — `POST` that resolves the caller's `stripe_customer_id` from the `subscriptions` row via the RLS-scoped session client, calls `stripe.billingPortal.sessions.create({ customer, return_url: ${appUrl}/app/settings })`, and returns `{ url }`. 401 if unauthed; **400 `no_customer`** if the user has no subscriptions row / no customer id (natural "never subscribed" case — the settings UI hides the Manage button in that branch anyway).
+  - `apps/web/src/lib/hooks/use-entitlement.ts` — **stub, immediately superseded.** Task 08 landed the real hook (fetches `/api/entitlement`, exposes `refresh()`) between the `Write` and the type-check; the file was updated in-place by the harness (surfaced via linter/user-modified reminder). I proceeded against the real contract — same shape (`entitlement`, `subscription`, `isLoading`) plus a `refresh()` I don't currently use.
+- **Files modified:**
+  - `apps/web/src/app/app/settings/page.tsx` — replaced the placeholder wholesale. Client component with four stacked cards:
+    1. **Profile** — read-only email (disabled `<input>`), editable display name (`<input type=text maxLength=80>`), primary Save button PATCHes `/api/profile`.
+    2. **Preferences** — dark-mode checkbox (`accent-color: var(--color-accent)`; persisted but noop today since the app is always dark), daily-calorie-target number input (default 2000, step 50, range 500–10000). Primary Save PATCHes `/api/preferences`.
+    3. **Subscription** — reads `useEntitlement()`. Entitled → "Nothing Superapp — $1/mo · renews on {formatted date}" + secondary "Manage subscription" button that POSTs `/api/stripe/portal` and top-level-navigates to the returned URL. Unentitled → "Not subscribed." + primary anchor `Subscribe — $1/mo` to `/paywall`. Loading state shows "Checking your subscription…" while the hook resolves.
+    4. **Sign out** — plain `<form action=/auth/signout method=post>` with a destructive-styled button. Zero JS needed — reuses the existing 303 redirect handler task 05 shipped.
+  - `docs/dev-loop/superapp-harness/status.json` — task 11 → `needs-review`.
+- **Design tokens used (no hex, no new tokens):** `--color-bg`, `--color-surface`, `--color-border-visible`, `--color-text-display`, `--color-text-primary`, `--color-text-secondary`, `--color-accent`, `--font-display`, `--font-body`, `--font-label`, `--text-display-md`, `--text-heading`, `--text-body`, `--text-body-sm`, `--text-caption`, `--text-label`, `--radius-card`, `--radius-compact`, `--radius-button`, `--space-1..--space-8`, `--dur-fast`, `--ease-out`. Card frame matches `/login` exactly: `background: rgba(0,0,0,0.5)`, `border: 1px solid var(--color-border-visible)`, `border-radius: var(--radius-card)`, `padding: var(--space-6)`. Doto used only on the page's `.display-md` title.
+- **Route Handler posture (Next 16):** all three new handlers set `export const runtime = 'nodejs'` + `export const dynamic = 'force-dynamic'` — they read cookies + hit external APIs and must be request-scoped. Consulted `apps/web/node_modules/next/dist/docs/01-app/01-getting-started/15-route-handlers.md` per `apps/web/AGENTS.md`. No `RouteContext` types needed (no dynamic segments).
+- **Trust-boundary guarantees:** `/api/profile` PATCH uses `z.object({…}).strict()` — extra keys reject with `invalid_body` rather than silently pass through. `/api/preferences` PATCH forcibly overwrites `user_id` from `user.id` regardless of what the client sends. Neither endpoint updates any status/enrolment column, so the client can't self-promote to `active`.
+- **Coordination with task 08 (concurrent):**
+  - Stub-then-superseded on `use-entitlement.ts` worked cleanly — the harness surfaced task 08's version via a system reminder mid-flow. I read the real hook's signature (`entitlement`, `subscription`, `isLoading`, `refresh`), destructured only what task 11 needs, and moved on. No merge conflict.
+  - Never touched `apps/web/src/lib/entitlement.ts`, `apps/web/src/app/paywall/*`, `apps/web/src/app/api/entitlement/*`, `apps/web/src/proxy.ts`, or task 13's assistant files.
+- **DoD results:**
+  - `pnpm --filter @nothing/web typecheck` → **exit 0**.
+  - `pnpm --filter @nothing/web build` → **exit 0**. Route table now shows `ƒ /api/preferences`, `ƒ /api/profile`, `ƒ /api/stripe/portal`; `/app/settings` prerenders as `○ (Static)` (the client hydration handles data).
+  - `grep -rE "#[0-9a-fA-F]{3,6}" apps/web/src/app/app/settings/ apps/web/src/app/api/profile/ apps/web/src/app/api/preferences/ apps/web/src/app/api/stripe/portal/` → **exit 1** (no matches).
+- **Zero new npm deps.** `stripe`, `zod`, `@supabase/ssr` all already installed by earlier tasks.
+- **Deferrals (called out in prompt):** avatar upload UI (needs Supabase Storage setup), delete account, multi-language / a11y polish beyond the essentials (labels + focus targets already in).
+- **Unblocks:** 14 (Playwright E2E full flow — settings page now navigates + persists so the tour can walk profile → preferences → subscribe → sign-out).

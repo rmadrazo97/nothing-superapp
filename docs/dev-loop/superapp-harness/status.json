@@ -1,7 +1,7 @@
 {
   "run_state": "executing",
   "spec_version": 3,
-  "updated_at": "2026-08-07 23:20",
+  "updated_at": "2026-08-08 00:15",
   "tasks": {
     "00-prereqs-and-scaffold": {
       "state": "done",
@@ -52,9 +52,10 @@
       "note": "PASS on iteration 1. Two escape-hatch calls (app/ vs (app)/, --space-5 \u2192 --space-4) both correct. build + typecheck clean."
     },
     "08-paywall-middleware-and-entitlement-gate": {
-      "state": "pending",
+      "state": "needs-review",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Entitlement helper + /paywall + /api/entitlement + useEntitlement hook + Proxy entitlement gate all shipped. Files created: apps/web/src/lib/entitlement.ts (getEntitlement + deriveEntitlement + isEntitled), apps/web/src/app/api/entitlement/route.ts (GET, 401 if no session, returns { entitlement, subscription }), apps/web/src/app/paywall/page.tsx (client component; unentitled → Subscribe $1/mo CTA that POSTs /api/stripe/checkout and window.location=url; entitled → 'You're subscribed' state with renews/ends date + link to /app + placeholder Manage subscription link to /app/settings). Files modified: apps/web/src/lib/supabase/middleware.ts (added entitlement gate: requiresEntitlement() returns true for /app + /app/* except /app/assistant + /app/settings; runs after auth check with try/catch fail-open; added /paywall to PROTECTED_PREFIXES so unauthed users hitting it get bounced to /login not to a Stripe POST); apps/web/src/lib/hooks/use-entitlement.ts (replaced stub — now fetches /api/entitlement instead of talking to Supabase directly from browser, so client + Proxy see the same normalized verdict; added refresh() for post-webhook re-check). apps/web/src/proxy.ts itself unchanged — just delegates to updateSession(). DoD: pnpm typecheck exit 0, pnpm build exit 0 (routes /paywall, /api/entitlement both listed; Proxy re-detected as ƒ Proxy (Middleware)), hex-color grep empty on all owned files. Zero new npm packages. Escape hatches: (1) use-entitlement.ts existed as a task-11 stub that read Supabase directly from the browser — replaced with the API-route version so entitlement derivation stays centralized in lib/entitlement.ts and can't drift from what the Proxy sees. Contract kept backward-compatible (entitlement, subscription, isLoading still present); added refresh() as a new field. (2) subscription enum includes 'trialing' — Entitlement type is 'active' | 'trialing' | 'inactive' (not just active/inactive) so trialing users get a distinct label on the paywall confirmation. (3) Proxy fails open on entitlement DB errors — logs to server console; a downstream page render will still enforce visually if desired. Consumer notes for task 10 (home grid): import useEntitlement from '@/lib/hooks/use-entitlement'; when entitlement === 'inactive' dim mini-app tiles + surface an inline Subscribe CTA linking to /paywall (redundant with Proxy redirect but avoids a flash). Task 11 (settings): use the same hook to render the billing card — 'active'/'trialing' shows renews/ends date + a Manage Subscription button that will POST to a Portal endpoint once task 11 adds it; 'inactive' shows a Subscribe link to /paywall."
     },
     "09-ai-copilot-endpoint": {
       "state": "worker_done",
@@ -68,9 +69,10 @@
       "worker_turn_count": 0
     },
     "11-settings-and-profile-surface": {
-      "state": "pending",
+      "state": "needs-review",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Settings surface (4 sections: Profile / Preferences / Subscription / Sign out) shipped as a Client Component that hydrates from GET /api/profile + GET /api/preferences and PATCHes on save. Three new Route Handlers created: GET+PATCH /api/profile (validates via inline strict Zod, strips server-only fields, updates profiles keyed on auth.user.id — client can only touch display_name + locale); GET+PATCH /api/preferences (upserts on user_id, maps dark_mode toggle → theme enum, daily_calorie_goal validated int 1..20000); POST /api/stripe/portal (reads stripe_customer_id from subscriptions via RLS-scoped session client, opens stripe.billingPortal.sessions.create with return_url=/app/settings, 400 no_customer if never subscribed). Subscription card uses useEntitlement() — task 08 had ALREADY landed the real hook (fetches /api/entitlement, exposes refresh) by the time this worker ran; my initial stub was overwritten in-place by the tooling and I proceeded against the real contract. Sign-out is a plain <form action=/auth/signout method=post> button, no JS needed — reuses existing 303 handler. All styling via design-system CSS custom properties: dark card on dot-grid (background: rgba(0,0,0,0.5), border 1px solid var(--color-border-visible), border-radius var(--radius-card), padding var(--space-6)); Doto only for the .display-md page title; Space Grotesk body; Space Mono labels + renewal date via .data. Route Handlers set runtime='nodejs' + dynamic='force-dynamic'. DoD: pnpm --filter @nothing/web typecheck → exit 0; pnpm --filter @nothing/web build → exit 0 (routes /api/profile, /api/preferences, /api/stripe/portal all listed as dynamic ƒ); hex-color grep across owned files → empty. Zero new npm deps. Deferred per spec: avatar upload UI (needs Supabase Storage), delete account, i18n."
     },
     "12-reference-mini-app-calorie-lite": {
       "state": "pending",
@@ -78,9 +80,10 @@
       "worker_turn_count": 0
     },
     "13-copilot-tab-ui-and-streaming-render": {
-      "state": "pending",
+      "state": "needs-review",
       "judge_iteration_count": 0,
-      "worker_turn_count": 0
+      "worker_turn_count": 1,
+      "note": "Streaming copilot chat surface shipped. Files created: apps/web/src/lib/copilot/sse-parser.ts (async-iterator SSE decoder — buffers across chunks, tolerates malformed frames, stops cleanly on [DONE]); apps/web/src/components/copilot/{CopilotChat,MessageBubble,ReasoningDisclosure,Composer}.tsx. Files modified: apps/web/src/app/app/assistant/page.tsx (server component that renders <CopilotChat/>). Reasoning frames render as a collapsed-by-default disclosure inside the assistant bubble (Space Mono, muted, label 'Reasoning' with +/- toggle). Auto-scroll respects user scrollback (40px bottom-stick threshold). Enter sends / Shift+Enter newline. Composer disabled while streaming. Empty state shows 3 suggested prompts that pre-fill the composer on click. Zero new npm deps — fetch + ReadableStream.getReader() + TextDecoder + React only. All colors via design-system tokens (--color-accent, --color-surface-raised, --color-border-visible, --color-text-*, --color-accent-subtle) — hex grep on owned files is empty. Typecheck + build both green; /app/assistant is a statically-generated route wrapping the client CopilotChat component. Deferrals (spec-called): message persistence, multi-conversation threading, tool-use, voice, copy-to-clipboard."
     },
     "14-playwright-e2e-full-flow": {
       "state": "pending",

@@ -1,10 +1,7 @@
+import { CopilotChat } from '@/components/copilot/CopilotChat';
+
+// Client streaming happens inside CopilotChat. The page itself is a Server
+// Component so the shell + layout stay server-rendered.
 export default function AssistantPage() {
-  return (
-    <div>
-      <h1 className="display-lg">Assistant</h1>
-      <p className="caption" style={{ marginTop: 'var(--space-3)' }}>
-        Kimi K2 copilot UI lands here (task 13).
-      </p>
-    </div>
-  );
+  return <CopilotChat />;
 }
