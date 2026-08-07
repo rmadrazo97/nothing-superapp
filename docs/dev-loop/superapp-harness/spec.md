@@ -1,6 +1,6 @@
 # Spec — Nothing Superapp harness (v1)
 
-> **Version:** v1 · `spec_version: 1` · **Date:** 2026-08-07 · **Status:** Locked at Phase 2 · **Feature slug:** `superapp-harness`
+> **Version:** v1 · `spec_version: 3` · **Date:** 2026-08-07 · **Status:** Locked at Phase 2 · **Feature slug:** `superapp-harness`
 > **Loop:** `docs/dev-loop/superapp-harness/`
 > **Source of truth:** this document. When decisions change (via watch mode or manual edits), bump `spec_version`.
 
@@ -55,6 +55,8 @@ Each item: `assertion | verification`. Verification is one of: `unit` / `e2e` / 
 - Push notifications (Web Push API — nice to have, not blocking).
 - App store / user-installable mini-apps (file-convention registry = solo dev adds via git commit; user-facing app store is way v3).
 - Onboarding / first-run wizard beyond the auth + subscribe flow.
+- **Cloud deployment (Vercel / Fly / Cloudflare)** — deferred until the harness is worth deploying. **Local dev only for v1** — `pnpm dev` on `http://localhost:3000`. Stripe webhook via `stripe listen --forward-to localhost:3000/api/webhooks/stripe`. No deploy CLI setup in Phase 5.
+
 
 ## 5. Owned surface
 
@@ -201,7 +203,7 @@ Route Handlers under `apps/web/src/app/api/`:
 - `POST /api/auth/callback` — Supabase OAuth + magic-link callback (delegates to `@supabase/ssr`)
 - `POST /api/stripe/checkout` — creates Stripe Checkout Session for `$1/mo` price, returns URL
 - `POST /api/webhooks/stripe` — validates signature, updates `subscriptions` table on `customer.subscription.*` + `invoice.payment_*`
-- `POST /api/copilot` — accepts `{ query: string }`, streams Claude Haiku response with the user's data (last 30d across all `app_*_*` tables) as system context. Rate-limited (10 req/min per user).
+- `POST /api/copilot` — accepts `{ query: string }`, streams Kimi K2 response (SSE, OpenAI-compat) with the user's data (last 30d across all `app_*_*` tables) as system context. Rate-limited (10 req/min per user).
 - `GET /api/mini-apps` — returns the registry (auto-generated from `apps/web/src/mini-apps/*/manifest.ts` at build time — this is a static list, not a DB query)
 
 TypeScript request/response types shared via `packages/shared/src/schemas/`.
@@ -232,7 +234,7 @@ Exit 0 = shipped. Any non-zero exit = task pack has a bug.
 1. **Next.js 16 App Router supports the `next/dynamic` code-splitting we need for lazy mini-app loading.** → verified at Phase 3 by reading Next.js docs OR spinning a minimal test.
 2. **`@supabase/ssr` v0.5+ handles the OAuth callback flow via Route Handler cleanly with cookies.** → confirmed by Supabase docs; ref-check the auth-helpers snippet.
 3. **Stripe Checkout Session with `mode: 'subscription'` webhook fires `customer.subscription.created` on completion.** → Stripe docs confirmed; verify webhook payload shape in the checkout task.
-4. **Claude Haiku 4.5 supports streaming via the `@anthropic-ai/sdk` `messages.stream()` API.** → confirmed by Anthropic docs; verify SDK version in package.json.
+4. **Kimi K2 supports streaming via `openai` SDK `chat.completions.create({ stream: true })` against `api.moonshot.ai`.** → confirmed by Anthropic docs; verify SDK version in package.json.
 5. **The design-system's `.card` / `.btn-*` / `.tab` classes work when the design-system CSS is imported once at `apps/web/src/app/layout.tsx`.** → verify at Phase 3 by writing a minimal test page.
 6. **File-convention registry (`apps/web/src/mini-apps/*/manifest.ts`) can be built statically at Next.js build time so `/app` doesn't need a runtime filesystem scan.** → verify by writing a build-time script that reads directories and emits a `mini-apps-registry.generated.ts`.
 7. **RLS + Supabase JS client can enforce per-user row isolation without a middleware step in Next.js.** → confirmed by Supabase docs; verify by writing an integration test.
@@ -244,3 +246,5 @@ Exit 0 = shipped. Any non-zero exit = task pack has a bug.
 | Version | Date | What changed | Why |
 |---|---|---|---|
 | v1 | 2026-08-07 | Initial spec | Phase 2 output from `/dev-loop` after Phase 1 clarification |
+| v2 | 2026-08-07 | Swapped Claude Haiku 4.5 → Kimi K2 for the AI copilot (spec_version 2). Same read-only Q&A capability, ~85% cheaper input tokens, 2M context window. Uses `openai` npm SDK with `baseURL: https://api.moonshot.ai/v1`. | User override via watch-mode Class A amendment (`"why anthropic keys? if we need inference let's use kimi"`) — confirmed with `"move on implement"`. |
+| v3 | 2026-08-07 | Added local-first non-goal (spec_version 3). No cloud deploy for v1; `pnpm dev` + `stripe listen` cover the full dev loop. Deploy path revisits when harness is worth shipping publicly. | User override via watch-mode Class A amendment ("we will build locally for now so serve locally we'll deploy resources once it's worth it"). |

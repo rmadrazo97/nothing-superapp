@@ -1,22 +1,85 @@
 {
-  "run_state": "ready",
-  "spec_version": 1,
-  "updated_at": "2026-08-07 20:15",
+  "run_state": "executing",
+  "spec_version": 3,
+  "updated_at": "2026-08-07 21:40",
   "tasks": {
-    "00-prereqs-and-scaffold":                      { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "01-contract-types-and-schema":                 { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "02-monorepo-and-nextjs-scaffold":              { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "03-supabase-migrations-and-rls":               { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "04-mini-apps-runtime-sdk":                     { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "05-auth-and-session":                          { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "06-stripe-checkout-and-webhook":               { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "07-shell-chrome-tabbar-and-layout":            { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "08-paywall-middleware-and-entitlement-gate":   { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "09-ai-copilot-endpoint":                       { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "10-home-grid-and-registry-loader":             { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "11-settings-and-profile-surface":              { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "12-reference-mini-app-calorie-lite":           { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "13-copilot-tab-ui-and-streaming-render":       { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 },
-    "14-playwright-e2e-full-flow":                  { "state": "pending", "judge_iteration_count": 0, "worker_turn_count": 0 }
+    "00-prereqs-and-scaffold": {
+      "state": "blocked-needs-review",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 1,
+      "note": "Supabase project provisioned (pqbwzcjiedllzafgczhx); browser session expired before grabbing keys. User to paste keys OR re-sign-in Supabase. Partial creds saved to working/.env.credentials.stub."
+    },
+    "01-contract-types-and-schema": {
+      "state": "done",
+      "judge_iteration_count": 1,
+      "worker_turn_count": 0,
+      "note": "PASS on iteration 1. DoD clean. Worker echoed spec_version 2 while current is 3 \u2014 v3 amendment (local-first) does not affect schemas, so no re-run."
+    },
+    "02-monorepo-and-nextjs-scaffold": {
+      "state": "done",
+      "judge_iteration_count": 1,
+      "worker_turn_count": 0,
+      "note": "PASS on iteration 1. pnpm typecheck clean. Design system CSS wired first."
+    },
+    "03-supabase-migrations-and-rls": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "04-mini-apps-runtime-sdk": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "05-auth-and-session": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "06-stripe-checkout-and-webhook": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "07-shell-chrome-tabbar-and-layout": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "08-paywall-middleware-and-entitlement-gate": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "09-ai-copilot-endpoint": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "10-home-grid-and-registry-loader": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "11-settings-and-profile-surface": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "12-reference-mini-app-calorie-lite": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "13-copilot-tab-ui-and-streaming-render": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    },
+    "14-playwright-e2e-full-flow": {
+      "state": "pending",
+      "judge_iteration_count": 0,
+      "worker_turn_count": 0
+    }
   }
 }
