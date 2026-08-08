@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useEntitlement } from '@/lib/hooks/use-entitlement';
+import { useToast } from '@/lib/toast/context';
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -165,6 +166,8 @@ export default function SettingsPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
 
+  const { toast } = useToast();
+
   // ── initial loads ──
   useEffect(() => {
     let cancelled = false;
@@ -242,17 +245,31 @@ export default function SettingsPage() {
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? 'save_failed');
+          const errMsg = body.error ?? 'save_failed';
+          // 401 → proxy handles on next nav; skip toast.
+          if (res.status >= 500) {
+            toast.error("Something broke on our end. We're logging it.");
+          } else if (res.status === 400) {
+            toast.error(`Display name — ${errMsg}`);
+          } else if (res.status !== 401) {
+            toast.error(errMsg);
+          }
+          throw new Error(errMsg);
         }
         setProfileStatus({ kind: 'saved' });
       } catch (err) {
+        // Network failures (fetch rejects with TypeError). Distinguish
+        // from HTTP-shaped errors already toasted above.
+        if (err instanceof TypeError) {
+          toast.error("Can't reach the server. Check your connection.");
+        }
         setProfileStatus({
           kind: 'error',
           message: err instanceof Error ? err.message : 'save_failed',
         });
       }
     },
-    [displayName],
+    [displayName, toast],
   );
 
   const savePreferences = useCallback(
@@ -271,17 +288,28 @@ export default function SettingsPage() {
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? 'save_failed');
+          const errMsg = body.error ?? 'save_failed';
+          if (res.status >= 500) {
+            toast.error("Something broke on our end. We're logging it.");
+          } else if (res.status === 400) {
+            toast.error(`Preferences — ${errMsg}`);
+          } else if (res.status !== 401) {
+            toast.error(errMsg);
+          }
+          throw new Error(errMsg);
         }
         setPrefsStatus({ kind: 'saved' });
       } catch (err) {
+        if (err instanceof TypeError) {
+          toast.error("Can't reach the server. Check your connection.");
+        }
         setPrefsStatus({
           kind: 'error',
           message: err instanceof Error ? err.message : 'save_failed',
         });
       }
     },
-    [darkMode, calorieTarget],
+    [darkMode, calorieTarget, toast],
   );
 
   const openPortal = useCallback(async () => {
@@ -294,16 +322,25 @@ export default function SettingsPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? 'portal_failed');
+        const errMsg = body.error ?? 'portal_failed';
+        if (res.status >= 500) {
+          toast.error("Something broke on our end. We're logging it.");
+        } else if (res.status !== 401) {
+          toast.error(errMsg);
+        }
+        throw new Error(errMsg);
       }
       const body = (await res.json()) as { url?: string };
       if (!body.url) throw new Error('no_portal_url');
       window.location.assign(body.url);
     } catch (err) {
+      if (err instanceof TypeError) {
+        toast.error("Can't reach the server. Check your connection.");
+      }
       setPortalError(err instanceof Error ? err.message : 'portal_failed');
       setPortalLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   // ─── render ───────────────────────────────────────────────────────────
 

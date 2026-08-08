@@ -30,6 +30,10 @@ import {
   usePreferences,
   useUser,
 } from '@nothing/mini-apps-runtime';
+// Relative reach into the host app — Next resolves this to the same module
+// instance used by <ToastProvider> in /app/layout.tsx, so mini-apps toast
+// straight into the shell without duplicating state.
+import { useToast } from '../../web/src/lib/toast/context';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
@@ -108,6 +112,8 @@ export default function CalorieLitePage() {
 
   const todayKey = useMemo(() => toLocalDateKey(new Date().toISOString()), []);
 
+  const { toast } = useToast();
+
   const loadEntries = useCallback(async () => {
     setLoadError(null);
     try {
@@ -120,10 +126,16 @@ export default function CalorieLitePage() {
         // does (e.g. subscription lapsed while the tab was open), surface it.
         if (res.status === 402) {
           setLoadError('Subscription required. Refresh to renew.');
+          toast.info("This one's paid. Subscribe on the paywall.");
         } else if (res.status === 401) {
+          // Proxy will bounce on next nav — no toast, just the inline banner.
           setLoadError('Session expired. Sign in again.');
+        } else if (res.status >= 500) {
+          setLoadError('Could not load entries.');
+          toast.error("Something broke on our end. We're logging it.");
         } else {
           setLoadError('Could not load entries.');
+          toast.error('Could not load entries.');
         }
         setEntries([]);
         return;
@@ -132,9 +144,10 @@ export default function CalorieLitePage() {
       setEntries(body.entries);
     } catch {
       setLoadError('Network error.');
+      toast.error("Can't reach the server. Check your connection.");
       setEntries([]);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void loadEntries();
@@ -580,6 +593,7 @@ function AddView({
   onCancel: () => void;
   onSaved: () => Promise<void> | void;
 }) {
+  const { toast } = useToast();
   const [mealName, setMealName] = useState('');
   const [kcal, setKcal] = useState('');
   const [servingSize, setServingSize] = useState('');
@@ -635,13 +649,21 @@ function AddView({
       if (!res.ok) {
         if (res.status === 402) {
           setError('Subscription required to save entries.');
+          toast.info("This one's paid. Subscribe on the paywall.");
         } else if (res.status === 401) {
+          // Inline banner only — proxy redirects on next nav.
           setError('Session expired. Sign in again.');
         } else if (res.status === 400) {
+          // Field-level validation echo — leave silent so the inline
+          // error under the form is the single source of truth.
           const body = await res.json().catch(() => null);
           setError(body?.error === 'invalid_body' ? 'Check the fields and try again.' : 'Could not save.');
+        } else if (res.status >= 500) {
+          setError('Could not save.');
+          toast.error("Something broke on our end. We're logging it.");
         } else {
           setError('Could not save.');
+          toast.error('Could not save.');
         }
         setSaving(false);
         return;
@@ -649,6 +671,7 @@ function AddView({
       await onSaved();
     } catch {
       setError('Network error.');
+      toast.error("Can't reach the server. Check your connection.");
       setSaving(false);
     }
   }

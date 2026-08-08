@@ -17,7 +17,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Exercise, RoutineExercise, WorkoutRoutine } from '@nothing/shared';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
+import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
 
 export default function RoutineEditorPage({
@@ -36,6 +37,7 @@ export default function RoutineEditorPage({
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -59,8 +61,10 @@ export default function RoutineEditorPage({
       setExerciseMap(map);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load routine.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
-  }, [id]);
+  }, [id, toast]);
 
   useEffect(() => {
     void load();
@@ -133,6 +137,8 @@ export default function RoutineEditorPage({
       setDirty(false);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not save.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     } finally {
       setSaving(false);
     }
@@ -168,6 +174,8 @@ export default function RoutineEditorPage({
     } catch (e) {
       setStarting(false);
       setError(e instanceof ApiError ? e.message : 'Could not start session.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
   };
 

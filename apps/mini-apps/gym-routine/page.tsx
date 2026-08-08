@@ -20,9 +20,12 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { EmptyState, useEvents } from '@nothing/mini-apps-runtime';
+// Relative reach into the host app — same module instance as the shell's
+// <ToastProvider>, so toasts show up in the visible container.
+import { useToast } from '../../web/src/lib/toast/context';
 import type { WorkoutRoutine, WorkoutSession } from '@nothing/shared';
 import * as api from './lib/api.ts';
-import { ApiError } from './lib/api.ts';
+import { ApiError, toastForError } from './lib/api.ts';
 import {
   cardStyle,
   ghostButtonStyle,
@@ -45,6 +48,7 @@ export default function GymHomePage() {
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -66,8 +70,10 @@ export default function GymHomePage() {
       } else {
         setError('Network error.');
       }
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();
@@ -87,6 +93,8 @@ export default function GymHomePage() {
     } catch (e) {
       setStarting(false);
       setError(e instanceof ApiError ? e.message : 'Could not start session.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
   };
 

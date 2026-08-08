@@ -25,6 +25,7 @@ import { HarnessContextBridge } from '@/components/shell/HarnessContextBridge';
 import { AppErrorBoundary } from '@/components/shell/AppErrorBoundary';
 import { ToastProvider } from '@/lib/toast/context';
 import { ToastContainer } from '@/components/toast/ToastContainer';
+import { GlobalShortcuts } from '@/components/keyboard/GlobalShortcuts';
 import { createClient } from '@/lib/supabase/server';
 import type { Preferences } from '@nothing/shared';
 
@@ -81,6 +82,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <AppErrorBoundary>{children}</AppErrorBoundary>
         </Shell>
         <ToastContainer />
+        <GlobalShortcuts />
       </ToastProvider>
     </HarnessContextBridge>
   );

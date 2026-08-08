@@ -103,7 +103,7 @@ export function HomeGrid({ miniApps }: { miniApps: MiniAppManifest[] }) {
 
   return (
     <div style={gridStyle}>
-      {miniApps.map((app) => {
+      {miniApps.map((app, idx) => {
         const needsSubscription = app.requiresSubscription !== false;
         // Pre-checkout, avoid dimming until we know the answer — a brief
         // flash of "locked" during the entitlement fetch would look like a
@@ -113,14 +113,24 @@ export function HomeGrid({ miniApps }: { miniApps: MiniAppManifest[] }) {
         // locked out — the Proxy would redirect anyway, but doing it in the
         // link means no flash of the destination shell.
         const href = showLocked ? '/paywall' : app.route;
+        // While entitlement is resolving, softly pulse the tile at
+        // opacity 0.6 → 0.85 so paying users don't see a "locked" flash
+        // and unpaid users don't see a "you're in!" flash. Handoff in
+        // one paint once useEntitlement resolves.
+        const entitlementPending = needsSubscription && isLoading;
+        const classes = ['tile', 'tile-appear'];
+        if (showLocked) classes.push('tile-locked');
+        if (entitlementPending) classes.push('tile-entitlement-pending');
         return (
           <Link
             key={app.slug}
             href={href as Route}
-            className={showLocked ? 'tile tile-locked' : 'tile'}
+            className={classes.join(' ')}
+            // --tile-index feeds the stagger keyframe in globals.css.
             style={{
               ...tileBaseStyle,
-              opacity: showLocked ? 0.5 : 1,
+              opacity: showLocked ? 0.5 : entitlementPending ? undefined : 1,
+              ['--tile-index' as string]: String(idx),
             }}
             aria-label={
               showLocked

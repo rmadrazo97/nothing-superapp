@@ -12,7 +12,8 @@ import Link from 'next/link';
 import type { WorkoutSession } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
+import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle } from '../lib/ui.ts';
 import {
   durationLabel,
@@ -26,6 +27,7 @@ import {
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<WorkoutSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -35,8 +37,10 @@ export default function HistoryPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load history.');
       setSessions([]);
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();

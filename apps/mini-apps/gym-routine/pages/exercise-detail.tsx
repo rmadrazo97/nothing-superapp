@@ -14,7 +14,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Exercise, WorkoutRoutine } from '@nothing/shared';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
+import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, chipStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
 import AttributionFooter from '../components/AttributionFooter.tsx';
 
@@ -31,6 +32,7 @@ export default function ExerciseDetailPage({
   const [showRoutinePicker, setShowRoutinePicker] = useState(false);
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -46,11 +48,17 @@ export default function ExerciseDetailPage({
             ? 'Exercise not found.'
             : 'Could not load exercise.',
         );
+        // 404 is already surfaced inline as its own screen — don't
+        // duplicate as a toast.
+        if (!(e instanceof ApiError) || e.status !== 404) {
+          const t = toastForError(e);
+          if (t) toast[t.variant](t.message);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, toast]);
 
   const openRoutinePicker = useCallback(async () => {
     setShowRoutinePicker(true);
@@ -58,11 +66,13 @@ export default function ExerciseDetailPage({
       try {
         const resp = await api.listRoutines();
         setRoutines(resp.routines);
-      } catch {
+      } catch (e) {
         setRoutines([]);
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
       }
     }
-  }, [routines]);
+  }, [routines, toast]);
 
   const addToRoutine = async (routine: WorkoutRoutine) => {
     if (!exercise) return;
@@ -83,6 +93,8 @@ export default function ExerciseDetailPage({
       router.push(`/app/gym-routine/routines/${routine.id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not add to routine.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     } finally {
       setBusy(false);
     }
@@ -104,6 +116,8 @@ export default function ExerciseDetailPage({
       router.push(`/app/gym-routine/routines/${routine.id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not create routine.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
       setBusy(false);
     }
   };
@@ -148,6 +162,8 @@ export default function ExerciseDetailPage({
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not add to session.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
       setBusy(false);
     }
   };

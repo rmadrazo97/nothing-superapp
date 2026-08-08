@@ -23,7 +23,8 @@ import { useRouter } from 'next/navigation';
 import type { SessionEntry, WorkoutSession } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
+import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
 import { durationLabel, totalSetsCompleted, totalVolumeKg } from '../lib/format.ts';
 import RestTimer from '../components/RestTimer.tsx';
@@ -46,6 +47,7 @@ export default function SessionPage({
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const [restDurationSec, setRestDurationSec] = useState(DEFAULT_REST_SEC);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -60,8 +62,10 @@ export default function SessionPage({
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load session.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
-  }, [id]);
+  }, [id, toast]);
 
   useEffect(() => {
     void load();
@@ -76,11 +80,13 @@ export default function SessionPage({
         setEntries(updated.entries);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : 'Could not save.');
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
       } finally {
         setSaving(false);
       }
     },
-    [id],
+    [id, toast],
   );
 
   const toggleSetComplete = async (exIdx: number, setIdx: number) => {
@@ -152,6 +158,8 @@ export default function SessionPage({
     } catch (e) {
       setEnding(false);
       setError(e instanceof ApiError ? e.message : 'Could not end session.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
   };
 

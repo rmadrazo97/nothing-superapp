@@ -29,6 +29,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@nothing/mini-apps-runtime';
+// Relative reach into the host app — same module instance as the shell's
+// <ToastProvider>, so we push into the same visible container.
+import { useToast } from '../../web/src/lib/toast/context';
 import type { PomodoroSession } from '@nothing/shared';
 import { TimerRing, type RingTone } from './components/TimerRing.tsx';
 import { PhaseLabel } from './components/PhaseLabel.tsx';
@@ -61,6 +64,7 @@ export default function PomodoroPage() {
   const [view, setView] = useState<View>('timer');
   const [sessions, setSessions] = useState<PomodoroSession[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Client-only: read persisted settings + cycle position on mount.
@@ -91,9 +95,19 @@ export default function PomodoroPage() {
         credentials: 'same-origin',
       });
       if (!res.ok) {
-        if (res.status === 402) setLoadError('Subscription required. Refresh to renew.');
-        else if (res.status === 401) setLoadError('Session expired. Sign in again.');
-        else setLoadError('Could not load history.');
+        if (res.status === 402) {
+          setLoadError('Subscription required. Refresh to renew.');
+          toast.info("This one's paid. Subscribe on the paywall.");
+        } else if (res.status === 401) {
+          // Inline banner — proxy handles the redirect.
+          setLoadError('Session expired. Sign in again.');
+        } else if (res.status >= 500) {
+          setLoadError('Could not load history.');
+          toast.error("Something broke on our end. We're logging it.");
+        } else {
+          setLoadError('Could not load history.');
+          toast.error('Could not load history.');
+        }
         setSessions([]);
         return;
       }
@@ -101,9 +115,10 @@ export default function PomodoroPage() {
       setSessions(body.sessions);
     } catch {
       setLoadError('Network error.');
+      toast.error("Can't reach the server. Check your connection.");
       setSessions([]);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void loadSessions();

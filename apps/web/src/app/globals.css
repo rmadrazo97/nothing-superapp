@@ -25,3 +25,83 @@
   border-color: var(--color-accent) !important;
   opacity: 0.75 !important;
 }
+
+/* ── Skeleton shimmer ────────────────────────────────────────────────────
+   Dark card base, subtle left-to-right sheen via background-position.
+   Reduced-motion users get a static surface — the loading state is still
+   conveyed by the placeholder shape. */
+.nsa-skeleton {
+  display: block;
+  background-color: var(--color-surface);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-raised) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  background-position: 100% 0;
+  border: 1px solid var(--color-border);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nsa-skeleton {
+    animation: nsa-shimmer 1500ms linear infinite;
+  }
+}
+@keyframes nsa-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── Home-grid tile stagger + entitlement pulse ─────────────────────────
+   `.tile-appear` fades tiles up on first render; per-tile
+   `--tile-index` (set inline) spaces them 40ms apart, capped at 200ms
+   so a 20-tile grid still finishes inside 220ms. */
+@media (prefers-reduced-motion: no-preference) {
+  .tile-appear {
+    animation: nsa-tile-in var(--dur-medium) var(--ease-out) both;
+    animation-delay: calc(min(var(--tile-index, 0), 5) * 40ms);
+  }
+  .tile-entitlement-pending {
+    animation: nsa-tile-pulse 1200ms var(--ease-out) infinite;
+  }
+}
+@keyframes nsa-tile-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes nsa-tile-pulse {
+  0%,   100% { opacity: 0.6; }
+  50%        { opacity: 0.85; }
+}
+
+/* ── Copilot message: fresh-appended slide-up ──────────────────────────
+   MessageBubble sets data-fresh="true" for one frame on newly-appended
+   messages; the reflow-safe attribute selector picks that up and plays
+   a single 180ms slide-in. Cleared before the next paint so subsequent
+   token deltas don't re-play the animation. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-fresh="true"] .nsa-msg-bubble {
+    animation: nsa-msg-in 180ms var(--ease-out) both;
+  }
+}
+@keyframes nsa-msg-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Copy button on assistant bubbles ──────────────────────────────────
+   Hidden until hover on desktop; always visible on touch/coarse pointers
+   where hover is unreliable. */
+.nsa-copy-btn {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.nsa-msg-bubble:hover .nsa-copy-btn,
+.nsa-copy-btn:focus-visible {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse) {
+  .nsa-copy-btn { opacity: 0.7; }
+}

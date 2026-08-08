@@ -12,7 +12,8 @@ import { useRouter } from 'next/navigation';
 import type { WorkoutRoutine } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
+import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
 import { toDateLabel } from '../lib/format.ts';
 
@@ -22,6 +23,7 @@ export default function RoutinesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -31,8 +33,10 @@ export default function RoutinesPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load routines.');
       setRoutines([]);
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();
@@ -46,6 +50,8 @@ export default function RoutinesPage() {
     } catch (e) {
       setBusy(false);
       setError(e instanceof ApiError ? e.message : 'Could not create routine.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     }
   };
 
@@ -57,6 +63,8 @@ export default function RoutinesPage() {
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not delete.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     } finally {
       setBusy(false);
     }

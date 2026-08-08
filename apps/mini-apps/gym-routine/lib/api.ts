@@ -25,6 +25,37 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Translate an unknown thrown value from any `api.*` call into a
+ * human-readable toast message + the toast variant to use, or `null`
+ * to stay silent (401 → proxy handles the redirect; nothing to say).
+ *
+ * Pure — takes no toast handle. Call sites pick which variant to fire.
+ */
+export function toastForError(
+  err: unknown,
+): { variant: 'error' | 'info'; message: string } | null {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return null;
+    if (err.status === 402) {
+      return { variant: 'info', message: "This one's paid. Subscribe on the paywall." };
+    }
+    if (err.status === 429) {
+      return { variant: 'info', message: 'Too many requests — try again in a minute.' };
+    }
+    if (err.status >= 500) {
+      return {
+        variant: 'error',
+        message: "Something broke on our end. We're logging it.",
+      };
+    }
+    // 4xx from server — echo the server's message if human-shaped, else fall back.
+    return { variant: 'error', message: err.message || 'Request failed.' };
+  }
+  // Network / TypeError from fetch. Not an ApiError => didn't get an HTTP response.
+  return { variant: 'error', message: "Can't reach the server. Check your connection." };
+}
+
 async function req<T>(
   path: string,
   init?: RequestInit & { json?: unknown },

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseCopilotStream } from '@/lib/copilot/sse-parser';
+import { useToast } from '@/lib/toast/context';
 import { Composer } from './Composer';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 
@@ -42,6 +43,7 @@ export function CopilotChat() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   // Track whether the user is pinned to the bottom. If they scroll up mid-stream
@@ -116,6 +118,17 @@ export function CopilotChat() {
           } catch {
             /* fall through */
           }
+          // Human-tier toast copy per status. 401 is silent — the proxy
+          // redirects to /login on the next nav — so we don't spam.
+          if (response.status === 429) {
+            toast.info("Slow down — you'll get another 30 messages in about an hour.");
+          } else if (response.status === 402) {
+            toast.info("This one's paid. Subscribe on the paywall.");
+          } else if (response.status >= 500) {
+            toast.error("Something broke on our end. We're logging it.");
+          } else if (response.status !== 401) {
+            toast.error(msg);
+          }
           throw new Error(msg);
         }
 
@@ -133,11 +146,19 @@ export function CopilotChat() {
               ),
             );
           } else if ('error' in frame) {
+            // Mid-stream error frame — inline banner stays for context;
+            // toast so the user notices even if scrolled up.
             setError(frame.error);
+            toast.error(frame.error);
           }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Network error';
+        // Only toast for pure network failures — HTTP errors already
+        // toasted above. Detect by absence of an HTTP-shaped message.
+        if (err instanceof TypeError) {
+          toast.error("Can't reach the server. Check your connection.");
+        }
         setError(msg);
       } finally {
         setBusy(false);
@@ -146,7 +167,7 @@ export function CopilotChat() {
         );
       }
     },
-    [busy, messages],
+    [busy, messages, toast],
   );
 
   const isEmpty = messages.length === 0;

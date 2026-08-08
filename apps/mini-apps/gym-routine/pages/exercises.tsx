@@ -14,8 +14,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Exercise, BodyPart } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
+// Same-module toast + shortcuts from the host app. Resolves to the same
+// context instance mounted in /app/layout.tsx.
+import { useToast } from '../../../web/src/lib/toast/context';
+import { useSearchSlashShortcut } from '../../../web/src/lib/hooks/use-keyboard-shortcuts';
+import { SkeletonGrid } from '../../../web/src/components/ui/Skeleton';
 import * as api from '../lib/api.ts';
-import { ApiError } from '../lib/api.ts';
+import { ApiError, toastForError } from '../lib/api.ts';
 import SearchBar from '../components/SearchBar.tsx';
 import BodyPartTabs from '../components/BodyPartTabs.tsx';
 import ExerciseGrid from '../components/ExerciseGrid.tsx';
@@ -34,6 +39,14 @@ export default function ExercisesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const { toast } = useToast();
+
+  // `/` focuses the search field. Scoped: querySelector inside our own
+  // wrapper so we don't accidentally focus something in the shell nav.
+  useSearchSlashShortcut(() =>
+    searchWrapRef.current?.querySelector('input[type="search"]') as HTMLElement | null,
+  );
 
   // Debounce the search input.
   useEffect(() => {
@@ -67,6 +80,8 @@ export default function ExercisesPage() {
             ? 'Subscription required.'
             : 'Could not load exercises.',
         );
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
       })
       .finally(() => {
         if (!cancelled && rid === requestIdRef.current) setLoading(false);
@@ -90,6 +105,8 @@ export default function ExercisesPage() {
       setOffset(next);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load more.');
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
     } finally {
       setLoading(false);
     }
@@ -119,7 +136,9 @@ export default function ExercisesPage() {
         </Link>
       </div>
 
-      <SearchBar value={q} onChange={setQ} placeholder="Search 1,324 exercises" />
+      <div ref={searchWrapRef}>
+        <SearchBar value={q} onChange={setQ} placeholder="Search 1,324 exercises" />
+      </div>
 
       <BodyPartTabs value={bodyPart} onChange={setBodyPart} />
 
@@ -136,9 +155,12 @@ export default function ExercisesPage() {
         {total.toLocaleString()} MATCH{total === 1 ? '' : 'ES'}
       </span>
 
+      {loading && exercises.length === 0 ? (
+        <SkeletonGrid count={6} />
+      ) : (
       <ExerciseGrid
         exercises={exercises}
-        loading={loading && exercises.length === 0}
+        loading={false}
         empty={
           <EmptyState
             icon="◈"
@@ -162,6 +184,7 @@ export default function ExercisesPage() {
           />
         }
       />
+      )}
 
       {hasMore && (
         <button

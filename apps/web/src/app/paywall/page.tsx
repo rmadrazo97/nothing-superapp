@@ -20,6 +20,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useEntitlement } from '@/lib/hooks/use-entitlement';
+import { useToast } from '@/lib/toast/context';
 
 type CheckoutState =
   | { kind: 'idle' }
@@ -29,6 +30,7 @@ type CheckoutState =
 export default function PaywallPage() {
   const { entitlement, subscription, isLoading } = useEntitlement();
   const [checkout, setCheckout] = useState<CheckoutState>({ kind: 'idle' });
+  const { toast } = useToast();
 
   const entitled = entitlement === 'active' || entitlement === 'trialing';
 
@@ -41,10 +43,14 @@ export default function PaywallPage() {
       });
       const body = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !body.url) {
-        setCheckout({
-          kind: 'error',
-          message: body.error ?? 'Could not start checkout. Please try again.',
-        });
+        const message = body.error ?? 'Could not start checkout. Please try again.';
+        setCheckout({ kind: 'error', message });
+        if (res.status >= 500) {
+          toast.error("Something broke on our end. We're logging it.");
+        } else if (res.status !== 401) {
+          // 401 → proxy will bounce to /login on next nav; stay silent.
+          toast.error(message);
+        }
         return;
       }
       window.location.href = body.url;
@@ -53,6 +59,7 @@ export default function PaywallPage() {
         kind: 'error',
         message: 'Network error — please try again.',
       });
+      toast.error("Can't reach the server. Check your connection.");
     }
   };
 
