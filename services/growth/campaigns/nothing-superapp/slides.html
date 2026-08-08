@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nothing Superapp — deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1A1A1A;
+  --border: #222222;
+  --border-visible: #333333;
+  --text-display: #FFFFFF;
+  --text-primary: #E8E8E8;
+  --text-secondary: #999999;
+  --text-disabled: #666666;
+  --accent: #D71921;
+  --success: #4A9E5C;
+
+  --font-display: "Doto", "Space Mono", monospace;
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", "SF Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text-primary); font-family: var(--font-body); }
+
+.deck {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  padding: 40px;
+}
+
+/* 16:9 with letterboxing */
+.slide {
+  position: absolute; inset: 40px;
+  display: none;
+  padding: 60px 80px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.slide.active { display: flex; flex-direction: column; }
+
+/* dot grid */
+.slide::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at center, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  opacity: 0.35;
+}
+.slide > * { position: relative; z-index: 1; }
+
+/* frame chrome */
+.slide-num {
+  position: absolute; top: 20px; right: 40px;
+  font-family: var(--font-mono);
+  font-size: 12px; letter-spacing: 0.08em; color: var(--text-secondary);
+}
+.slide-num::before { content: '['; }
+.slide-num::after { content: ']'; }
+.slide-brand {
+  position: absolute; top: 20px; left: 40px;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  color: var(--text-display); letter-spacing: -0.02em;
+}
+.slide-brand::after { content: ' ●'; color: var(--accent); }
+.slide-footer {
+  position: absolute; bottom: 20px; left: 40px; right: 40px;
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-disabled); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 6px 12px; border: 1px solid var(--border-visible);
+  border-radius: 6px;
+  margin-bottom: 32px;
+  align-self: flex-start;
+}
+.eyebrow.accent { color: var(--accent); border-color: var(--accent); }
+
+h1 {
+  font-family: var(--font-display); font-weight: 900;
+  font-size: clamp(60px, 8vw, 120px);
+  line-height: 0.95; letter-spacing: -0.03em;
+  color: var(--text-display);
+  margin-bottom: 24px;
+}
+h1 .accent { color: var(--accent); }
+
+h2 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(40px, 5vw, 64px);
+  line-height: 1.05; letter-spacing: -0.02em;
+  color: var(--text-display);
+  margin-bottom: 32px;
+}
+h2 .accent { color: var(--accent); }
+
+h3 {
+  font-family: var(--font-body); font-weight: 500;
+  font-size: 20px; color: var(--text-display); margin-bottom: 12px;
+}
+
+p.lede {
+  font-size: clamp(18px, 2vw, 26px);
+  color: var(--text-primary); line-height: 1.5;
+  max-width: 900px;
+}
+p.big {
+  font-size: clamp(28px, 3.5vw, 40px);
+  color: var(--text-display); font-weight: 300; line-height: 1.3;
+}
+
+.tag {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent);
+}
+
+/* Card grid */
+.grid {
+  display: grid; gap: 16px;
+  margin-top: 24px;
+  width: 100%;
+}
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g4 { grid-template-columns: repeat(4, 1fr); }
+
+.card {
+  padding: 24px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-visible);
+}
+.card .glyph { font-size: 32px; color: var(--accent); margin-bottom: 12px; }
+.card h4 { font-family: var(--font-display); font-size: 24px; color: var(--text-display); margin-bottom: 8px; }
+.card p { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+.card .num { font-family: var(--font-display); font-size: 48px; color: var(--text-display); }
+.card .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); margin-top: 8px; }
+
+.compare-table {
+  width: 100%; border-collapse: collapse; margin-top: 24px;
+  font-size: 18px;
+}
+.compare-table th, .compare-table td {
+  padding: 16px; text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.compare-table th { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.compare-table td.num { font-family: var(--font-mono); text-align: right; color: var(--text-display); }
+.compare-table td.strike { text-decoration: line-through; color: var(--text-disabled); }
+.compare-table tr.total td { border-top: 2px solid var(--border-visible); padding-top: 20px; font-family: var(--font-display); font-size: 28px; }
+.compare-table tr.total td.accent { color: var(--accent); }
+
+.chat-msg-user, .chat-msg-ai { padding: 16px 20px; border-radius: 12px; margin-bottom: 16px; max-width: 80%; }
+.chat-msg-user { background: var(--accent); color: var(--text-display); margin-left: auto; }
+.chat-msg-ai { background: var(--surface); border: 1px solid var(--border-visible); }
+.chat-msg-ai .reasoning { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); padding: 8px 12px; background: var(--surface-2); border-left: 2px solid var(--accent); margin-bottom: 8px; border-radius: 4px; }
+.chat-msg-ai .cite { color: var(--accent); font-weight: 500; }
+
+.step {
+  display: flex; gap: 20px; padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: baseline;
+}
+.step:last-child { border: none; }
+.step .n {
+  font-family: var(--font-display); font-weight: 700; font-size: 32px;
+  color: var(--accent); width: 60px; flex-shrink: 0;
+}
+.step .body h4 { font-size: 20px; margin-bottom: 4px; }
+.step .body p { font-size: 15px; color: var(--text-secondary); }
+
+.stack-item { padding: 20px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.stack-item .role { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.stack-item .val { font-family: var(--font-body); color: var(--text-display); font-size: 16px; margin-top: 4px; font-weight: 500; }
+
+/* Nav dots */
+.dots {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 100;
+}
+.dots span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border-visible); cursor: pointer;
+  transition: background 120ms;
+}
+.dots span.active { background: var(--accent); }
+.dots span:hover { background: var(--text-secondary); }
+
+.hint {
+  position: fixed; bottom: 8px; right: 12px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--text-disabled); text-transform: uppercase;
+  z-index: 100;
+}
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- 1: TITLE -->
+  <div class="slide active" data-slide="1">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">01 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow accent">● now shipping · v0.2</div>
+      <h1>ONE APP.<br>ONE <span class="accent">SUB</span>SCRIPTION.<br>EVERYTHING.</h1>
+      <p class="lede">A centralized application that leverages decentralized information from every mini-app you touch.</p>
+    </div>
+    <div class="slide-footer"><span>NOTHING SUPERAPP</span><span>2026 · v0.2</span></div>
+  </div>
+
+  <!-- 2: THE PROBLEM -->
+  <div class="slide" data-slide="2">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">02 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">The problem</div>
+      <h2>You pay for<br>five apps that<br><span class="accent">don't talk.</span></h2>
+      <p class="lede">Your calorie tracker doesn't know you're in a cut. Your workout logger doesn't know you're low on carbs. Your chat AI doesn't know either. Every app is its own island.</p>
+    </div>
+    <div class="slide-footer"><span>PROBLEM</span><span>THE INTEROP TAX</span></div>
+  </div>
+
+  <!-- 3: PRICING COMPARISON -->
+  <div class="slide" data-slide="3">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">03 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">The math</div>
+      <h2>$37.97<br>or <span class="accent">$1.00</span>.</h2>
+      <table class="compare-table">
+        <tr><th>Currently paying</th><th style="text-align: right;">Monthly</th></tr>
+        <tr><td>Calorie tracker</td><td class="num strike">$4.99</td></tr>
+        <tr><td>Gym logger</td><td class="num strike">$9.99</td></tr>
+        <tr><td>Pomodoro Pro</td><td class="num strike">$2.99</td></tr>
+        <tr><td>ChatGPT Plus</td><td class="num strike">$20.00</td></tr>
+        <tr class="total"><td>Nothing Superapp</td><td class="num accent">$1.00</td></tr>
+      </table>
+    </div>
+    <div class="slide-footer"><span>PRICING</span><span>ONE DOLLAR</span></div>
+  </div>
+
+  <!-- 4: WHAT IT IS -->
+  <div class="slide" data-slide="4">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">04 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">The four mini-apps</div>
+      <h2>Four apps.<br><span class="accent">One shared brain.</span></h2>
+      <div class="grid g4">
+        <div class="card">
+          <div class="glyph">◐</div>
+          <h4>Calorie</h4>
+          <p>Kcal + macros + weekly trend + streak.</p>
+        </div>
+        <div class="card">
+          <div class="glyph">◈</div>
+          <h4>Gym</h4>
+          <p>1,324 exercises + routines + live session + rest timer.</p>
+        </div>
+        <div class="card">
+          <div class="glyph">◔</div>
+          <h4>Pomodoro</h4>
+          <p>25/5/15 focus + tab-safe timer + streak dots.</p>
+        </div>
+        <div class="card">
+          <div class="glyph">◊</div>
+          <h4>Copilot</h4>
+          <p>Kimi K2 · streams · reads all your data.</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>WHAT IT IS</span><span>THE APPS</span></div>
+  </div>
+
+  <!-- 5: GYM DEEP DIVE -->
+  <div class="slide" data-slide="5">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">05 / 12</div>
+    <div style="margin: auto 0;">
+      <span class="tag" style="margin-bottom: 24px;">◈ Gym</span>
+      <h2>1,324 exercises,<br>form GIFs included.</h2>
+      <p class="lede">Seeded from the open exercises dataset (MIT data, media © Gym visual — attribution baked in). Browse by body part, build routines, log sets live with a rest timer.</p>
+      <div class="grid g3">
+        <div class="card"><div class="num">1,324</div><div class="lbl">Exercises</div></div>
+        <div class="card"><div class="num">10</div><div class="lbl">Body parts</div></div>
+        <div class="card"><div class="num">28</div><div class="lbl">Equipment types</div></div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>MINI-APP</span><span>◈ GYM</span></div>
+  </div>
+
+  <!-- 6: POMODORO DEEP DIVE -->
+  <div class="slide" data-slide="6">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">06 / 12</div>
+    <div style="margin: auto 0;">
+      <span class="tag" style="margin-bottom: 24px;">◔ Pomodoro</span>
+      <h2>Focus that survives<br>a <span class="accent">tab switch.</span></h2>
+      <p class="lede">Date.now-based timer — no drift when the tab goes background. WebAudio beep on phase transition. Customizable durations. Per-day streak dots. Focus history in cadmium red.</p>
+    </div>
+    <div class="slide-footer"><span>MINI-APP</span><span>◔ POMODORO</span></div>
+  </div>
+
+  <!-- 7: CALORIE LITE -->
+  <div class="slide" data-slide="7">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">07 / 12</div>
+    <div style="margin: auto 0;">
+      <span class="tag" style="margin-bottom: 24px;">◐ Calorie</span>
+      <h2>Meal in <span class="accent">three taps.</span></h2>
+      <p class="lede">Kcal running total against your goal. Macros broken out per entry. Weekly trend sparkline. Streak counter. Copilot reads it all.</p>
+    </div>
+    <div class="slide-footer"><span>MINI-APP</span><span>◐ CALORIE</span></div>
+  </div>
+
+  <!-- 8: THE COPILOT -->
+  <div class="slide" data-slide="8">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">08 / 12</div>
+    <div style="margin: auto 0;">
+      <span class="tag" style="margin-bottom: 24px;">◊ Copilot</span>
+      <h2>Reads <span class="accent">everything.</span></h2>
+      <p class="lede" style="margin-bottom: 32px;">Every mini-app you touch feeds the AI's context. Ask about anything.</p>
+      <div style="max-width: 700px;">
+        <div class="chat-msg-user">Should I run 10k tomorrow?</div>
+        <div class="chat-msg-ai">
+          <div class="reasoning">◐ Cross-referencing: workout_sessions (leg day yesterday), app_calorie_entries (3d deficit), preferences.daily_calorie_goal</div>
+          <p>Skip it. Heavy leg volume yesterday <span class="cite">(45min, 12 sets)</span> plus a <span class="cite">-400 kcal daily deficit</span>. Recovery will be under-fueled. Cap at 5k easy if you must.</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>MINI-APP</span><span>◊ COPILOT</span></div>
+  </div>
+
+  <!-- 9: HOW IT'S BUILT -->
+  <div class="slide" data-slide="9">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">09 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">Under the hood</div>
+      <h2>Built in <span class="accent">one day.</span></h2>
+      <p class="lede" style="margin-bottom: 24px;">Using the dev-loop skill — a 7-phase build pattern with durable state on disk and parallel workers. Every task judged, every commit clean.</p>
+      <div class="grid g3">
+        <div class="stack-item"><div class="role">Frontend</div><div class="val">Next.js 16 · React 19</div></div>
+        <div class="stack-item"><div class="role">Database</div><div class="val">Supabase Postgres · RLS</div></div>
+        <div class="stack-item"><div class="role">AI</div><div class="val">Kimi K2 · streaming</div></div>
+        <div class="stack-item"><div class="role">Payments</div><div class="val">Stripe · $1/mo · webhook</div></div>
+        <div class="stack-item"><div class="role">Auth</div><div class="val">Magic-link · Google OAuth</div></div>
+        <div class="stack-item"><div class="role">Testing</div><div class="val">Playwright · full e2e</div></div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>STACK</span><span>SHIPPED SAME-DAY</span></div>
+  </div>
+
+  <!-- 10: THE ADD-A-MINI-APP FLOW -->
+  <div class="slide" data-slide="10">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">10 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">The pattern</div>
+      <h2>Add a mini-app:<br><span class="accent">6 lines.</span></h2>
+      <div style="max-width: 700px;">
+        <div class="step"><div class="n">1</div><div class="body"><h4>Folder</h4><p>apps/mini-apps/&lt;slug&gt;/</p></div></div>
+        <div class="step"><div class="n">2</div><div class="body"><h4>manifest.ts</h4><p>defineMiniApp({ slug, name, icon, route, requiresSubscription })</p></div></div>
+        <div class="step"><div class="n">3</div><div class="body"><h4>page.tsx</h4><p>Client component. useUser(), usePreferences(), useEvents().</p></div></div>
+        <div class="step"><div class="n">4</div><div class="body"><h4>Re-export at /app/&lt;slug&gt;</h4><p>One-liner: <code>export { default } from '@nothing-mini-apps/&lt;slug&gt;/page'</code></p></div></div>
+        <div class="step"><div class="n">5</div><div class="body"><h4>client-registry.ts</h4><p>One entry. That's it.</p></div></div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>DEV EXPERIENCE</span><span>FILE-CONVENTION REGISTRY</span></div>
+  </div>
+
+  <!-- 11: METRICS -->
+  <div class="slide" data-slide="11">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">11 / 12</div>
+    <div style="margin: auto 0;">
+      <div class="eyebrow">The numbers</div>
+      <h2>Shipped.</h2>
+      <div class="grid g4">
+        <div class="card"><div class="num">14</div><div class="lbl">Harness tasks</div></div>
+        <div class="card"><div class="num">10</div><div class="lbl">Commits</div></div>
+        <div class="card"><div class="num">1.7</div><div class="lbl">Min · Golden e2e</div></div>
+        <div class="card"><div class="num">1,324</div><div class="lbl">Exercises seeded</div></div>
+        <div class="card"><div class="num">4</div><div class="lbl">Mini-apps</div></div>
+        <div class="card"><div class="num">11</div><div class="lbl">Routes</div></div>
+        <div class="card"><div class="num">0</div><div class="lbl">Hex colors</div></div>
+        <div class="card"><div class="num">$1</div><div class="lbl">Per month</div></div>
+      </div>
+    </div>
+    <div class="slide-footer"><span>METRICS</span><span>2026-08-08</span></div>
+  </div>
+
+  <!-- 12: CTA -->
+  <div class="slide" data-slide="12">
+    <div class="slide-brand">NOTHING</div>
+    <div class="slide-num">12 / 12</div>
+    <div style="margin: auto 0;">
+      <h1>One app.<br>All the apps.<br><span class="accent">One dollar.</span></h1>
+      <p class="lede" style="margin-top: 32px;">Stop paying for five apps that don't talk to each other.</p>
+      <div style="margin-top: 48px;">
+        <a href="#" style="display: inline-block; padding: 20px 40px; background: var(--accent); color: var(--text-display); text-decoration: none; font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 999px;">Subscribe · $1/mo</a>
+      </div>
+    </div>
+    <div class="slide-footer"><span>SUBSCRIBE</span><span>NOTHING SUPERAPP · $1/MO</span></div>
+  </div>
+
+</div>
+
+<div class="dots" id="dots"></div>
+<div class="hint">← → space</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const dotsRoot = document.getElementById('dots');
+let current = 0;
+
+// Build dots
+slides.forEach((_, i) => {
+  const d = document.createElement('span');
+  if (i === 0) d.className = 'active';
+  d.addEventListener('click', () => go(i));
+  dotsRoot.appendChild(d);
+});
+
+function go(i) {
+  if (i < 0 || i >= slides.length) return;
+  slides[current].classList.remove('active');
+  document.querySelectorAll('.dots span')[current].classList.remove('active');
+  current = i;
+  slides[current].classList.add('active');
+  document.querySelectorAll('.dots span')[current].classList.add('active');
+  location.hash = String(current + 1);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(current + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(current - 1); }
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End') go(slides.length - 1);
+});
+
+// Hash-based navigation
+if (location.hash) {
+  const n = parseInt(location.hash.slice(1), 10);
+  if (!isNaN(n) && n >= 1 && n <= slides.length) go(n - 1);
+}
+</script>
+
+</body>
+</html>

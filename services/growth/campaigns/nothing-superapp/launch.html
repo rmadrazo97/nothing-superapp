@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nothing Superapp — one app. one subscription. everything.</title>
+<meta name="description" content="A centralized application that leverages decentralized information from your mini-apps. Calorie counter, gym routine, pomodoro timer, AI copilot. $1/mo." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --color-bg: #000000;
+  --color-surface: #111111;
+  --color-surface-raised: #1A1A1A;
+  --color-border: #222222;
+  --color-border-visible: #333333;
+  --color-text-display: #FFFFFF;
+  --color-text-primary: #E8E8E8;
+  --color-text-secondary: #999999;
+  --color-text-disabled: #666666;
+  --color-accent: #D71921;
+  --color-accent-subtle: color-mix(in srgb, #D71921 15%, transparent);
+  --color-success: #4A9E5C;
+
+  --font-display: "Doto", "Space Mono", "SF Mono", monospace;
+  --font-body: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-label: "Space Mono", "SF Mono", Menlo, monospace;
+
+  --text-display-xl: 72px;
+  --text-display-lg: 48px;
+  --text-display-md: 36px;
+  --text-heading: 24px;
+  --text-subheading: 18px;
+  --text-body: 16px;
+  --text-body-sm: 14px;
+  --text-caption: 12px;
+  --text-label: 11px;
+
+  --space-1: 3.2px;
+  --space-2: 6.4px;
+  --space-3: 9.6px;
+  --space-4: 12.8px;
+  --space-6: 19.2px;
+  --space-8: 25.6px;
+  --space-12: 38.4px;
+  --space-16: 51.2px;
+
+  --radius-card: 14px;
+  --radius-compact: 7px;
+  --radius-button: 999px;
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-medium: 220ms;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Dot grid background — signature Nothing pattern */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle at center, var(--color-border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  pointer-events: none;
+  opacity: 0.4;
+  z-index: 0;
+}
+
+main { position: relative; z-index: 1; }
+section { padding: var(--space-16) var(--space-6); max-width: 1200px; margin: 0 auto; }
+@media (min-width: 768px) { section { padding: 80px var(--space-8); } }
+
+.label {
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+.data { font-family: var(--font-label); font-variant-numeric: tabular-nums; }
+.display-xl { font-family: var(--font-display); font-weight: 700; font-size: var(--text-display-xl); line-height: 1.0; letter-spacing: -0.03em; color: var(--color-text-display); }
+.display-lg { font-family: var(--font-display); font-weight: 700; font-size: var(--text-display-lg); line-height: 1.05; letter-spacing: -0.02em; color: var(--color-text-display); }
+.display-md { font-family: var(--font-display); font-weight: 700; font-size: var(--text-display-md); line-height: 1.1; letter-spacing: -0.02em; color: var(--color-text-display); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-accent { color: var(--color-accent); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-label); font-weight: 500;
+  font-size: var(--text-body-sm); letter-spacing: 0.06em; text-transform: uppercase;
+  min-height: 44px; padding: 12px 24px;
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  color: var(--color-text-primary);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.btn-primary { background: var(--color-accent); color: var(--color-text-display); border-color: var(--color-accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 88%, white); }
+.btn-secondary { border-color: var(--color-border-visible); }
+.btn-secondary:hover { border-color: var(--color-text-primary); color: var(--color-text-display); }
+
+.tag {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-label); font-size: var(--text-label);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: var(--radius-compact);
+  background: var(--color-accent-subtle); color: var(--color-accent);
+}
+
+.card {
+  padding: var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-visible);
+}
+
+/* ── nav ── */
+.site-nav {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  background: color-mix(in srgb, var(--color-bg) 90%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+}
+.brand {
+  font-family: var(--font-display); font-weight: 700; font-size: var(--text-heading);
+  letter-spacing: -0.02em; color: var(--color-text-display);
+  margin-right: auto;
+}
+.brand::after { content: ' ●'; color: var(--color-accent); }
+.site-nav a { color: var(--color-text-secondary); text-decoration: none; font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.site-nav a:hover { color: var(--color-text-display); }
+
+/* ── hero ── */
+.hero { padding-top: 100px; padding-bottom: 100px; text-align: left; max-width: 1000px; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-label); font-size: var(--text-label);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-text-secondary);
+  padding: 6px 12px; border: 1px solid var(--color-border-visible);
+  border-radius: var(--radius-compact);
+  margin-bottom: var(--space-6);
+}
+.hero-eyebrow::before {
+  content: ''; width: 6px; height: 6px; background: var(--color-accent); border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.hero h1 {
+  font-family: var(--font-display); font-weight: 900;
+  font-size: clamp(48px, 10vw, 120px);
+  line-height: 0.95; letter-spacing: -0.04em;
+  color: var(--color-text-display);
+  margin: 0 0 var(--space-6) 0;
+}
+.hero h1 .accent { color: var(--color-accent); }
+.hero .lede {
+  font-size: clamp(18px, 2.5vw, 24px);
+  color: var(--color-text-primary);
+  max-width: 640px;
+  margin: 0 0 var(--space-8) 0;
+  line-height: 1.4;
+}
+.hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+.hero-meta { display: flex; gap: var(--space-8); margin-top: var(--space-12); flex-wrap: wrap; padding-top: var(--space-6); border-top: 1px solid var(--color-border); }
+.hero-meta-item { display: flex; flex-direction: column; gap: 4px; }
+.hero-meta-item .num { font-family: var(--font-display); font-weight: 700; font-size: 32px; letter-spacing: -0.02em; color: var(--color-text-display); }
+.hero-meta-item .lbl { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); }
+
+/* ── pitch section ── */
+.pitch { text-align: center; }
+.pitch h2 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.1; letter-spacing: -0.02em;
+  color: var(--color-text-display);
+  margin: 0 auto var(--space-8) auto; max-width: 900px;
+}
+.pitch h2 .accent { color: var(--color-accent); }
+.pitch .lede { color: var(--color-text-secondary); max-width: 640px; margin: 0 auto var(--space-12) auto; font-size: 18px; }
+
+.compare {
+  display: grid; grid-template-columns: 1fr; gap: var(--space-4);
+  max-width: 900px; margin: 0 auto;
+}
+@media (min-width: 768px) { .compare { grid-template-columns: 1fr 1fr; } }
+.compare .card { text-align: left; }
+.compare .card h3 { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); margin: 0 0 var(--space-3) 0; }
+.compare ul { padding: 0; list-style: none; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.compare li { padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.compare li:last-child { border-bottom: 0; }
+.compare li .price { font-family: var(--font-label); font-variant-numeric: tabular-nums; color: var(--color-text-display); }
+.compare .strike { text-decoration: line-through; color: var(--color-text-disabled); }
+.compare .total { font-family: var(--font-display); font-weight: 700; font-size: 32px; color: var(--color-text-display); }
+.compare .total.accent { color: var(--color-accent); }
+.compare-vs { text-align: center; color: var(--color-text-secondary); font-family: var(--font-label); letter-spacing: 0.08em; margin: var(--space-3) 0; font-size: var(--text-label); }
+
+/* ── mini-app showcase ── */
+.showcase { }
+.showcase-header { text-align: left; max-width: 800px; margin-bottom: var(--space-12); }
+.showcase-header h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(36px, 5vw, 56px); line-height: 1.1; letter-spacing: -0.02em; color: var(--color-text-display); margin: 0 0 var(--space-4) 0; }
+.showcase-header p { color: var(--color-text-secondary); font-size: 18px; }
+
+.grid { display: grid; grid-template-columns: 1fr; gap: var(--space-6); }
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+.mini-app-card {
+  padding: var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-visible);
+  position: relative;
+  overflow: hidden;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+.mini-app-card .glyph {
+  font-size: 40px; line-height: 1;
+  margin-bottom: var(--space-4);
+  color: var(--color-accent);
+}
+.mini-app-card h3 {
+  font-family: var(--font-display); font-weight: 700; font-size: 32px;
+  color: var(--color-text-display); margin: 0 0 var(--space-2) 0;
+  letter-spacing: -0.01em;
+}
+.mini-app-card .role { font-family: var(--font-label); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: var(--space-4); }
+.mini-app-card .desc { color: var(--color-text-primary); margin-bottom: var(--space-6); font-size: 15px; line-height: 1.5; }
+.mini-app-card .features { list-style: none; padding: 0; margin: 0 0 var(--space-6) 0; display: flex; flex-direction: column; gap: 6px; }
+.mini-app-card .features li { font-size: 14px; color: var(--color-text-secondary); padding-left: 20px; position: relative; }
+.mini-app-card .features li::before { content: ''; position: absolute; left: 0; top: 8px; width: 8px; height: 1px; background: var(--color-accent); }
+
+/* Screenshot mock — stylized mini preview of the mini-app in cadmium red frame */
+.mock {
+  margin-top: auto;
+  border: 1px solid var(--color-border-visible);
+  border-radius: var(--radius-compact);
+  padding: var(--space-3);
+  background: var(--color-bg);
+  min-height: 120px;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-caption);
+}
+
+/* Mock: calorie tracker */
+.mock-calorie .num { font-family: var(--font-display); font-size: 36px; font-weight: 700; color: var(--color-text-display); line-height: 1; }
+.mock-calorie .goal { font-size: var(--text-label); color: var(--color-text-secondary); letter-spacing: 0.08em; }
+.mock-calorie .progress-bar { height: 3px; background: var(--color-border-visible); border-radius: 2px; overflow: hidden; margin: 6px 0; }
+.mock-calorie .progress-bar > div { height: 100%; width: 68%; background: var(--color-accent); }
+.mock-calorie .macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 10px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 4px; border-top: 1px solid var(--color-border); }
+.mock-calorie .macro-row div { display: flex; flex-direction: column; gap: 2px; }
+.mock-calorie .macro-row .val { color: var(--color-text-display); font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+
+/* Mock: gym */
+.mock-gym .exercise-name { font-family: var(--font-body); font-size: var(--text-body-sm); color: var(--color-text-display); font-weight: 500; }
+.mock-gym .sets-row { display: flex; gap: 4px; margin-top: 4px; }
+.mock-gym .set-dot { width: 24px; height: 24px; border: 1px solid var(--color-border-visible); border-radius: 4px; display: grid; place-items: center; font-family: var(--font-label); font-size: 10px; color: var(--color-text-secondary); }
+.mock-gym .set-dot.done { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-text-display); }
+.mock-gym .rest-timer { text-align: center; padding: var(--space-2); margin-top: 6px; border: 1px solid var(--color-accent); border-radius: var(--radius-compact); }
+.mock-gym .rest-timer .val { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--color-accent); }
+.mock-gym .rest-timer .lbl { font-size: 9px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Mock: pomodoro */
+.mock-pomodoro { align-items: center; justify-content: center; }
+.mock-pomodoro .ring { position: relative; width: 100px; height: 100px; margin: var(--space-2) auto; }
+.mock-pomodoro svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.mock-pomodoro .ring-bg { stroke: var(--color-border-visible); }
+.mock-pomodoro .ring-fg { stroke: var(--color-accent); stroke-dasharray: 283; stroke-dashoffset: 62; }
+.mock-pomodoro .time { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--color-text-display); }
+.mock-pomodoro .streak { display: flex; gap: 4px; margin-top: 4px; justify-content: center; }
+.mock-pomodoro .streak span { width: 8px; height: 8px; border: 1px solid var(--color-border-visible); border-radius: 50%; }
+.mock-pomodoro .streak .filled { background: var(--color-accent); border-color: var(--color-accent); }
+
+/* Mock: copilot */
+.mock-copilot .msg { padding: 6px 8px; border-radius: var(--radius-compact); font-size: var(--text-caption); line-height: 1.4; max-width: 88%; }
+.mock-copilot .msg-user { background: var(--color-accent); color: var(--color-text-display); align-self: flex-end; margin-left: auto; }
+.mock-copilot .msg-ai { background: var(--color-surface-raised); color: var(--color-text-primary); border: 1px solid var(--color-border); }
+.mock-copilot .msg-ai .cite { color: var(--color-accent); font-weight: 500; }
+
+/* ── copilot section — the killer feature ── */
+.copilot-section { position: relative; }
+.copilot-section h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(36px, 5vw, 56px); line-height: 1.1; letter-spacing: -0.02em; color: var(--color-text-display); margin: 0 0 var(--space-4) 0; }
+.copilot-section .lede { color: var(--color-text-secondary); font-size: 18px; max-width: 640px; margin: 0 0 var(--space-8) 0; }
+.copilot-example { display: grid; grid-template-columns: 1fr; gap: var(--space-6); max-width: 700px; }
+.copilot-example .msg-user { padding: var(--space-4) var(--space-6); background: var(--color-accent); border-radius: var(--radius-card); color: var(--color-text-display); font-size: 16px; align-self: flex-end; max-width: 90%; margin-left: auto; }
+.copilot-example .msg-ai { padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border-visible); border-radius: var(--radius-card); color: var(--color-text-primary); font-size: 16px; line-height: 1.6; }
+.copilot-example .msg-ai .cite { color: var(--color-accent); font-family: var(--font-label); font-size: var(--text-caption); letter-spacing: 0.06em; }
+.copilot-example .msg-ai strong { color: var(--color-text-display); font-weight: 500; }
+.copilot-example .reasoning { padding: var(--space-3); background: var(--color-surface-raised); border-radius: var(--radius-compact); margin-bottom: var(--space-3); font-family: var(--font-label); font-size: var(--text-caption); color: var(--color-text-secondary); border-left: 2px solid var(--color-accent); }
+
+/* ── pricing ── */
+.pricing { text-align: center; }
+.pricing h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(36px, 5vw, 56px); line-height: 1.1; letter-spacing: -0.02em; color: var(--color-text-display); margin: 0 0 var(--space-8) 0; }
+.pricing .price-card {
+  max-width: 480px; margin: 0 auto;
+  padding: var(--space-12);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  position: relative; overflow: hidden;
+}
+.pricing .price-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--color-accent); }
+.pricing .price-tag {
+  display: flex; align-items: baseline; justify-content: center;
+  gap: 8px; margin-bottom: var(--space-6);
+}
+.pricing .price-num { font-family: var(--font-display); font-weight: 700; font-size: 96px; color: var(--color-text-display); line-height: 1; letter-spacing: -0.04em; }
+.pricing .price-unit { font-family: var(--font-label); color: var(--color-text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
+.pricing .price-features { list-style: none; padding: 0; margin: 0 0 var(--space-8) 0; text-align: left; }
+.pricing .price-features li { padding: var(--space-2) 0; color: var(--color-text-primary); font-size: 15px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; }
+.pricing .price-features li:last-child { border-bottom: 0; }
+.pricing .price-features li::before { content: '●'; color: var(--color-accent); font-size: 8px; }
+
+/* ── stack / how it's built ── */
+.stack { border-top: 1px solid var(--color-border); }
+.stack h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 40px); color: var(--color-text-display); margin: 0 0 var(--space-4) 0; }
+.stack .lede { color: var(--color-text-secondary); margin-bottom: var(--space-8); max-width: 640px; }
+.stack-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-4); max-width: 900px; }
+@media (min-width: 640px) { .stack-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .stack-grid { grid-template-columns: repeat(3, 1fr); } }
+.stack-item { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-compact); }
+.stack-item .label { display: block; margin-bottom: 4px; }
+.stack-item .val { font-family: var(--font-body); color: var(--color-text-display); font-size: var(--text-body-sm); font-weight: 500; }
+
+/* ── final CTA ── */
+.final-cta { text-align: center; padding: 120px var(--space-6); }
+.final-cta h2 { font-family: var(--font-display); font-weight: 900; font-size: clamp(48px, 8vw, 96px); line-height: 0.95; letter-spacing: -0.03em; color: var(--color-text-display); margin: 0 0 var(--space-6) 0; max-width: 900px; margin-left: auto; margin-right: auto; }
+.final-cta h2 .accent { color: var(--color-accent); }
+.final-cta .lede { color: var(--color-text-secondary); font-size: 18px; margin: 0 auto var(--space-8) auto; max-width: 500px; }
+
+/* ── footer ── */
+footer { border-top: 1px solid var(--color-border); padding: var(--space-8) var(--space-6); color: var(--color-text-secondary); font-size: var(--text-caption); text-align: center; font-family: var(--font-label); letter-spacing: 0.06em; text-transform: uppercase; }
+footer a { color: var(--color-text-secondary); text-decoration: none; }
+footer a:hover { color: var(--color-text-display); }
+
+/* utility */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="#" class="brand">NOTHING</a>
+  <a href="#apps">Apps</a>
+  <a href="#copilot">Copilot</a>
+  <a href="#pricing">Pricing</a>
+  <a href="#stack">Stack</a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">Now shipping · v0.2</div>
+    <h1>ONE APP.<br>ONE <span class="accent">SUB</span>SCRIPTION.<br>EVERYTHING.</h1>
+    <p class="lede">A centralized application that leverages decentralized information from every mini-app you touch. Instead of five apps at $5 each, you get everything for one dollar a month — with an AI copilot that reads across all of it.</p>
+    <div class="hero-actions">
+      <a href="#pricing" class="btn btn-primary">Get it for $1/mo</a>
+      <a href="#apps" class="btn btn-secondary">See what's inside</a>
+    </div>
+    <div class="hero-meta">
+      <div class="hero-meta-item"><span class="num">4</span><span class="lbl">Mini-apps</span></div>
+      <div class="hero-meta-item"><span class="num">1,324</span><span class="lbl">Exercises</span></div>
+      <div class="hero-meta-item"><span class="num">$1</span><span class="lbl">per month</span></div>
+      <div class="hero-meta-item"><span class="num">1</span><span class="lbl">Subscription</span></div>
+    </div>
+  </section>
+
+  <!-- PITCH -->
+  <section class="pitch">
+    <h2>Five subscriptions.<br>Or <span class="accent">one</span>.</h2>
+    <p class="lede">You already pay for a calorie tracker, a workout logger, a pomodoro timer, and a chat AI. What if they were all the same app — and talked to each other?</p>
+    <div class="compare">
+      <div class="card">
+        <h3>Before</h3>
+        <ul>
+          <li>Calorie tracker <span class="price strike">$4.99</span></li>
+          <li>Gym logger <span class="price strike">$9.99</span></li>
+          <li>Pomodoro Pro <span class="price strike">$2.99</span></li>
+          <li>ChatGPT Plus <span class="price strike">$20.00</span></li>
+          <li>Five different logins <span class="price strike">—</span></li>
+        </ul>
+        <div style="margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border-visible); display: flex; justify-content: space-between; align-items: baseline;"><span class="label">Total / mo</span><span class="total">$37.97</span></div>
+      </div>
+      <div class="card" style="border-color: var(--color-accent);">
+        <h3 style="color: var(--color-accent);">After</h3>
+        <ul>
+          <li>Nothing Superapp <span class="price">$1.00</span></li>
+          <li>All mini-apps included <span class="price">✓</span></li>
+          <li>AI copilot across them <span class="price">✓</span></li>
+          <li>One login, one bill <span class="price">✓</span></li>
+          <li>New mini-apps auto-added <span class="price">✓</span></li>
+        </ul>
+        <div style="margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-accent); display: flex; justify-content: space-between; align-items: baseline;"><span class="label">Total / mo</span><span class="total accent">$1.00</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MINI-APP SHOWCASE -->
+  <section class="showcase" id="apps">
+    <div class="showcase-header">
+      <div class="tag" style="margin-bottom: var(--space-4);">The apps</div>
+      <h2>Four apps.<br>One shared brain.</h2>
+      <p>Each mini-app is built native to Nothing OS aesthetics — dark, monospace, cadmium red only where it matters. They all live in one shell, share your session, and feed the copilot.</p>
+    </div>
+
+    <div class="grid">
+
+      <!-- CALORIE LITE -->
+      <div class="mini-app-card">
+        <div class="glyph">◐</div>
+        <h3>Calorie Lite</h3>
+        <div class="role">Nutrition</div>
+        <p class="desc">Log a meal in three taps. Track kcal against your target with macros broken out. Weekly trend, streak counter, and the copilot cites your log when you ask about your diet.</p>
+        <ul class="features">
+          <li>Kcal + protein / carbs / fat</li>
+          <li>Weekly trend + streak</li>
+          <li>Copilot-readable</li>
+        </ul>
+        <div class="mock mock-calorie">
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span class="num">1,340</span>
+            <span class="goal">/ 2,000 KCAL</span>
+          </div>
+          <div class="progress-bar"><div></div></div>
+          <div class="macro-row">
+            <div><span class="val">72g</span>PROTEIN</div>
+            <div><span class="val">140g</span>CARBS</div>
+            <div><span class="val">45g</span>FAT</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GYM ROUTINE -->
+      <div class="mini-app-card">
+        <div class="glyph">◈</div>
+        <h3>Gym</h3>
+        <div class="role">Strength &amp; conditioning</div>
+        <p class="desc">Browse 1,324 exercises with animated form GIFs. Build custom routines, log sets during a live session with a rest timer, review your history. Data seeded from the open exercises dataset.</p>
+        <ul class="features">
+          <li>1,324 exercises · 10 body parts</li>
+          <li>Live session with rest timer</li>
+          <li>Volume tracking + history</li>
+        </ul>
+        <div class="mock mock-gym">
+          <div class="exercise-name">Barbell bench press · Chest</div>
+          <div class="sets-row">
+            <div class="set-dot done">10</div>
+            <div class="set-dot done">10</div>
+            <div class="set-dot done">8</div>
+            <div class="set-dot">—</div>
+          </div>
+          <div class="rest-timer">
+            <div class="val">1:23</div>
+            <div class="lbl">Rest</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- POMODORO -->
+      <div class="mini-app-card">
+        <div class="glyph">◔</div>
+        <h3>Pomodoro</h3>
+        <div class="role">Focus</div>
+        <p class="desc">Classic 25/5/15 cycle with a Date.now-accurate timer that survives tab switches. WebAudio beep, customizable durations, per-day streak dots.</p>
+        <ul class="features">
+          <li>25 / 5 / 15 or custom</li>
+          <li>Tab-switch resilient</li>
+          <li>Daily focus history</li>
+        </ul>
+        <div class="mock mock-pomodoro">
+          <div class="ring">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="ring-bg" cx="50" cy="50" r="45" fill="none" stroke-width="3" />
+              <circle class="ring-fg" cx="50" cy="50" r="45" fill="none" stroke-width="3" stroke-linecap="round" />
+            </svg>
+            <div class="time">18:42</div>
+          </div>
+          <div class="streak">
+            <span class="filled"></span><span class="filled"></span><span class="filled"></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COPILOT -->
+      <div class="mini-app-card">
+        <div class="glyph">◊</div>
+        <h3>Copilot</h3>
+        <div class="role">AI · reads everything</div>
+        <p class="desc">Kimi K2 with SSE streaming. Reads your profile, preferences, recent meals, workouts, and pomodoros. Ask anything about your data — get cited answers, not hallucinations.</p>
+        <ul class="features">
+          <li>Streaming responses</li>
+          <li>Cross-mini-app context</li>
+          <li>Reasoning trace visible</li>
+        </ul>
+        <div class="mock mock-copilot">
+          <div class="msg msg-user">Am I on track?</div>
+          <div class="msg msg-ai">You logged <span class="cite">1,340 kcal</span> today (66% of goal) and did <span class="cite">3 sets</span> of bench press. On track.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- COPILOT DETAIL -->
+  <section class="copilot-section" id="copilot">
+    <div class="tag" style="margin-bottom: var(--space-4);">The killer feature</div>
+    <h2>The copilot<br>reads everything.</h2>
+    <p class="lede">Every mini-app you touch feeds the AI's context. Ask about anything and it can cite your actual data. This is the "super" in superapp.</p>
+
+    <div class="copilot-example">
+      <div class="msg-user">Given last night's sleep, my calorie deficit, and the leg day I did yesterday — is it smart to run 10k tomorrow?</div>
+      <div class="msg-ai">
+        <div class="reasoning">◐ Cross-referencing: sleep (none logged), calorie_entries (last 3d: -400/-350/-500 vs goal), workout_sessions (yesterday: 45min leg day, 12 sets @ heavy volume)</div>
+        <p>Skip the 10k. You did <strong>heavy leg volume yesterday</strong> — 45min, 12 sets — and you're in a <strong>~400 kcal daily deficit</strong>. Recovery will be under-fueled. If you must run, cap it at 5k easy pace.</p>
+        <p style="margin-top: var(--space-3); color: var(--color-text-secondary); font-size: 14px;">Or add 800 kcal from carbs today and reassess tomorrow morning based on how your legs feel.</p>
+        <div class="cite" style="margin-top: var(--space-3);">Cited: workout_sessions (2026-08-07), app_calorie_entries (3d), preferences.daily_calorie_goal</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing" id="pricing">
+    <h2>$1<span style="color: var(--color-accent);">.</span>00 / mo</h2>
+    <div class="price-card">
+      <div class="price-tag">
+        <span class="price-num">$1</span>
+        <span class="price-unit">/ month</span>
+      </div>
+      <ul class="price-features">
+        <li>All four mini-apps</li>
+        <li>AI copilot with streaming responses</li>
+        <li>Every new mini-app added, automatically</li>
+        <li>Cancel any time · no lock-in</li>
+        <li>Data export always available</li>
+      </ul>
+      <a href="#" class="btn btn-primary" style="width: 100%;">Start subscription</a>
+    </div>
+  </section>
+
+  <!-- STACK -->
+  <section class="stack" id="stack">
+    <div class="tag" style="margin-bottom: var(--space-4);">Under the hood</div>
+    <h2>How it's built.</h2>
+    <p class="lede">Built in one day using the dev-loop skill — a 7-phase build pattern with durable state on disk and parallel workers. The whole harness is 8,000 lines of TypeScript.</p>
+
+    <div class="stack-grid">
+      <div class="stack-item"><span class="label">Frontend</span><span class="val">Next.js 16 · React 19 · TypeScript</span></div>
+      <div class="stack-item"><span class="label">Styling</span><span class="val">Vanilla CSS · Design tokens · No framework</span></div>
+      <div class="stack-item"><span class="label">Database</span><span class="val">Supabase Postgres · RLS · owner-only</span></div>
+      <div class="stack-item"><span class="label">Auth</span><span class="val">Supabase · magic-link + Google OAuth</span></div>
+      <div class="stack-item"><span class="label">Payments</span><span class="val">Stripe subscriptions · webhook-driven</span></div>
+      <div class="stack-item"><span class="label">AI</span><span class="val">Kimi K2 (Moonshot) · OpenAI-compat · SSE</span></div>
+      <div class="stack-item"><span class="label">Mini-app registry</span><span class="val">File-convention · fs-scan · zero config</span></div>
+      <div class="stack-item"><span class="label">Testing</span><span class="val">Playwright · full golden path e2e</span></div>
+      <div class="stack-item"><span class="label">Hosting</span><span class="val">Local-first · Vercel-ready</span></div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final-cta">
+    <h2>One app.<br>All the apps.<br><span class="accent">One dollar.</span></h2>
+    <p class="lede">Stop paying five subscriptions for four apps that don't talk to each other.</p>
+    <a href="#" class="btn btn-primary">Subscribe for $1/mo</a>
+  </section>
+
+</main>
+
+<footer>
+  <p>Nothing Superapp · v0.2 · 2026 · Built with Claude Code · Exercise data © Gym visual — <a href="https://gymvisual.com/" target="_blank" rel="noopener">gymvisual.com</a></p>
+</footer>
+
+</body>
+</html>
