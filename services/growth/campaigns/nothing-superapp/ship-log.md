@@ -65,3 +65,17 @@ Angles worth posting about:
 2. **"Toast + error boundary shipped in one worker"** — cross-cutting UI landed clean via parallel subagents
 3. **"First-run hint is a 6-line component + one localStorage key"** — the smallest possible onboarding that doesn't feel skipped
 4. **"Rate limiter for $1/mo economics"** — inference cost math: Kimi K2 at 30 req/hour caps worst-case per-user cost below the sub price
+
+## 2026-08-08 15:45 — v0.3.1 polish pass tagged
+
+Feel over feature. Two parallel commits landed in ~20 min:
+
+- `81f246e` **polish(shell)** — Next.js file conventions: `loading.tsx` at root + `/app` (skeleton + brand pulse), `not-found.tsx` (global + `/app`-scoped w/ shell intact), `robots.ts` + `sitemap.ts`, `opengraph-image.tsx` (dynamic 1200×630 with dot-grid backdrop + mini-app glyph row).
+- `7f88826` **polish(ux)** — motion (tile stagger + entitlement pulse + message slide-up), 34 toast call sites across 12 files (HTTP-status-tiered: 401 silent, 402 info, 429 info, 5xx/network → error), 3 keyboard shortcuts (⌘K → copilot, `/` on exercises → search, `?` → hint dialog; all typing-guarded), skeleton primitives, copy-to-clipboard on assistant messages.
+
+Everything is `prefers-reduced-motion`-aware, all hex-free, all under 220ms so the app never *feels* animated even when it is.
+
+Angle worth posting:
+1. **"3 keyboard shortcuts, not 10"** — one power feature signals craft; ten signals a cockpit
+2. **"The prefers-reduced-motion gate"** — every animation wraps in `@media (prefers-reduced-motion: no-preference)`. Screenshot the diff for the accessibility crowd
+3. **"The entitlement pulse fix"** — pre-v0.3.1 paying users saw a brief "you're locked" flash on `/app` while entitlement resolved. Now: soft pulse until we know. Small, invisible, and exactly the kind of thing that makes a product feel considered

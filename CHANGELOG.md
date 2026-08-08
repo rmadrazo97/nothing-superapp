@@ -2,6 +2,25 @@
 
 All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely.
 
+## [0.3.1] — 2026-08-08 — Polish
+
+Feel pass — no new features, but 6 tracks of craft.
+
+### Added
+- **Loading / 404 / OG / robots / sitemap** — Next.js file conventions. Root + `/app/*` `loading.tsx` skeletons, `not-found.tsx` (global + mini-app-scoped), `robots.ts`, `sitemap.ts`, `opengraph-image.tsx` (dynamic 1200x630 social card via `next/og`).
+- **Motion** — home-grid tile stagger fade-up (capped at 200ms so 20-tile grids finish inside 220ms), entitlement-resolving pulse (no more "flash locked → flash unlocked" for paying users), copilot message slide-up on freshly-appended messages. All gated on `prefers-reduced-motion: no-preference`.
+- **Toast integration** — ~20 error paths across every mini-app + copilot + settings + paywall wired to `useToast()`. HTTP-status-tiered: 401 silent, 402 info, 429 info, 5xx/network → error.
+- **Keyboard shortcuts** — `⌘K` anywhere → copilot with composer focus, `/` on exercises browser → search focus, `?` → hint overlay. Typing-guarded — never fires from inputs.
+- **Loading skeletons** — `Skeleton`/`SkeletonCard`/`SkeletonGrid` primitives in `components/ui/`. Replaces "Loading..." text on exercises browser.
+- **Copy-to-clipboard** on assistant messages — hover-reveal ghost button on desktop, always visible on coarse pointers. Toggles to ✓ for 900ms.
+
+### Changed
+- `apps/web/src/components/home/HomeGrid.tsx` — tile classes gain `--tile-index` inline var for the stagger; `tile-entitlement-pending` for the loading pulse.
+- Mini-apps import `useToast` via relative path to the shell's toast context (bundler dedupes). Documented as a coupling smell in each import site; acceptable for v0.3.
+
+### E2E
+- 14 Playwright specs still pass in ~42 s (SKIP_STRIPE=1).
+
 ## [0.3.0] — 2026-08-08 — First release candidate
 
 **The prod-grade pass.** Everything that stood between v0.2 and something a first user could hit.
