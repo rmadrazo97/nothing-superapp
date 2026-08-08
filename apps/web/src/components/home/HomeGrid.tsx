@@ -117,6 +117,7 @@ export function HomeGrid({ miniApps }: { miniApps: MiniAppManifest[] }) {
           <Link
             key={app.slug}
             href={href as Route}
+            className={showLocked ? 'tile tile-locked' : 'tile'}
             style={{
               ...tileBaseStyle,
               opacity: showLocked ? 0.5 : 1,

@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+/* ── App-wide interaction affordances (design-token driven) ─────────────
+   These live in globals so any component can rely on them without shipping
+   its own <style jsx> block. Inline styles in components stay for structural
+   layout; hover / focus / active use classes. */
+
+.tile {
+  cursor: pointer;
+  will-change: transform, border-color;
+}
+.tile:hover {
+  border-color: var(--color-text-primary) !important;
+  transform: translateY(-1px);
+}
+.tile:active {
+  transform: translateY(0);
+  border-color: var(--color-accent) !important;
+}
+.tile:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.tile-locked:hover {
+  border-color: var(--color-accent) !important;
+  opacity: 0.75 !important;
+}
