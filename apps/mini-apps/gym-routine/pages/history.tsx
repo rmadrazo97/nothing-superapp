@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { WorkoutSession } from '@nothing/shared';
+import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError } from '../lib/api.ts';
 import { cardStyle } from '../lib/ui.ts';
@@ -74,11 +75,15 @@ export default function HistoryPage() {
       {sessions === null ? (
         <p className="caption">Loading…</p>
       ) : sessions.length === 0 ? (
-        <div style={{ ...cardStyle, borderStyle: 'dashed', textAlign: 'center', padding: 'var(--space-8)' }}>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            No completed sessions yet. Finish a workout to see it here.
-          </p>
-        </div>
+        <EmptyState
+          icon="◈"
+          title="No history"
+          body="Complete a workout and it'll land here, grouped by week."
+          primaryAction={{
+            label: 'Start a workout',
+            href: '/app/gym-routine',
+          }}
+        />
       ) : (
         grouped.map(([weekKey, group]) => {
           // Sample date from the first session in the group for a proper label.

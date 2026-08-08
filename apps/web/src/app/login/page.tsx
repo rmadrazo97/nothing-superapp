@@ -263,6 +263,31 @@ export default function LoginPage() {
             {status.message}
           </p>
         ) : null}
+
+        <p
+          className="caption"
+          style={{
+            marginTop: 'var(--space-6)',
+            textAlign: 'center',
+            color: 'var(--color-text-disabled)',
+          }}
+        >
+          By signing in you agree to our{' '}
+          <a
+            href="/legal/terms"
+            style={{ color: 'var(--color-text-secondary)', textDecoration: 'underline' }}
+          >
+            Terms
+          </a>{' '}
+          and{' '}
+          <a
+            href="/legal/privacy"
+            style={{ color: 'var(--color-text-secondary)', textDecoration: 'underline' }}
+          >
+            Privacy Policy
+          </a>
+          .
+        </p>
       </section>
     </main>
   );

@@ -21,6 +21,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { SessionEntry, WorkoutSession } from '@nothing/shared';
+import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError } from '../lib/api.ts';
 import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
@@ -209,14 +210,15 @@ export default function SessionPage({
       )}
 
       {entries.length === 0 ? (
-        <div style={{ ...cardStyle, borderStyle: 'dashed', textAlign: 'center', padding: 'var(--space-8)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-4)' }}>
-            No exercises yet. Add one from the browser.
-          </p>
-          <Link href="/app/gym-routine/exercises" style={{ textDecoration: 'none' }}>
-            <span style={primaryButtonStyle}>Browse exercises</span>
-          </Link>
-        </div>
+        <EmptyState
+          icon="◈"
+          title="Empty routine"
+          body="Add exercises from the browser to start logging sets."
+          primaryAction={{
+            label: 'Browse exercises',
+            href: '/app/gym-routine/exercises',
+          }}
+        />
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {entries.map((entry, exIdx) => {

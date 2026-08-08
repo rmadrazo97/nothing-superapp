@@ -89,6 +89,21 @@ async function resolveUserId(
 /**
  * Upsert a full subscription row. Called on both `checkout.session.completed`
  * (with the fresh session in hand) and `customer.subscription.*` events.
+ *
+ * The subscriptions table has two UNIQUE constraints that can collide:
+ *   - PRIMARY KEY (user_id)
+ *   - UNIQUE (stripe_customer_id)
+ *
+ * Supabase `.upsert()` only accepts ONE onConflict target. So we do a two-step
+ * dance: first try to update-by-customer_id (matches the more likely long-run
+ * case: the customer already exists for this user). If zero rows updated,
+ * fall back to upsert-by-user_id. That handles:
+ *   - webhook events arriving in any order (created/updated/completed)
+ *   - a user re-subscribing after cancellation (new subscription id, same
+ *     customer)
+ *   - the "user got a new Stripe customer" edge case (rare — but the second
+ *     upsert would still fail if a different user already claimed that
+ *     customer id; caught + returned 200 so Stripe stops retrying).
  */
 async function upsertSubscriptionRow(params: {
   userId: string;
@@ -100,23 +115,60 @@ async function upsertSubscriptionRow(params: {
       ? subscription.customer
       : subscription.customer.id;
 
-  const admin = supabaseService();
-  const { error } = await admin.from('subscriptions').upsert(
-    {
-      user_id: userId,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscription.id,
-      status: mapStatus(subscription.status),
-      current_period_end: toIso(subscription.current_period_end),
-      cancel_at_period_end: subscription.cancel_at_period_end ?? false,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id' },
-  );
+  const row = {
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscription.id,
+    status: mapStatus(subscription.status),
+    current_period_end: toIso(subscription.current_period_end),
+    cancel_at_period_end: subscription.cancel_at_period_end ?? false,
+    updated_at: new Date().toISOString(),
+  };
 
-  if (error) {
-    console.error('[stripe/webhook] upsert failed:', error);
-    throw error;
+  const admin = supabaseService();
+
+  // Step 1: try update-by-customer_id (idempotent path — this row exists).
+  const { data: updated, error: updateErr } = await admin
+    .from('subscriptions')
+    .update(row)
+    .eq('stripe_customer_id', customerId)
+    .select('user_id');
+  if (updateErr) {
+    console.error('[stripe/webhook] update-by-customer failed:', updateErr);
+    throw updateErr;
+  }
+  if (updated && updated.length > 0) {
+    // If the matched row belongs to a DIFFERENT user, we've hit a real
+    // cross-user collision (very rare — same stripe_customer_id somehow
+    // shared across two Supabase users). Log loudly + do not attempt the
+    // fallback upsert (which would 23505). Return silently — 200 to Stripe.
+    if (updated[0].user_id !== userId) {
+      console.error(
+        '[stripe/webhook] cross-user stripe_customer_id collision',
+        { existing_user_id: updated[0].user_id, incoming_user_id: userId, customer_id: customerId, subscription_id: subscription.id },
+      );
+    }
+    return;
+  }
+
+  // Step 2: fallback upsert-by-user_id (first-time subscription for this user).
+  const { error: upsertErr } = await admin
+    .from('subscriptions')
+    .upsert(row, { onConflict: 'user_id' });
+  if (upsertErr) {
+    // 23505 on stripe_customer_id here means the row-exists check raced
+    // with a concurrent webhook — surface as a warning, not a 500, since
+    // the other path already wrote the row.
+    const pgCode = (upsertErr as { code?: string }).code;
+    if (pgCode === '23505') {
+      console.warn(
+        '[stripe/webhook] concurrent upsert raced — 23505 swallowed',
+        { customer_id: customerId, user_id: userId },
+      );
+      return;
+    }
+    console.error('[stripe/webhook] upsert failed:', upsertErr);
+    throw upsertErr;
   }
 }
 

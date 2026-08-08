@@ -23,11 +23,17 @@
 import { createClient } from '@/lib/supabase/server';
 import { kimi, KIMI_MODEL } from '@/lib/kimi/client';
 import { assembleUserContext } from '@/lib/kimi/context';
+import { limitPerKey } from '@/lib/rate-limit';
 
 // Force dynamic — this handler is always request-scoped (auth + streaming).
 export const dynamic = 'force-dynamic';
 
 const MAX_MESSAGES = 20;
+// Per-user cap. Kimi K2 with reasoning tokens = ~$0.01–0.05 per call at v0.2
+// context sizes. 30/hour ≈ $1.50 worst case per user per hour — hard cap
+// against the $1/mo revenue per user before we're upside-down on inference.
+const COPILOT_LIMIT_PER_HOUR = 30;
+const HOUR_MS = 60 * 60 * 1000;
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -52,7 +58,23 @@ export async function POST(request: Request) {
     });
   }
 
-  // 2. Parse + validate body.
+  // 2. Rate limit per user (defence against runaway inference costs).
+  const gate = limitPerKey(`copilot:${user.id}`, COPILOT_LIMIT_PER_HOUR, HOUR_MS);
+  if (!gate.ok) {
+    return new Response(
+      JSON.stringify({
+        error: 'rate_limited',
+        limit: gate.limit,
+        retry_after_seconds: gate.retryAfterSeconds,
+      }),
+      {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', ...gate.headers },
+      },
+    );
+  }
+
+  // 3. Parse + validate body.
   let body: { messages?: ChatMessage[] };
   try {
     body = (await request.json()) as { messages?: ChatMessage[] };
@@ -89,7 +111,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // 3. Assemble cross-mini-app context (read-only).
+  // 4. Assemble cross-mini-app context (read-only).
   const { context } = await assembleUserContext(user.id, supabase);
 
   const systemPrompt = [
@@ -120,7 +142,7 @@ export async function POST(request: Request) {
     '--- END CONTEXT ---',
   ].join('\n');
 
-  // 4. Kick off the upstream stream.
+  // 5. Kick off the upstream stream.
   //    We intentionally construct the ReadableStream ourselves so we can
   //    normalize Moonshot's `reasoning_content` deltas alongside `content`.
   const encoder = new TextEncoder();

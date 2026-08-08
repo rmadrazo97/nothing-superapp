@@ -24,7 +24,12 @@
  *   - No hex colors — tokens only.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useEvents, usePreferences, useUser } from '@nothing/mini-apps-runtime';
+import {
+  EmptyState,
+  useEvents,
+  usePreferences,
+  useUser,
+} from '@nothing/mini-apps-runtime';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
@@ -459,41 +464,12 @@ function TotalCard({
 
 function EmptyToday({ onAdd }: { onAdd: () => void }) {
   return (
-    <section
-      style={{
-        background: 'rgba(0, 0, 0, 0.5)',
-        border: '1px dashed var(--color-border-visible)',
-        borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-8) var(--space-4)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 'var(--space-4)',
-        textAlign: 'center',
-      }}
-    >
-      <button
-        type="button"
-        onClick={onAdd}
-        aria-label="Add first meal"
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: 'var(--radius-card)',
-          border: '1px solid var(--color-border-visible)',
-          background: 'transparent',
-          color: 'var(--color-text-display)',
-          fontSize: 40,
-          lineHeight: 1,
-          cursor: 'pointer',
-        }}
-      >
-        +
-      </button>
-      <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-body)' }}>
-        Nothing logged yet. Add your first meal.
-      </p>
-    </section>
+    <EmptyState
+      icon="◐"
+      title="No meals logged"
+      body="Log your first meal to start tracking calories and macros."
+      primaryAction={{ label: '+ Add meal', onClick: onAdd, ariaLabel: 'Add first meal' }}
+    />
   );
 }
 
@@ -928,6 +904,19 @@ function HistoryView({
 
   if (loading) {
     return <p className="caption">Loading…</p>;
+  }
+
+  // With zero entries anywhere, the sparkline is 7 empty dots and the day list
+  // is empty — that would render as 3 useless surfaces stacked on top of each
+  // other. Show a single, actionable empty state instead.
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon="◐"
+        title="Nothing to chart yet"
+        body="Log meals for a few days to see your trend and streaks."
+      />
+    );
   }
 
   return (

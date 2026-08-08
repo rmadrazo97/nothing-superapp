@@ -10,6 +10,7 @@
  */
 import { useMemo } from 'react';
 import type { PomodoroSession } from '@nothing/shared';
+import { EmptyState } from '@nothing/mini-apps-runtime';
 
 function toLocalDateKey(iso: string): string {
   const d = new Date(iso);
@@ -59,9 +60,11 @@ export function History({
 
   if (byDay.length === 0) {
     return (
-      <p style={{ color: 'var(--color-text-secondary)' }}>
-        Nothing logged yet. Finish a focus block to start your streak.
-      </p>
+      <EmptyState
+        icon="◔"
+        title="No sessions yet"
+        body="Complete a pomodoro to see your streak build here."
+      />
     );
   }
 

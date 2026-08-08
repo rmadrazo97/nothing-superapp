@@ -43,3 +43,25 @@ Angles worth posting about:
 3. **"1,324 exercises seeded in <1 second"** — the psql \copy clip.
 4. **"Parallel subagents"** — two workers (pomodoro + gym) coordinated cleanly through shared files (schemas + client-registry + next.config) using a "add-only, never remove" convention.
 
+
+## 2026-08-08 15:15 — v0.3.0 tagged (first release candidate)
+
+Prod-grade pass. Everything between "it works in dev" and "someone else can use this":
+
+- **PWA installable** — manifest.ts + minimal pass-through service worker + full icon set (192/512, maskable variants, apple-touch)
+- **Toast + error boundary system** — global `useToast()` hook (info/success/error), React class boundary placed inside `<Shell>` so mini-app crashes don't nuke the TabBar
+- **Empty states everywhere** — shared `EmptyState` component in `@nothing/mini-apps-runtime`; calorie, gym, pomodoro all get zero-data guidance. First-run hint on `/app` about the copilot
+- **Legal pages** at `/legal/terms` + `/legal/privacy` (v0.3 placeholder text, formal review before v1.0); linked from login footer
+- **Stripe webhook race fix** — dual-conflict handler (update-by-customer_id → fallback upsert-by-user_id → swallow 23505 as warning). Prevents the golden-path e2e 500 that surfaced earlier.
+- **Rate limiting** on `/api/copilot` — 30 req/hour per user via a sliding-window in-memory limiter
+- **README** with prerequisites, setup, env vars, deploy guide, "add a mini-app in 6 lines"
+- **`apps/web/.env.local.example`** — canonical env template so future contributors don't have to reverse-engineer it
+- **`scripts/seed-exercises.py`** — one-shot idempotent seeder for the 1,324-row exercises table
+- **VERSION file + CHANGELOG.md** — all 8 workspace packages bumped to 0.3.0
+- **vercel.json** — build/install commands + cache headers for `/sw.js`, `/manifest.webmanifest`, `/icons/*`
+
+Angles worth posting about:
+1. **"Same-day: harness → 4 mini-apps → prod-grade release"** — one branch, 17-ish commits, 20k+ lines of TypeScript
+2. **"Toast + error boundary shipped in one worker"** — cross-cutting UI landed clean via parallel subagents
+3. **"First-run hint is a 6-line component + one localStorage key"** — the smallest possible onboarding that doesn't feel skipped
+4. **"Rate limiter for $1/mo economics"** — inference cost math: Kimi K2 at 30 req/hour caps worst-case per-user cost below the sub price

@@ -18,3 +18,9 @@ export {
   filterByRoute,
   requiresSubscription,
 } from './registry.ts';
+
+export {
+  EmptyState,
+  type EmptyStateAction,
+  type EmptyStateProps,
+} from './EmptyState.tsx';

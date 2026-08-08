@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEvents } from '@nothing/mini-apps-runtime';
+import { EmptyState, useEvents } from '@nothing/mini-apps-runtime';
 import type { WorkoutRoutine, WorkoutSession } from '@nothing/shared';
 import * as api from './lib/api.ts';
 import { ApiError } from './lib/api.ts';
@@ -243,9 +243,20 @@ export default function GymHomePage() {
         {recent === null ? (
           <p className="caption">Loading…</p>
         ) : recent.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            No sessions yet. Start your first workout above.
-          </p>
+          <EmptyState
+            icon="◈"
+            title="No workouts yet"
+            body="Start an empty workout, or browse 1,324 exercises to build your first routine."
+            primaryAction={{
+              label: '+ Start empty',
+              onClick: () => void startEmpty(),
+              ariaLabel: 'Start an empty workout',
+            }}
+            secondaryAction={{
+              label: 'Browse exercises',
+              href: '/app/gym-routine/exercises',
+            }}
+          />
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {recent.map((s) => (

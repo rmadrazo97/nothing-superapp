@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Exercise, BodyPart } from '@nothing/shared';
+import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError } from '../lib/api.ts';
 import SearchBar from '../components/SearchBar.tsx';
@@ -135,7 +136,32 @@ export default function ExercisesPage() {
         {total.toLocaleString()} MATCH{total === 1 ? '' : 'ES'}
       </span>
 
-      <ExerciseGrid exercises={exercises} loading={loading && exercises.length === 0} />
+      <ExerciseGrid
+        exercises={exercises}
+        loading={loading && exercises.length === 0}
+        empty={
+          <EmptyState
+            icon="◈"
+            title="No exercises match"
+            body={
+              debouncedQ
+                ? `Nothing matches "${debouncedQ}". Try a different term or clear the body-part filter.`
+                : 'No exercises match that filter. Try a different body part.'
+            }
+            primaryAction={
+              debouncedQ || bodyPart
+                ? {
+                    label: 'Clear filters',
+                    onClick: () => {
+                      setQ('');
+                      setBodyPart(null);
+                    },
+                  }
+                : undefined
+            }
+          />
+        }
+      />
 
       {hasMore && (
         <button

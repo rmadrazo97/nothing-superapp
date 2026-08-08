@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { WorkoutRoutine } from '@nothing/shared';
+import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError } from '../lib/api.ts';
 import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
@@ -90,11 +91,16 @@ export default function RoutinesPage() {
       {routines === null ? (
         <p className="caption">Loading…</p>
       ) : routines.length === 0 ? (
-        <div style={{ ...cardStyle, borderStyle: 'dashed', textAlign: 'center', padding: 'var(--space-8)' }}>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            No routines yet. Build one to reuse across sessions.
-          </p>
-        </div>
+        <EmptyState
+          icon="◈"
+          title="No saved routines"
+          body="Save exercises as routines to re-use them across sessions."
+          primaryAction={{
+            label: '+ New routine',
+            onClick: () => void createNew(),
+            ariaLabel: 'Create a new routine',
+          }}
+        />
       ) : (
         <ul
           style={{

@@ -22,6 +22,9 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { Shell } from '@/components/shell/Shell';
 import { HarnessContextBridge } from '@/components/shell/HarnessContextBridge';
+import { AppErrorBoundary } from '@/components/shell/AppErrorBoundary';
+import { ToastProvider } from '@/lib/toast/context';
+import { ToastContainer } from '@/components/toast/ToastContainer';
 import { createClient } from '@/lib/supabase/server';
 import type { Preferences } from '@nothing/shared';
 
@@ -73,7 +76,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <HarnessContextBridge user={contextUser} preferences={preferences}>
-      <Shell>{children}</Shell>
+      <ToastProvider>
+        <Shell>
+          <AppErrorBoundary>{children}</AppErrorBoundary>
+        </Shell>
+        <ToastContainer />
+      </ToastProvider>
     </HarnessContextBridge>
   );
 }
