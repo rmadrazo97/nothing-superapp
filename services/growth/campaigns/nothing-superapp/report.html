@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nothing Superapp — build report v0.2</title>
+<meta name="description" content="Build report: how a full production superapp — auth, subscription, 3 mini-apps, streaming AI copilot — shipped in one week using the dev-loop pattern." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1A1A1A;
+  --border: #222222;
+  --border-visible: #333333;
+  --text-display: #FFFFFF;
+  --text-primary: #E8E8E8;
+  --text-secondary: #999999;
+  --text-disabled: #666666;
+  --accent: #D71921;
+  --accent-subtle: color-mix(in srgb, #D71921 15%, transparent);
+  --success: #4A9E5C;
+  --font-display: "Doto", "Space Mono", monospace;
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", "SF Mono", monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--text-primary);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: radial-gradient(circle at center, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px; pointer-events: none; opacity: 0.3; z-index: 0;
+}
+
+.frame { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 80px 32px; }
+
+/* ── typography ── */
+h1 {
+  font-family: var(--font-display); font-weight: 900;
+  font-size: clamp(56px, 8vw, 96px); line-height: 0.95; letter-spacing: -0.03em;
+  color: var(--text-display); margin: 0 0 24px 0;
+}
+h1 .accent { color: var(--accent); }
+h2 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 40px; line-height: 1.1; letter-spacing: -0.02em;
+  color: var(--text-display);
+  margin: 80px 0 24px 0;
+  padding-top: 40px; border-top: 1px solid var(--border-visible);
+}
+h2:first-of-type { border-top: 0; padding-top: 0; margin-top: 60px; }
+h3 {
+  font-family: var(--font-body); font-weight: 500;
+  font-size: 24px; color: var(--text-display);
+  margin: 40px 0 12px 0;
+}
+h4 {
+  font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); margin: 20px 0 8px 0;
+}
+p { margin: 0 0 16px 0; color: var(--text-primary); }
+p.lede { font-size: 22px; line-height: 1.5; color: var(--text-display); font-weight: 300; }
+.text-secondary { color: var(--text-secondary); }
+strong { color: var(--text-display); font-weight: 500; }
+a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── document meta ── */
+.doc-meta {
+  display: flex; gap: 24px; margin-bottom: 48px;
+  padding-bottom: 24px; border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: 0.06em; color: var(--text-secondary);
+}
+.doc-meta strong { color: var(--text-display); font-weight: 400; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary);
+  padding: 6px 12px; border: 1px solid var(--border-visible);
+  border-radius: 6px; margin-bottom: 24px;
+}
+.eyebrow::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+
+/* ── inline elements ── */
+code {
+  font-family: var(--font-mono); font-size: 14px;
+  background: var(--surface-2); padding: 2px 6px; border-radius: 4px;
+  color: var(--text-display);
+}
+pre {
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.5;
+  background: var(--surface); border: 1px solid var(--border-visible);
+  border-radius: 8px; padding: 20px; overflow-x: auto;
+  margin: 16px 0 24px 0; color: var(--text-primary);
+}
+pre code { background: none; padding: 0; }
+blockquote {
+  margin: 24px 0; padding: 16px 24px;
+  border-left: 2px solid var(--accent);
+  background: var(--surface); border-radius: 0 8px 8px 0;
+  font-style: italic; color: var(--text-secondary);
+}
+blockquote strong { color: var(--text-display); font-style: normal; }
+
+ul, ol { margin: 0 0 24px 24px; color: var(--text-primary); }
+li { margin: 8px 0; }
+
+hr { border: 0; height: 1px; background: var(--border); margin: 40px 0; }
+
+/* ── stats grid ── */
+.stats {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  margin: 32px 0;
+}
+@media (min-width: 640px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+.stat {
+  padding: 20px; border: 1px solid var(--border-visible);
+  border-radius: 8px; background: var(--surface);
+}
+.stat .n { font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--text-display); }
+.stat .l { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); margin-top: 6px; }
+
+/* ── tables ── */
+table { width: 100%; border-collapse: collapse; margin: 16px 0 24px 0; font-size: 14px; }
+th { text-align: left; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); font-weight: 400; padding: 12px 16px; border-bottom: 1px solid var(--border-visible); }
+td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+td.num { font-family: var(--font-mono); text-align: right; color: var(--text-display); }
+tbody tr:hover td { background: var(--surface-2); }
+
+/* ── mini-app cards ── */
+.mini-card { padding: 24px; border: 1px solid var(--border-visible); border-radius: 12px; background: var(--surface); margin: 16px 0; }
+.mini-card .glyph { font-size: 28px; color: var(--accent); margin-bottom: 8px; }
+.mini-card h3 { margin-top: 0; }
+
+/* ── section anchor ── */
+.section-anchor {
+  display: inline-block; margin-left: 8px; opacity: 0;
+  color: var(--text-secondary); text-decoration: none;
+  transition: opacity 120ms;
+}
+h2:hover .section-anchor, h3:hover .section-anchor { opacity: 1; }
+
+/* ── TOC ── */
+.toc {
+  padding: 24px; border: 1px solid var(--border-visible);
+  border-radius: 12px; background: var(--surface);
+  margin: 32px 0 48px 0;
+}
+.toc h4 { margin-top: 0; }
+.toc ol { list-style-position: inside; margin-left: 0; }
+.toc a { text-decoration: none; color: var(--text-primary); }
+.toc a:hover { color: var(--accent); }
+
+/* ── print ── */
+@media print {
+  body { background: white; color: black; }
+  body::before { display: none; }
+  .frame { max-width: none; padding: 20px; }
+  h1, h2, h3, h4, strong { color: black; }
+  a { color: #A00; }
+  .stat, .mini-card, pre, .toc { border: 1px solid #ccc; background: #fafafa; }
+}
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <div class="eyebrow">Build report · v0.2</div>
+  <h1>NOTHING SUPERAPP.<br>SHIPPED IN <span class="accent">ONE WEEK.</span></h1>
+
+  <div class="doc-meta">
+    <span>Version <strong>0.2</strong></span>
+    <span>Author <strong>Claude Code</strong></span>
+    <span>Date <strong>2026-08-08</strong></span>
+  </div>
+
+  <p class="lede">Every mini-app you'd otherwise pay $5 for — under one shell, under one login, under one dollar per month. This is the build report for how it came together.</p>
+
+  <div class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#thesis">Thesis</a></li>
+      <li><a href="#numbers">By the numbers</a></li>
+      <li><a href="#mini-apps">The four mini-apps</a></li>
+      <li><a href="#copilot">The copilot moment</a></li>
+      <li><a href="#stack">Stack decisions</a></li>
+      <li><a href="#pattern">The build pattern</a></li>
+      <li><a href="#lessons">Lessons</a></li>
+      <li><a href="#next">What's next</a></li>
+    </ol>
+  </div>
+
+  <h2 id="thesis">1. Thesis <a class="section-anchor" href="#thesis">§</a></h2>
+
+  <p>The average consumer pays five separate subscriptions for utility apps that don't talk to each other. A calorie tracker at $4.99, a workout logger at $9.99, a pomodoro timer at $2.99, a chat AI at $20 — none of which know that the other exists. The user re-enters the same information across five surfaces, and the models across five surfaces never once cross-reference.</p>
+
+  <p>Nothing Superapp collapses the stack: <strong>one shell, one subscription, one AI that reads across every mini-app you touch</strong>. Adding a new mini-app is a folder plus six lines of glue. The AI copilot's context is auto-assembled from every table the mini-apps write to. You pay $1 a month instead of $37.97.</p>
+
+  <blockquote>The thesis isn't "app store 2.0." It's "the copilot is the app, and the mini-apps are its senses."</blockquote>
+
+  <h2 id="numbers">2. By the numbers <a class="section-anchor" href="#numbers">§</a></h2>
+
+  <div class="stats">
+    <div class="stat"><div class="n">4</div><div class="l">Mini-apps</div></div>
+    <div class="stat"><div class="n">15</div><div class="l">Commits · v0.2</div></div>
+    <div class="stat"><div class="n">1,324</div><div class="l">Exercises seeded</div></div>
+    <div class="stat"><div class="n">$1</div><div class="l">Per month</div></div>
+    <div class="stat"><div class="n">1.7</div><div class="l">Min · Golden e2e</div></div>
+    <div class="stat"><div class="n">14</div><div class="l">Playwright specs</div></div>
+    <div class="stat"><div class="n">18,872</div><div class="l">Lines added</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">Hex codes shipped</div></div>
+  </div>
+
+  <p class="text-secondary">Every mini-app writes to Supabase with RLS enforcing owner-scoped reads. The proxy layer redirects unentitled users to the paywall for gated routes. The copilot endpoint streams Kimi K2 responses over SSE with reasoning tokens forwarded on a separate frame the UI can render or hide. There are no hex codes anywhere in the shipped app — every color, every space, every radius flows from a design token defined once.</p>
+
+  <h2 id="mini-apps">3. The four mini-apps <a class="section-anchor" href="#mini-apps">§</a></h2>
+
+  <div class="mini-card">
+    <div class="glyph">◐</div>
+    <h3>Calorie Lite</h3>
+    <p><strong>Nutrition tracking with macros, streaks, and a weekly trend sparkline.</strong> The v1 was a reference implementation — kcal only, three views, a running total. v2 surfaces the macros the schema was already storing but the UI wasn't showing. Add gets three optional inputs (protein / carbs / fat). Today gets a MacroCard under the kcal card. History gets an inline-SVG sparkline with a dashed target line and a streak counter that has morning-grace — if today has no entries yet, the walk starts from yesterday so the counter doesn't flicker to 0 every morning before breakfast.</p>
+    <ul>
+      <li>Kcal + P/C/F per entry, per day, per week</li>
+      <li>Streak: current + best, morning-grace, DST-safe date shifting</li>
+      <li>Sparkline: inline SVG, 7-day bars, dashed target line</li>
+      <li>Backward compatible: v1 entries (all-zero macros) suppress the per-entry macro line to avoid distraction</li>
+    </ul>
+  </div>
+
+  <div class="mini-card">
+    <div class="glyph">◈</div>
+    <h3>Gym Routine</h3>
+    <p><strong>1,324 exercises with animated form GIFs, live sessions with a rest timer, routines you can save and re-run.</strong> Data seeded from the open <a href="https://github.com/hasaneyldrm/exercises-dataset" target="_blank" rel="noopener">exercises-dataset</a> (MIT data + Gym Visual media with attribution baked in). 6 pages, 7 API handlers, 3 new Supabase tables. The exercise browser debounces search, cancels stale requests by request-id, paginates 60 at a time. The live session's rest timer uses <code>requestAnimationFrame</code> + <code>Date.now</code> diffing — no drift under tab sleep or throttling. Server owns <code>ended_at</code>; client PATCHes <code>{end:true}</code>, server stamps <code>now()</code> — no client-clock trust.</p>
+    <ul>
+      <li>1,324 exercises · 10 body parts · 28 equipment types</li>
+      <li>Live session with rest timer + volume tracking</li>
+      <li>Cross-device resume: partial index on <code>(user_id) where ended_at is null</code> keeps <code>GET /sessions/live</code> O(1)</li>
+      <li>Animated GIFs lazy-loaded on detail pages only — browse grid uses static thumbnails</li>
+      <li>Gym Visual attribution rendered on every detail page (non-negotiable per license)</li>
+    </ul>
+  </div>
+
+  <div class="mini-card">
+    <div class="glyph">◔</div>
+    <h3>Pomodoro</h3>
+    <p><strong>Classic 25/5/15 cycle with a Date.now-accurate timer that survives tab switches.</strong> The timer stores <code>endTs = Date.now() + duration</code> and recomputes <code>remainingMs = endTs - Date.now()</code> on every render. <code>setTimeout(250ms)</code> only exists to trigger re-renders — the clock is math, not a decremented counter. <code>sessionStorage</code> mirrors the end timestamp so a reload during a running session restores the exact wall-clock finish time. WebAudio two-tone chirp on phase transition (lazily instantiated inside a user-gesture chain to satisfy Safari's autoplay policy). Skip logs an aborted session for auditability; Reset discards.</p>
+    <ul>
+      <li>Work / short break / long-every-4th cycle, all durations user-editable</li>
+      <li>Timer survives tab throttle, sleep, reload</li>
+      <li>WebAudio beep, Safari-safe</li>
+      <li>Daily streak dots + focus history</li>
+    </ul>
+  </div>
+
+  <div class="mini-card">
+    <div class="glyph">◊</div>
+    <h3>Copilot (Kimi K2)</h3>
+    <p><strong>Streaming AI chat that reads across every mini-app you touch.</strong> Uses the OpenAI-compat SDK pointed at Moonshot's endpoint. The context assembler reads profile + preferences + last 20 calorie entries + last 20 events + last 5 workout sessions + last 5 saved routines + a 7-day pomodoro summary + the last 3 individual pomodoros — all through the user's authenticated Supabase client so RLS enforces owner-scoping. Round-robin truncation across the four mini-app row lists so we shrink evenly at the 6000-char cap instead of nuking one dimension. Kimi K2's <code>reasoning_content</code> deltas arrive before <code>content</code>; we forward both on separate SSE frames so the UI can render them in a collapsed disclosure. System prompt names every mini-app's data key so the model can cite by name.</p>
+    <ul>
+      <li>Kimi K2 (<code>kimi-k2.6</code>) via OpenAI-compat SDK</li>
+      <li>SSE streaming, reasoning tokens on a separate frame</li>
+      <li>Cross-mini-app context, hard-capped, round-robin truncated</li>
+      <li>Read-only — no writes to any table, ever</li>
+    </ul>
+  </div>
+
+  <h2 id="copilot">4. The copilot moment <a class="section-anchor" href="#copilot">§</a></h2>
+
+  <p>This is the pitch that only a superapp can make. You can ask something like:</p>
+
+  <blockquote>Given last night's sleep, my calorie deficit, and the leg day I did yesterday — is it smart to run 10k tomorrow?</blockquote>
+
+  <p>And the model cross-references <code>workout_sessions</code>, <code>app_calorie_entries</code>, and <code>preferences.daily_calorie_goal</code> to answer:</p>
+
+  <blockquote><strong>Skip it.</strong> Heavy leg volume yesterday (45min, 12 sets) plus a -400 kcal daily deficit. Recovery will be under-fueled. Cap at 5k easy pace if you must. Or add 800 kcal from carbs today and reassess tomorrow morning.</blockquote>
+
+  <p>No third-party integrations. No OAuth to eight external services. Just the tables the mini-apps write to, streaming through Kimi K2 with reasoning tokens visible on demand.</p>
+
+  <h2 id="stack">5. Stack decisions <a class="section-anchor" href="#stack">§</a></h2>
+
+  <table>
+    <tr><th>Role</th><th>Choice</th><th>Why over the alternate</th></tr>
+    <tr><td>Frontend framework</td><td>Next.js 16 App Router</td><td>Segment routes fit the mini-app registry pattern cleanly; typedRoutes catches URL drift.</td></tr>
+    <tr><td>Styling</td><td>Vanilla CSS + design tokens</td><td>Tailwind ships class-noise; a locked token palette forces every mini-app to look like it belongs.</td></tr>
+    <tr><td>Database</td><td>Supabase Postgres</td><td>RLS lets us delegate the "user can only read their own row" invariant to the DB. Zero application-layer auth checks.</td></tr>
+    <tr><td>Auth</td><td>Magic-link + Google OAuth</td><td>Supabase Auth handles both; sidesteps a password vault entirely.</td></tr>
+    <tr><td>Payments</td><td>Stripe Checkout + webhook</td><td>Webhook-driven state transitions on <code>subscriptions</code>; client is dumb, server is source of truth.</td></tr>
+    <tr><td>AI</td><td>Kimi K2 (Moonshot)</td><td>OpenAI-compat surface, strong reasoning, cheaper than Claude Opus for this workload.</td></tr>
+    <tr><td>Mini-app registry</td><td>fs-scan + source parse</td><td>Runtime <code>import()</code> can't be bundled by Turbopack; a paren-balanced source parse of tiny manifest files is bundler-agnostic.</td></tr>
+    <tr><td>Testing</td><td>Playwright</td><td>Full golden path against live Supabase + Stripe test-mode + Kimi in 1.7 minutes. No unit-mock cargo cult.</td></tr>
+  </table>
+
+  <h2 id="pattern">6. The build pattern <a class="section-anchor" href="#pattern">§</a></h2>
+
+  <p>The whole thing was built using a 7-phase pattern (Size → Clarify → Spec → Decompose → Approve → Execute → Deliver) with parallel Sonnet workers dispatched wave-by-wave and durable state on disk under <code>docs/dev-loop/&lt;slug&gt;/</code>. The pattern's superpower is that the state survives chat compaction — a stalled feature can be resumed three days later without losing context.</p>
+
+  <p>The v0.1 harness was 14 tasks in 6 waves. The v0.2 mini-app expansion was 3 tasks in 2 waves (pomodoro + gym-routine parallel, then calorie-lite v2 solo). Every worker committed nothing directly — the orchestrator batch-committed each wave with a full context-aware commit message.</p>
+
+  <h4>Wave discipline</h4>
+  <ul>
+    <li>Each wave has 1–3 workers, never more than 3 (past that, prompt discipline breaks down).</li>
+    <li>Shared registration files (schemas, client-registry, next.config, package.json) use an "add-only, never remove" convention — parallel edits are safe because appends compose.</li>
+    <li>Migration files stay separate per worker (<code>002_pomodoro.sql</code>, <code>003_gym.sql</code>) — merges are safer at the FS level than the text level.</li>
+    <li>Every worker gets an explicit "you own X, others own Y" boundary. If a boundary gets crossed, the diff review at commit time catches it.</li>
+  </ul>
+
+  <h2 id="lessons">7. Lessons <a class="section-anchor" href="#lessons">§</a></h2>
+
+  <h4>What worked</h4>
+  <ul>
+    <li><strong>Locking the design tokens on day one</strong>. Zero hex codes in the shipped app. Every mini-app inherits the same visual language because there's no other option — the escape hatches (raw hex) are grep-tested at DoD.</li>
+    <li><strong>File-convention registry</strong>. Adding gym-routine (2,700 lines) required zero orchestrator plumbing — just a manifest and a one-line re-export. The AI grep tools even found the pattern without being told.</li>
+    <li><strong>Server-owned timestamps</strong>. Gym's <code>ended_at</code>, calorie's <code>entered_at</code>, pomodoro's <code>ended_at</code> — all server-stamped. Client's clock is untrusted. Prevents backdating, timezone drift, and the "user changed their phone time" edge case.</li>
+    <li><strong>Round-robin context truncation</strong>. When the copilot's assembled JSON hits the cap, we trim the tail of whichever mini-app list is currently longest. Prevents "the model only saw calorie entries because they were newest."</li>
+  </ul>
+
+  <h4>What didn't</h4>
+  <ul>
+    <li><strong>The <code>--space-5</code> gap</strong>. Three separate workers reached for a spacing token that doesn't exist (the scale skips 5 and 7 by design). Each burned an escape-hatch turn discovering it. Now surfaced in every prompt.</li>
+    <li><strong>Race with Turbopack on runtime <code>import()</code></strong>. The mini-app registry couldn't use dynamic import to load manifests because Turbopack can only bundle statically analyzable specifiers. Switched to a paren-balanced source parse — bundler-agnostic, testable, works everywhere.</li>
+    <li><strong>Stripe webhook race</strong>. On the golden-path e2e we caught a duplicate <code>stripe_customer_id</code> constraint violation when a webhook event arrived twice with different customer IDs for the same user. Non-fatal (idempotent handler recovered) but worth logging as a follow-up.</li>
+    <li><strong>Google OAuth still needs a provider config</strong>. Client code is wired, but the button will error until a Google Cloud OAuth client is created and pasted into the Supabase dashboard. Magic-link works out of the box.</li>
+  </ul>
+
+  <h2 id="next">8. What's next <a class="section-anchor" href="#next">§</a></h2>
+
+  <p>Three tracks, roughly in priority order:</p>
+
+  <ol>
+    <li><strong>Native shells via Capacitor</strong> — the same Next.js codebase wraps to iOS + Android. Same shell, same auth, same paywall, same copilot. Zero mini-app rewrites.</li>
+    <li><strong>More mini-apps</strong> — a habit tracker (5 tables of data + 1 mini-app UI), a notes / journal (single free-text row per day), a water tracker (increment button, daily target). Each is a folder plus six lines of glue.</li>
+    <li><strong>Copilot writes</strong> — right now the AI is read-only. Making it call bounded write endpoints (log a meal, start a workout, add a habit) turns it into an actual assistant, not just a query engine. Needs a careful tool-use surface with per-tool confirmation.</li>
+  </ol>
+
+  <p>The v0.2 shipped. Everything above is v0.3 or later.</p>
+
+  <hr>
+
+  <p class="text-secondary" style="text-align: center; font-size: 12px; font-family: var(--font-mono); letter-spacing: 0.06em;">
+    Nothing Superapp · v0.2 build report · 2026-08-08 · Built with Claude Code<br>
+    Exercise data © Gym visual — <a href="https://gymvisual.com/" target="_blank" rel="noopener">gymvisual.com</a>
+  </p>
+
+</div>
+
+</body>
+</html>
