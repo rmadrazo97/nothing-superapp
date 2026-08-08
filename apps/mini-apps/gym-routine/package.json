@@ -1,0 +1,27 @@
+{
+  "name": "@nothing-mini-apps/gym-routine",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./manifest.ts",
+    "./page": "./page.tsx",
+    "./pages/exercises": "./pages/exercises.tsx",
+    "./pages/exercise-detail": "./pages/exercise-detail.tsx",
+    "./pages/routines": "./pages/routines.tsx",
+    "./pages/routine-editor": "./pages/routine-editor.tsx",
+    "./pages/session": "./pages/session.tsx",
+    "./pages/history": "./pages/history.tsx"
+  },
+  "dependencies": {
+    "@nothing/mini-apps-runtime": "workspace:*",
+    "@nothing/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}

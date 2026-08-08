@@ -30,7 +30,9 @@
     "@nothing/shared": "workspace:*",
     "@nothing/mini-apps-runtime": "workspace:*",
     "@nothing-mini-apps/calorie-lite": "workspace:*",
-    "@nothing-mini-apps/coming-soon": "workspace:*"
+    "@nothing-mini-apps/coming-soon": "workspace:*",
+    "@nothing-mini-apps/gym-routine": "workspace:*",
+    "@nothing-mini-apps/pomodoro": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

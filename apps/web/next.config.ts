@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
     '@nothing/mini-apps-runtime',
     '@nothing-mini-apps/calorie-lite',
     '@nothing-mini-apps/coming-soon',
+    '@nothing-mini-apps/gym-routine',
+    '@nothing-mini-apps/pomodoro',
   ],
   experimental: { typedRoutes: true },
 };

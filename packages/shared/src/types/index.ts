@@ -1,7 +1,7 @@
 import type { Preferences } from '../schemas/index.ts';
 import { EVENT_KINDS } from '../schemas/index.ts';
 
-export type { Profile, Preferences, Subscription, Event, CalorieEntry, Meal, Theme, SubscriptionStatus, ProfileInsert, PreferencesInsert, SubscriptionInsert, EventInsert, CalorieEntryInsert } from '../schemas/index.ts';
+export type { Profile, Preferences, Subscription, Event, CalorieEntry, Meal, Theme, SubscriptionStatus, ProfileInsert, PreferencesInsert, SubscriptionInsert, EventInsert, CalorieEntryInsert, BodyPart, Exercise, RoutineSet, RoutineExercise, WorkoutRoutine, WorkoutRoutineInsert, WorkoutRoutineUpdate, SessionSet, SessionEntry, WorkoutSession, WorkoutSessionInsert, WorkoutSessionUpdate, PomodoroPhase, PomodoroSession, NewPomodoroSession } from '../schemas/index.ts';
 export { EVENT_KINDS } from '../schemas/index.ts';
 
 export type EventKind = (typeof EVENT_KINDS)[keyof typeof EVENT_KINDS];

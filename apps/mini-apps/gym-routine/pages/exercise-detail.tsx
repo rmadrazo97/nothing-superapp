@@ -1,0 +1,366 @@
+'use client';
+
+/**
+ * Exercise detail — big animated GIF, numbered steps, muscle chips, and
+ * the two "Add to routine / Add to session" actions.
+ *
+ * The GIF is the ONLY place we load `gif_url` — see ExerciseCard for why
+ * the browse grid uses the static `image_url` instead. Lazy-loaded so a
+ * user who navigates here from a deep link doesn't block on the animation
+ * before the rest of the page renders.
+ */
+import { use, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import type { Exercise, WorkoutRoutine } from '@nothing/shared';
+import * as api from '../lib/api.ts';
+import { ApiError } from '../lib/api.ts';
+import { cardStyle, chipStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
+import AttributionFooter from '../components/AttributionFooter.tsx';
+
+export default function ExerciseDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+
+  const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showRoutinePicker, setShowRoutinePicker] = useState(false);
+  const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getExercise(id)
+      .then(({ exercise }) => {
+        if (!cancelled) setExercise(exercise);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(
+          e instanceof ApiError && e.status === 404
+            ? 'Exercise not found.'
+            : 'Could not load exercise.',
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const openRoutinePicker = useCallback(async () => {
+    setShowRoutinePicker(true);
+    if (routines === null) {
+      try {
+        const resp = await api.listRoutines();
+        setRoutines(resp.routines);
+      } catch {
+        setRoutines([]);
+      }
+    }
+  }, [routines]);
+
+  const addToRoutine = async (routine: WorkoutRoutine) => {
+    if (!exercise) return;
+    setBusy(true);
+    try {
+      const nextExercises = [
+        ...routine.exercises,
+        {
+          exercise_id: exercise.id,
+          sets: [{ reps: 10, weight_kg: null }, { reps: 10, weight_kg: null }, { reps: 10, weight_kg: null }],
+        },
+      ];
+      await api.updateRoutine(routine.id, {
+        name: routine.name,
+        exercises: nextExercises,
+      });
+      setShowRoutinePicker(false);
+      router.push(`/app/gym-routine/routines/${routine.id}`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not add to routine.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addToNewRoutine = async () => {
+    if (!exercise) return;
+    setBusy(true);
+    try {
+      const { routine } = await api.createRoutine({
+        name: `Routine with ${exercise.name}`,
+        exercises: [
+          {
+            exercise_id: exercise.id,
+            sets: [{ reps: 10, weight_kg: null }, { reps: 10, weight_kg: null }, { reps: 10, weight_kg: null }],
+          },
+        ],
+      });
+      router.push(`/app/gym-routine/routines/${routine.id}`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not create routine.');
+      setBusy(false);
+    }
+  };
+
+  const addToLiveSession = async () => {
+    if (!exercise) return;
+    setBusy(true);
+    try {
+      const { session } = await api.getLiveSession();
+      if (session) {
+        const nextEntries = [
+          ...session.entries,
+          {
+            exercise_id: exercise.id,
+            name: exercise.name,
+            sets: [
+              { reps: 10, weight_kg: null, completed_at: null },
+              { reps: 10, weight_kg: null, completed_at: null },
+              { reps: 10, weight_kg: null, completed_at: null },
+            ],
+          },
+        ];
+        await api.updateSession(session.id, { entries: nextEntries });
+        router.push(`/app/gym-routine/session/${session.id}`);
+      } else {
+        // No live session — start one containing just this exercise.
+        const { session: created } = await api.createSession({
+          name: null,
+          entries: [
+            {
+              exercise_id: exercise.id,
+              name: exercise.name,
+              sets: [
+                { reps: 10, weight_kg: null, completed_at: null },
+                { reps: 10, weight_kg: null, completed_at: null },
+                { reps: 10, weight_kg: null, completed_at: null },
+              ],
+            },
+          ],
+        });
+        router.push(`/app/gym-routine/session/${created.id}`);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not add to session.');
+      setBusy(false);
+    }
+  };
+
+  if (error) {
+    return (
+      <div style={{ paddingTop: 'var(--space-6)' }}>
+        <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
+          {error}
+        </p>
+        <Link href="/app/gym-routine/exercises" style={{ textDecoration: 'none' }}>
+          <span style={ghostButtonStyle}>← Back to exercises</span>
+        </Link>
+      </div>
+    );
+  }
+  if (!exercise) {
+    return <p className="caption" style={{ paddingTop: 'var(--space-6)' }}>Loading…</p>;
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+        paddingTop: 'var(--space-6)',
+        paddingBottom: 'var(--space-12)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span className="label">EXERCISE · {exercise.id}</span>
+        <Link href="/app/gym-routine/exercises" style={{ textDecoration: 'none' }}>
+          <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+            ← Back
+          </span>
+        </Link>
+      </div>
+
+      <h1 className="display-md" style={{ margin: 0 }}>{exercise.name}</h1>
+
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        <span style={chipStyle(false)}>{exercise.body_part}</span>
+        <span style={chipStyle(false)}>{exercise.target}</span>
+        <span style={chipStyle(false)}>{exercise.equipment}</span>
+      </div>
+
+      <div
+        style={{
+          aspectRatio: '1 / 1',
+          width: '100%',
+          maxWidth: 480,
+          alignSelf: 'center',
+          background: 'var(--color-neutral-100)',
+          border: '1px solid var(--color-border-visible)',
+          borderRadius: 'var(--radius-card)',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={exercise.gif_url}
+          alt={`${exercise.name} demonstration`}
+          loading="lazy"
+          decoding="async"
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+        <button
+          type="button"
+          onClick={openRoutinePicker}
+          disabled={busy}
+          style={{ ...primaryButtonStyle, opacity: busy ? 0.6 : 1 }}
+        >
+          Add to routine
+        </button>
+        <button
+          type="button"
+          onClick={addToLiveSession}
+          disabled={busy}
+          style={{ ...ghostButtonStyle, opacity: busy ? 0.6 : 1 }}
+        >
+          Add to session
+        </button>
+      </div>
+
+      {showRoutinePicker && (
+        <section
+          aria-label="Pick a routine"
+          style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span className="label">CHOOSE ROUTINE</span>
+            <button
+              type="button"
+              onClick={() => setShowRoutinePicker(false)}
+              style={{
+                background: 'transparent',
+                border: 0,
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-body)',
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          {routines === null ? (
+            <p className="caption">Loading…</p>
+          ) : routines.length === 0 ? (
+            <>
+              <p style={{ color: 'var(--color-text-secondary)' }}>
+                No routines yet.
+              </p>
+              <button
+                type="button"
+                onClick={addToNewRoutine}
+                disabled={busy}
+                style={primaryButtonStyle}
+              >
+                Create routine with this exercise
+              </button>
+            </>
+          ) : (
+            <>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                {routines.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => void addToRoutine(r)}
+                      disabled={busy}
+                      style={{
+                        ...ghostButtonStyle,
+                        width: '100%',
+                        justifyContent: 'flex-start',
+                        display: 'flex',
+                        gap: 'var(--space-3)',
+                        alignItems: 'baseline',
+                      }}
+                    >
+                      <span>{r.name}</span>
+                      <span
+                        className="data"
+                        style={{
+                          color: 'var(--color-text-disabled)',
+                          fontSize: 'var(--text-caption)',
+                          marginLeft: 'auto',
+                        }}
+                      >
+                        {r.exercises.length} EX
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={addToNewRoutine}
+                disabled={busy}
+                style={ghostButtonStyle}
+              >
+                + Create new routine
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
+      <section
+        aria-label="Instructions"
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+      >
+        <span className="label">HOW TO</span>
+        {exercise.instruction_steps.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>No instructions available.</p>
+        ) : (
+          <ol
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+              paddingLeft: 'var(--space-6)',
+              margin: 0,
+            }}
+          >
+            {exercise.instruction_steps.map((step, i) => (
+              <li key={i} style={{ color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                {step}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {exercise.secondary_muscles.length > 0 && (
+        <section aria-label="Secondary muscles" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <span className="label">ALSO WORKS</span>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            {exercise.secondary_muscles.map((m) => (
+              <span key={m} style={chipStyle(false)}>{m}</span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <AttributionFooter />
+    </div>
+  );
+}

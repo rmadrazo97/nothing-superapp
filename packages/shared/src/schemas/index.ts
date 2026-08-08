@@ -144,3 +144,161 @@ export type CalorieEntry = z.infer<typeof calorieEntrySchema>;
 export type CalorieEntryInsert = z.infer<typeof calorieEntryInsertSchema>;
 export type Meal = z.infer<typeof mealEnum>;
 export type Theme = z.infer<typeof themeEnum>;
+
+// ─── Gym: exercises (reference data — public read for authenticated) ───────
+
+export const bodyPartEnum = z.enum([
+  'back',
+  'cardio',
+  'chest',
+  'lower arms',
+  'lower legs',
+  'neck',
+  'shoulders',
+  'upper arms',
+  'upper legs',
+  'waist',
+]);
+
+export const exerciseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  body_part: bodyPartEnum,
+  target: z.string(),
+  equipment: z.string(),
+  muscle_group: z.string(),
+  secondary_muscles: z.array(z.string()).default([]),
+  instruction_steps: z.array(z.string()).default([]),
+  image_url: z.string().url(),
+  gif_url: z.string().url(),
+  attribution: z.string().default('© Gym visual — https://gymvisual.com/'),
+});
+
+// ─── Gym: workout_routines (user-owned) ────────────────────────────────────
+
+// A planned set inside a routine — reps required, weight optional (bodyweight
+// exercises have no weight). Weights stored in kg for storage sanity; UI can
+// convert to lb via `preferences` if we ever expose a unit toggle.
+export const routineSetSchema = z.object({
+  reps: z.number().int().nonnegative().max(999),
+  weight_kg: z.number().nonnegative().max(1000).nullable().optional(),
+});
+
+export const routineExerciseSchema = z.object({
+  exercise_id: z.string(),
+  sets: z.array(routineSetSchema).max(20),
+});
+
+export const workoutRoutineSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  exercises: z.array(routineExerciseSchema).default([]),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+});
+
+export const workoutRoutineInsertSchema = workoutRoutineSchema
+  .omit({ id: true, user_id: true, created_at: true, updated_at: true })
+  .extend({
+    exercises: z.array(routineExerciseSchema).default([]).optional(),
+  });
+
+export const workoutRoutineUpdateSchema = workoutRoutineInsertSchema.partial();
+
+// ─── Gym: workout_sessions (live/completed) ────────────────────────────────
+
+// A logged set — reps + weight + completion timestamp. `completed_at = null`
+// means the set is planned but not yet done in the live session UI.
+export const sessionSetSchema = z.object({
+  reps: z.number().int().nonnegative().max(999),
+  weight_kg: z.number().nonnegative().max(1000).nullable().optional(),
+  completed_at: z.string().datetime({ offset: true }).nullable().optional(),
+});
+
+// `name` is a snapshot of the exercise name — captured at session-start so a
+// later rename in the exercises catalog (unlikely — public reference) doesn't
+// silently rewrite historical sessions.
+export const sessionEntrySchema = z.object({
+  exercise_id: z.string(),
+  name: z.string(),
+  sets: z.array(sessionSetSchema).max(20),
+});
+
+export const workoutSessionSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  routine_id: z.string().uuid().nullable(),
+  name: z.string().max(120).nullable(),
+  started_at: z.string().datetime({ offset: true }),
+  ended_at: z.string().datetime({ offset: true }).nullable(),
+  entries: z.array(sessionEntrySchema).default([]),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+export const workoutSessionInsertSchema = z
+  .object({
+    routine_id: z.string().uuid().nullable().optional(),
+    name: z.string().min(1).max(120).nullable().optional(),
+    entries: z.array(sessionEntrySchema).default([]).optional(),
+  })
+  .strict();
+
+export const workoutSessionUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(120).nullable().optional(),
+    entries: z.array(sessionEntrySchema).optional(),
+    // Client may explicitly end the session by sending `end: true`. Server
+    // ignores any client `ended_at` and stamps `now()` — the flag is the
+    // signal, not a client-provided timestamp.
+    end: z.boolean().optional(),
+  })
+  .strict();
+
+// ─── Gym: inferred TS types ────────────────────────────────────────────────
+
+export type BodyPart = z.infer<typeof bodyPartEnum>;
+export type Exercise = z.infer<typeof exerciseSchema>;
+export type RoutineSet = z.infer<typeof routineSetSchema>;
+export type RoutineExercise = z.infer<typeof routineExerciseSchema>;
+export type WorkoutRoutine = z.infer<typeof workoutRoutineSchema>;
+export type WorkoutRoutineInsert = z.infer<typeof workoutRoutineInsertSchema>;
+export type WorkoutRoutineUpdate = z.infer<typeof workoutRoutineUpdateSchema>;
+export type SessionSet = z.infer<typeof sessionSetSchema>;
+export type SessionEntry = z.infer<typeof sessionEntrySchema>;
+export type WorkoutSession = z.infer<typeof workoutSessionSchema>;
+export type WorkoutSessionInsert = z.infer<typeof workoutSessionInsertSchema>;
+export type WorkoutSessionUpdate = z.infer<typeof workoutSessionUpdateSchema>;
+
+// ─── pomodoro_sessions ─────────────────────────────────────────────────────
+
+export const pomodoroPhaseEnum = z.enum(['work', 'short_break', 'long_break']);
+
+export const pomodoroSessionSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  phase: pomodoroPhaseEnum,
+  planned_duration_seconds: z.number().int().positive(),
+  actual_duration_seconds: z.number().int().nonnegative(),
+  completed: z.boolean().default(true),
+  started_at: z.string().datetime({ offset: true }),
+  ended_at: z.string().datetime({ offset: true }),
+});
+
+export const newPomodoroSessionSchema = pomodoroSessionSchema
+  .omit({ id: true, started_at: true, ended_at: true })
+  .extend({
+    completed: z.boolean().default(true).optional(),
+    started_at: z.string().datetime({ offset: true }).optional(),
+    ended_at: z.string().datetime({ offset: true }).optional(),
+  });
+
+// PascalCase aliases so callers can `import { PomodoroSessionSchema }` if
+// they prefer that style; the camelCase names above are the canonical form
+// matching the rest of this file.
+export const PomodoroSessionSchema = pomodoroSessionSchema;
+export const NewPomodoroSessionSchema = newPomodoroSessionSchema;
+
+export type PomodoroPhase = z.infer<typeof pomodoroPhaseEnum>;
+export type PomodoroSession = z.infer<typeof pomodoroSessionSchema>;
+export type NewPomodoroSession = z.infer<typeof newPomodoroSessionSchema>;

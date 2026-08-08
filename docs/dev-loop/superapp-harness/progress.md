@@ -476,3 +476,35 @@ All 14 tasks landed. Final state:
   1. **`/review`** — final PR-style review before commit. Would surface: 8 tasks in `needs-review` state (spec expects orchestrator judge to green-light each). This turn's judge run should sign off on task 14; the other 7 are already substantively done per their notes.
   2. **`/ship`** — commit + push + PR pipeline. Presumes the golden path was demoed end-to-end by the user with `stripe listen` running. Would land 9 commits total (8 pre-existing + this turn's task-14 commit).
   3. **Manual demo first** — the smart order: user opens a second terminal for `stripe listen`, runs `pnpm --filter @nothing/web e2e` to prove the golden path really works end-to-end, THEN `/ship`. Reasoning: task 14 is the acceptance test for the WHOLE harness; running it green is the true DoD, and no worker can prove it without user credentials + card.
+
+## Lab 01 — Gym Routine mini-app landed — 2026-08-08
+
+- **Slug:** `gym-routine` · **Icon:** `◈` · **Route:** `/app/gym-routine` · **Paid:** yes.
+- **Files shipped (17 new + 4 shared edits):**
+  - `apps/mini-apps/gym-routine/` — package.json, tsconfig.json, manifest.ts, page.tsx, lib/{api,format,ui}.ts, components/{AttributionFooter,BodyPartTabs,ExerciseCard,ExerciseGrid,RestTimer,SearchBar}.tsx, pages/{exercises,exercise-detail,routines,routine-editor,session,history}.tsx.
+  - `apps/web/src/app/api/mini-apps/gym-routine/` — `_lib.ts` (auth+entitlement gate helper) + 7 handlers: `exercises/route.ts`, `exercises/[id]/route.ts`, `routines/route.ts`, `routines/[id]/route.ts`, `sessions/route.ts`, `sessions/[id]/route.ts`, `sessions/live/route.ts`.
+  - `apps/web/src/app/app/gym-routine/` — 7 one-line re-export page files (multi-file segment-route approach, not catch-all).
+  - Shared edits (all coordinated with the pomodoro worker via `git diff` before touching): `packages/shared/src/schemas/index.ts` (+130 lines: Exercise, WorkoutRoutine, WorkoutSession schemas + insert/update variants), `packages/shared/src/types/index.ts` (added type re-exports), `apps/web/next.config.ts` (transpile), `apps/web/package.json` (workspace dep), `apps/web/tsconfig.json` (path aliases for the 6 sub-page entrypoints), `apps/web/src/lib/mini-apps/client-registry.ts` (dynamic loader).
+- **Sub-routing approach:** multi-file segment routes (per spec recommendation). Cleaner typedRoutes support than a catch-all — every URL is a plain Next segment and shows up in the build output individually. Trade-off: 7 tiny re-export files instead of one, but they are boring on purpose and mirror the calorie-lite pattern.
+- **Exercise GIF treatment:** wrapped the raw 180×180 anatomical linework in a rounded tinted plate (`background: var(--color-neutral-100)`, `border: 1px solid var(--color-border-visible)`, `border-radius: var(--radius-card)`, `object-fit: contain`). Tried `mix-blend-mode: screen` first — the anatomical outlines went ghostly and the muscle detail vanished, so the plate approach wins. The white bg becomes an intentional design element rather than an oops.
+- **Rest timer:** requestAnimationFrame + `Date.now() - runningSince` diff, NOT setInterval. Survives tab-sleep + wake with zero drift. Parent (session page) owns `restStartedAt` so the timer becomes lift-able later.
+- **Cross-tab live-session safety:** `sessionStorage['gym-routine.sessionId']` for optimistic resume + `GET /api/mini-apps/gym-routine/sessions/live` as the cross-device source of truth. `workout_sessions_live_idx` partial index keeps that check O(1).
+- **API design highlights:**
+  - `_lib.ts::requireEntitledUser()` — single helper that runs auth + entitlement gates. Every handler is 2 lines shorter; no route can accidentally forget the paywall.
+  - `POST /sessions` is idempotent — if a live session exists, it returns that one (200) instead of opening a second. Prevents the "double-tap Start" bug.
+  - `PATCH /sessions/[id]` accepts `{ end: true }` — server owns `ended_at = now()`; client cannot forge an `ended_at` value.
+  - Zod validation on every write body via schemas exported from `@nothing/shared`.
+- **Design token discipline:** hex-code grep across `apps/mini-apps/gym-routine/`, `apps/web/src/app/app/gym-routine/`, `apps/web/src/app/api/mini-apps/gym-routine/` → **0 matches**. Every color routes through a CSS var.
+- **DoD command results:**
+  - `pnpm install` — Done in 9.3s using pnpm v11.1.3, no new packages needed.
+  - `pnpm --filter @nothing/web typecheck` — **exit 0** (after one `next typegen` to regenerate the stale routes.d.ts so typedRoutes picked up the 7 new segments).
+  - `pnpm --filter @nothing/web build` — **exit 0**. Build output shows all 7 `/app/gym-routine*` routes + 7 `/api/mini-apps/gym-routine/*` handlers registered. Compiled in 6.6s, no warnings beyond the pre-existing typedRoutes deprecation notice.
+  - hex-code grep — **empty**.
+  - `psql … select id, name, body_part from exercises order by id limit 5` — returned 5 rows, first being `0001 | 3/4 sit-up | waist`. Migration 003 confirmed live.
+- **Escape hatches:**
+  1. **Stale `.next/types/routes.d.ts`.** typedRoutes generates a union of literal route strings; a fresh checkout with new segment routes will fail typecheck until Next regenerates. Fix is `pnpm exec next typegen`. Documented here rather than adding to the DoD because it's a one-time-per-topology thing and the harness's other typecheck runs will trigger it via `next dev`.
+  2. **`experimental.typedRoutes` deprecation.** Next 16 warns to move it to top-level `typedRoutes`. Not fixed here — pre-existing across the whole harness, would touch a file another worker just edited. Sweep in a follow-up.
+  3. **`@next/next/no-img-element` eslint-disable comments** in ExerciseCard + exercise-detail. Loading Gym Visual GIFs through `next/image` would need remotePatterns config for raw.githubusercontent.com AND would defeat the deliberate lazy-load-per-view pattern (we intentionally don't want the browse grid to prefetch 1,300+ gifs). Using plain `<img loading="lazy">` is the right call here.
+  4. **No cross-mini-app event kinds added.** The spec allows emitting on the shared bus, but there's no consumer yet — the copilot doesn't read gym context in v1. `useEvents()` is threaded through (`page.tsx`) with `void events` so a future addition doesn't need a refactor.
+- **Number of routes registered:** 7 new page routes (`/app/gym-routine`, `/exercises`, `/exercises/[id]`, `/routines`, `/routines/[id]`, `/session/[id]`, `/history`) + 7 new API route handlers.
+- **Coordination:** merged cleanly with pomodoro worker's edits to `packages/shared/src/types/index.ts`, `next.config.ts`, `package.json`, `client-registry.ts`, `tsconfig.json` — used Edit tool (never Write) so their entries stayed intact.

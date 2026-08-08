@@ -28,7 +28,17 @@
       "@nothing-mini-apps/calorie-lite/manifest": ["../mini-apps/calorie-lite/manifest.ts"],
       "@nothing-mini-apps/calorie-lite/page": ["../mini-apps/calorie-lite/page.tsx"],
       "@nothing-mini-apps/coming-soon/manifest": ["../mini-apps/coming-soon/manifest.ts"],
-      "@nothing-mini-apps/coming-soon/page": ["../mini-apps/coming-soon/page.tsx"]
+      "@nothing-mini-apps/coming-soon/page": ["../mini-apps/coming-soon/page.tsx"],
+      "@nothing-mini-apps/gym-routine/manifest": ["../mini-apps/gym-routine/manifest.ts"],
+      "@nothing-mini-apps/gym-routine/page": ["../mini-apps/gym-routine/page.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/exercises": ["../mini-apps/gym-routine/pages/exercises.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/exercise-detail": ["../mini-apps/gym-routine/pages/exercise-detail.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/routines": ["../mini-apps/gym-routine/pages/routines.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/routine-editor": ["../mini-apps/gym-routine/pages/routine-editor.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/session": ["../mini-apps/gym-routine/pages/session.tsx"],
+      "@nothing-mini-apps/gym-routine/pages/history": ["../mini-apps/gym-routine/pages/history.tsx"],
+      "@nothing-mini-apps/pomodoro/manifest": ["../mini-apps/pomodoro/manifest.ts"],
+      "@nothing-mini-apps/pomodoro/page": ["../mini-apps/pomodoro/page.tsx"]
     }
   },
   "include": [
