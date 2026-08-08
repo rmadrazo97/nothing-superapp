@@ -19,6 +19,10 @@ const APP_ROUTES = [
   '/app/settings',
   '/app/calorie-lite',
   '/app/coming-soon',
+  '/app/pomodoro',
+  '/app/gym-routine',
+  '/app/gym-routine/exercises',
+  '/app/gym-routine/routines',
   '/paywall', // paywall is also PROTECTED (must be signed in to see it)
 ];
 

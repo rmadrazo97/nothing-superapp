@@ -33,6 +33,18 @@ test('unentitled user is bounced off gated mini-apps but keeps assistant + setti
   await page.goto('/app/coming-soon', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/paywall$/);
 
+  // Gated: pomodoro (v0.2 mini-app, requiresSubscription: true)
+  await page.goto('/app/pomodoro', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/paywall$/);
+
+  // Gated: gym-routine (v0.2 mini-app, requiresSubscription: true) — and its subroutes
+  await page.goto('/app/gym-routine', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/paywall$/);
+  await page.goto('/app/gym-routine/exercises', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/paywall$/);
+  await page.goto('/app/gym-routine/routines', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/paywall$/);
+
   // /app grid is also entitlement-gated per the Proxy.
   await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/paywall$/);
