@@ -1,34 +1,40 @@
 'use client';
 
 /**
- * Calorie Lite — reference mini-app page.
+ * Calorie Lite — reference mini-app page (v2).
  *
- * Three states inside a single client component:
- *   1. TODAY   — running kcal total vs `preferences.daily_calorie_goal`, list
- *                of today's entries, "+ ADD MEAL" CTA.
- *   2. ADD     — inline form (meal name + kcal + optional serving size + meal
- *                slot). POSTs to `/api/mini-apps/calorie-lite/entries`, emits
- *                `calorie.entry.added` on the shared event bus.
- *   3. HISTORY — last 7 days, grouped by date, with each day's kcal vs goal.
+ * v2 changes over v1:
+ *   - TODAY: streak chip in the header, macro breakdown card under the kcal
+ *     card, per-entry macro line beneath each entry.
+ *   - ADD:   optional Protein / Carbs / Fat inputs beneath kcal. The API
+ *     schema already accepts these; v1 just didn't send them.
+ *   - HISTORY: 7-day sparkline at the top, streak line (best + current),
+ *     per-day macro totals in each row.
  *
- * All data flows through `/api/mini-apps/calorie-lite/entries` (auth-gated +
- * entitlement-gated in the route handler). This page NEVER talks to Supabase
- * directly — the shell already ensures a session exists (Proxy) and that the
- * caller is entitled (Proxy redirect + defence-in-depth 402 at the API).
+ * No schema changes, no new API endpoints. All calculation is pure and lives
+ * in `./lib/aggregate.ts` so it stays testable and reusable.
  *
- * Design constraints (see prompt):
+ * Design constraints (unchanged from v1):
  *   - Card: rgba(0,0,0,0.5) background, --color-border-visible outline,
  *     --radius-card, --space-4 inner padding.
  *   - Doto (`.display-xl`) for the daily total number.
  *   - Space Mono (`.data`) for entry times + kcal counts.
  *   - Space Grotesk (default body) for everything else.
- *   - Cadmium red (--color-accent) only for CTAs + progress bar fill.
+ *   - Cadmium red (--color-accent) only for CTAs, accent bars, streak dot.
  *   - No hex colors — tokens only.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEvents, usePreferences, useUser } from '@nothing/mini-apps-runtime';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
+import { MacroCard } from './components/MacroCard.tsx';
+import { StreakChip } from './components/StreakChip.tsx';
+import { Sparkline, type SparklineDay } from './components/Sparkline.tsx';
+import {
+  computeStreak,
+  dailyTotals,
+  toLocalDateKey,
+} from './lib/aggregate.ts';
 
 type View = 'today' | 'add' | 'history';
 
@@ -44,15 +50,6 @@ const MEAL_OPTIONS: { id: Meal; label: string }[] = [
 // "you're doing great" — 2000 kcal is a neutral default, not a prescription.
 const DEFAULT_DAILY_GOAL_KCAL = 2000;
 
-/** YYYY-MM-DD for the caller's local timezone (not UTC). */
-function toLocalDateKey(iso: string): string {
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 /** HH:MM for a timestamp — matches the Space Mono `.data` style. */
 function toLocalTime(iso: string): string {
   const d = new Date(iso);
@@ -66,6 +63,30 @@ function toDateLabel(dateKey: string): string {
   const weekday = dt.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
   const month = dt.toLocaleDateString(undefined, { month: 'short' }).toUpperCase();
   return `${weekday} · ${month} ${String(d).padStart(2, '0')}`;
+}
+
+/** Shift a local YYYY-MM-DD key by `deltaDays`, using local Date math. */
+function shiftDateKey(key: string, deltaDays: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + deltaDays);
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** 3-letter uppercase weekday for a YYYY-MM-DD (local). */
+function toWeekdayShort(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase().slice(0, 3);
+}
+
+/** Small helper so the per-entry macro line stays consistent everywhere. */
+function macroLine(p: number, c: number, f: number): string | null {
+  if (p === 0 && c === 0 && f === 0) return null;
+  return `${p}p / ${c}c / ${f}f`;
 }
 
 export default function CalorieLitePage() {
@@ -127,9 +148,17 @@ export default function CalorieLitePage() {
     [entries, todayKey],
   );
 
-  const todayTotal = useMemo(
-    () => todayEntries.reduce((sum, e) => sum + (e.kcal ?? 0), 0),
-    [todayEntries],
+  // One pass over all entries — reused by today totals, history, and streak.
+  const daily = useMemo(() => dailyTotals(entries ?? []), [entries]);
+  const todayBucket = daily[todayKey];
+  const todayTotal = todayBucket?.kcal ?? 0;
+  const todayProtein = todayBucket?.protein ?? 0;
+  const todayCarbs = todayBucket?.carbs ?? 0;
+  const todayFat = todayBucket?.fat ?? 0;
+
+  const streak = useMemo(
+    () => computeStreak(entries ?? [], todayKey),
+    [entries, todayKey],
   );
 
   const progressPct = Math.min(1, goalKcal > 0 ? todayTotal / goalKcal : 0);
@@ -145,7 +174,7 @@ export default function CalorieLitePage() {
         paddingBottom: 'var(--space-12)',
       }}
     >
-      <Header view={view} onChangeView={setView} />
+      <Header view={view} onChangeView={setView} streak={streak.current} />
 
       {loadError && (
         <div
@@ -170,6 +199,9 @@ export default function CalorieLitePage() {
           progress={progressPct}
           over={over}
           entries={todayEntries}
+          protein={todayProtein}
+          carbs={todayCarbs}
+          fat={todayFat}
           loading={entries === null}
           onAdd={() => setView('add')}
         />
@@ -190,8 +222,12 @@ export default function CalorieLitePage() {
       {view === 'history' && (
         <HistoryView
           entries={entries ?? []}
+          daily={daily}
+          todayKey={todayKey}
           goal={goalKcal}
           goalIsExplicit={goalIsExplicit}
+          streakCurrent={streak.current}
+          streakBest={streak.best}
           loading={entries === null}
         />
       )}
@@ -201,10 +237,28 @@ export default function CalorieLitePage() {
 
 // ─── Header + tabs ──────────────────────────────────────────────────────────
 
-function Header({ view, onChangeView }: { view: View; onChangeView: (v: View) => void }) {
+function Header({
+  view,
+  onChangeView,
+  streak,
+}: {
+  view: View;
+  onChangeView: (v: View) => void;
+  streak: number;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <span className="label">CALORIE LITE</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <span className="label">CALORIE LITE</span>
+        <StreakChip current={streak} />
+      </div>
       <div
         role="tablist"
         aria-label="Calorie views"
@@ -269,6 +323,9 @@ function TodayView({
   progress,
   over,
   entries,
+  protein,
+  carbs,
+  fat,
   loading,
   onAdd,
 }: {
@@ -278,6 +335,9 @@ function TodayView({
   progress: number;
   over: boolean;
   entries: CalorieEntry[];
+  protein: number;
+  carbs: number;
+  fat: number;
   loading: boolean;
   onAdd: () => void;
 }) {
@@ -290,6 +350,8 @@ function TodayView({
         progress={progress}
         over={over}
       />
+
+      <MacroCard protein={protein} carbs={carbs} fat={fat} />
 
       <button
         type="button"
@@ -450,54 +512,79 @@ function EntryList({ entries }: { entries: CalorieEntry[] }) {
         flexDirection: 'column',
       }}
     >
-      {sorted.map((e) => (
-        <li
-          key={e.id}
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 'var(--space-4)',
-            padding: 'var(--space-4) 0',
-            borderBottom: '1px solid var(--color-border)',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
-            <span
-              style={{
-                color: 'var(--color-text-primary)',
-                fontSize: 'var(--text-body)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {e.raw_input || mealLabel(e.meal)}
-            </span>
-            <span
-              className="data"
-              style={{
-                color: 'var(--color-text-disabled)',
-                fontSize: 'var(--text-caption)',
-                letterSpacing: '0.06em',
-              }}
-            >
-              {toLocalTime(e.entered_at)} · {mealLabel(e.meal).toUpperCase()}
-            </span>
-          </div>
-          <span
-            className="data"
+      {sorted.map((e) => {
+        const macros = macroLine(e.protein_g ?? 0, e.carbs_g ?? 0, e.fat_g ?? 0);
+        return (
+          <li
+            key={e.id}
             style={{
-              color: 'var(--color-text-display)',
-              fontSize: 'var(--text-body)',
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 'var(--space-4)',
+              padding: 'var(--space-4) 0',
+              borderBottom: '1px solid var(--color-border)',
             }}
           >
-            {e.kcal.toLocaleString()}
-          </span>
-        </li>
-      ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
+              <span
+                style={{
+                  color: 'var(--color-text-primary)',
+                  fontSize: 'var(--text-body)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {e.raw_input || mealLabel(e.meal)}
+              </span>
+              <span
+                className="data"
+                style={{
+                  color: 'var(--color-text-disabled)',
+                  fontSize: 'var(--text-caption)',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {toLocalTime(e.entered_at)} · {mealLabel(e.meal).toUpperCase()}
+              </span>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: 'var(--space-1)',
+              }}
+            >
+              <span
+                className="data"
+                style={{
+                  color: 'var(--color-text-display)',
+                  fontSize: 'var(--text-body)',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {e.kcal.toLocaleString()}
+              </span>
+              {macros && (
+                <span
+                  className="data"
+                  style={{
+                    color: 'var(--color-text-disabled)',
+                    fontSize: 'var(--text-caption)',
+                    letterSpacing: '0.04em',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {macros}
+                </span>
+              )}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -521,6 +608,9 @@ function AddView({
   const [kcal, setKcal] = useState('');
   const [servingSize, setServingSize] = useState('');
   const [meal, setMeal] = useState<Meal>('lunch');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -531,6 +621,18 @@ function AddView({
 
   const canSubmit = kcal.trim() !== '' && Number(kcal) >= 0 && !saving;
 
+  /**
+   * Turn a text input into an integer gram count for a macro field.
+   * Empty string → omit the field (API defaults to 0). Non-numeric or
+   * negative → treat as 0, matching server-side clamping.
+   */
+  function macroOrUndefined(raw: string): number | undefined {
+    const trimmed = raw.trim();
+    if (trimmed === '') return undefined;
+    const n = Math.max(0, Math.round(Number(trimmed)));
+    return Number.isFinite(n) ? n : undefined;
+  }
+
   async function submit(evt: React.FormEvent) {
     evt.preventDefault();
     if (!canSubmit) return;
@@ -538,6 +640,9 @@ function AddView({
     setError(null);
     try {
       const rawInputParts = [mealName.trim(), servingSize.trim()].filter(Boolean);
+      const proteinN = macroOrUndefined(protein);
+      const carbsN = macroOrUndefined(carbs);
+      const fatN = macroOrUndefined(fat);
       const res = await fetch('/api/mini-apps/calorie-lite/entries', {
         method: 'POST',
         credentials: 'same-origin',
@@ -546,6 +651,9 @@ function AddView({
           meal,
           kcal: Number(kcal),
           raw_input: rawInputParts.length ? rawInputParts.join(' · ') : null,
+          ...(proteinN !== undefined ? { protein_g: proteinN } : {}),
+          ...(carbsN !== undefined ? { carbs_g: carbsN } : {}),
+          ...(fatN !== undefined ? { fat_g: fatN } : {}),
         }),
       });
       if (!res.ok) {
@@ -611,6 +719,38 @@ function AddView({
           required
         />
       </label>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+          MACROS — OPTIONAL
+        </span>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <MacroInput
+            label="PROTEIN (G)"
+            value={protein}
+            onChange={setProtein}
+            id="cl-macro-protein"
+          />
+          <MacroInput
+            label="CARBS (G)"
+            value={carbs}
+            onChange={setCarbs}
+            id="cl-macro-carbs"
+          />
+          <MacroInput
+            label="FAT (G)"
+            value={fat}
+            onChange={setFat}
+            id="cl-macro-fat"
+          />
+        </div>
+      </div>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>SERVING SIZE (OPTIONAL)</span>
@@ -704,19 +844,76 @@ function AddView({
   );
 }
 
+function MacroInput({
+  label,
+  value,
+  onChange,
+  id,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  id: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+    >
+      <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+        {label}
+      </span>
+      <input
+        id={id}
+        className="input"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0"
+      />
+    </label>
+  );
+}
+
 // ─── History view ───────────────────────────────────────────────────────────
 
 function HistoryView({
   entries,
+  daily,
+  todayKey,
   goal,
   goalIsExplicit,
+  streakCurrent,
+  streakBest,
   loading,
 }: {
   entries: CalorieEntry[];
+  daily: Record<string, { kcal: number; protein: number; carbs: number; fat: number; entries: number }>;
+  todayKey: string;
   goal: number;
   goalIsExplicit: boolean;
+  streakCurrent: number;
+  streakBest: number;
   loading: boolean;
 }) {
+  // Build the 7-day window ending today (oldest first for the sparkline).
+  const sparklineDays: SparklineDay[] = useMemo(() => {
+    const out: SparklineDay[] = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const key = shiftDateKey(todayKey, -i);
+      const kcal = daily[key]?.kcal ?? 0;
+      out.push({
+        key,
+        kcal,
+        weekday: toWeekdayShort(key),
+        active: kcal > 0,
+      });
+    }
+    return out;
+  }, [daily, todayKey]);
+
   const byDay = useMemo(() => {
     const map = new Map<string, CalorieEntry[]>();
     for (const e of entries) {
@@ -733,98 +930,154 @@ function HistoryView({
     return <p className="caption">Loading…</p>;
   }
 
-  if (byDay.length === 0) {
-    return (
-      <p style={{ color: 'var(--color-text-secondary)' }}>
-        No history yet. Log a meal to start tracking.
-      </p>
-    );
-  }
-
   return (
-    <ul
-      style={{
-        listStyle: 'none',
-        margin: 0,
-        padding: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
-      }}
-    >
-      {byDay.map(([dateKey, dayEntries]) => {
-        const total = dayEntries.reduce((s, e) => s + (e.kcal ?? 0), 0);
-        const pct = Math.min(1, goal > 0 ? total / goal : 0);
-        const over = goalIsExplicit && total > goal;
-        return (
-          <li
-            key={dateKey}
-            style={{
-              background: 'rgba(0, 0, 0, 0.5)',
-              border: '1px solid var(--color-border-visible)',
-              borderRadius: 'var(--radius-card)',
-              padding: 'var(--space-4)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-3)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'baseline',
-                gap: 'var(--space-3)',
-              }}
-            >
-              <span className="label">{toDateLabel(dateKey)}</span>
-              <span
-                className="data"
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+      <section
+        aria-label="Last 7 days"
+        style={{
+          background: 'rgba(0, 0, 0, 0.5)',
+          border: '1px solid var(--color-border-visible)',
+          borderRadius: 'var(--radius-card)',
+          padding: 'var(--space-4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <span className="label">LAST 7 DAYS</span>
+        <Sparkline days={sparklineDays} goal={goalIsExplicit ? goal : null} />
+        <span
+          className="data"
+          style={{
+            color: 'var(--color-text-secondary)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.06em',
+          }}
+        >
+          BEST: {streakBest}D · CURRENT: {streakCurrent}D
+        </span>
+      </section>
+
+      {byDay.length === 0 ? (
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          No history yet. Log a meal to start tracking.
+        </p>
+      ) : (
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+          }}
+        >
+          {byDay.map(([dateKey, dayEntries]) => {
+            const bucket = daily[dateKey] ?? {
+              kcal: 0,
+              protein: 0,
+              carbs: 0,
+              fat: 0,
+              entries: dayEntries.length,
+            };
+            const total = bucket.kcal;
+            const pct = Math.min(1, goal > 0 ? total / goal : 0);
+            const over = goalIsExplicit && total > goal;
+            const macros = macroLine(bucket.protein, bucket.carbs, bucket.fat);
+            return (
+              <li
+                key={dateKey}
                 style={{
-                  color: 'var(--color-text-display)',
-                  fontSize: 'var(--text-body)',
-                  fontWeight: 700,
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid var(--color-border-visible)',
+                  borderRadius: 'var(--radius-card)',
+                  padding: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-3)',
                 }}
               >
-                {total.toLocaleString()}
-                <span
-                  className="label"
-                  style={{ color: 'var(--color-text-secondary)', marginLeft: 'var(--space-2)' }}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    gap: 'var(--space-3)',
+                  }}
                 >
-                  / {goal.toLocaleString()}
-                </span>
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-valuenow={Math.round(pct * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Progress for ${toDateLabel(dateKey)}`}
-              style={{
-                position: 'relative',
-                height: 4,
-                background: 'var(--color-border)',
-                borderRadius: 2,
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: `${Math.round(pct * 100)}%`,
-                  background: 'var(--color-accent)',
-                }}
-              />
-            </div>
-            <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-              {dayEntries.length} {dayEntries.length === 1 ? 'entry' : 'entries'}
-              {over ? ' · over goal' : ''}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+                  <span className="label">{toDateLabel(dateKey)}</span>
+                  <span
+                    className="data"
+                    style={{
+                      color: 'var(--color-text-display)',
+                      fontSize: 'var(--text-body)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {total.toLocaleString()}
+                    <span
+                      className="label"
+                      style={{ color: 'var(--color-text-secondary)', marginLeft: 'var(--space-2)' }}
+                    >
+                      / {goal.toLocaleString()}
+                    </span>
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-valuenow={Math.round(pct * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`Progress for ${toDateLabel(dateKey)}`}
+                  style={{
+                    position: 'relative',
+                    height: 4,
+                    background: 'var(--color-border)',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: `${Math.round(pct * 100)}%`,
+                      background: 'var(--color-accent)',
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    gap: 'var(--space-3)',
+                  }}
+                >
+                  <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+                    {dayEntries.length} {dayEntries.length === 1 ? 'entry' : 'entries'}
+                    {over ? ' · over goal' : ''}
+                  </span>
+                  {macros && (
+                    <span
+                      className="data"
+                      style={{
+                        color: 'var(--color-text-disabled)',
+                        fontSize: 'var(--text-caption)',
+                        letterSpacing: '0.04em',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {macros}
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
