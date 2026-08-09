@@ -14,6 +14,11 @@ export * from './meal-plan.ts';
 // deriveThreadTitle() + all types.
 export * from './copilot-thread.ts';
 
+// reminders + agent-loop reminders (migration 017 — see ./reminders.ts).
+// Re-exports include: reminderSchema, reminderInsertSchema,
+// reminderUpdateSchema, reminderRunSchema, agentTaskSchema + all enums + types.
+export * from './reminders.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([
@@ -83,7 +88,7 @@ export const goalDirectionEnum = z.enum(['lose', 'maintain', 'gain']);
 // v0.3.2 (Web Push) — allow-list of broadcast topics the user opts into.
 // Kept as a plain string enum so DB text[] round-trips cleanly. New topics
 // should be added here first so type-narrowing keeps API validation honest.
-export const pushTopicEnum = z.enum(['releases', 'insights']);
+export const pushTopicEnum = z.enum(['releases', 'insights', 'reminders']);
 
 export const preferencesSchema = z.object({
   user_id: z.string().uuid(),
