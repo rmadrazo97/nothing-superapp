@@ -94,3 +94,33 @@ Angle worth posting:
 
 **Angle:** "The credential-scan taught me my paranoia was wrong. Actual leak surface = 1 password. Everything else was in `.gitignore` the whole time." Screenshot the before/after grep counts. Post as a "don't panic, audit first" story.
 
+
+## 2026-08-09 11:26 — CI iteration to green
+
+Four consecutive CI runs failed as I learned what GitHub Actions differs from local dev on:
+1. **pnpm version conflict** — `pnpm/action-setup@v4` doesn't like both `version: 11` input and `packageManager@11.1.3` in package.json. Dropped the input.
+2. **Missing next devDep on gym-routine** — locally pnpm hoisted next from apps/web; on CI with frozen-lockfile the resolution is stricter. Added `next` as devDep + peerDep on the gym-routine mini-app package.
+3. **`new URL(process.env.NEXT_PUBLIC_APP_URL)`** crashed static-page generation on CI when the env was blank/mis-quoted. Wrapped in `safeAppUrl()` with try/catch fallback to localhost.
+4. **Stripe + Kimi factories throwing at import time** — `next build` walks route handlers to collect page data, so a throw at module load fails the whole build even when server-only envs aren't needed at build. Refactored both to lazy Proxy-backed singletons — env only read on first property access.
+5. **`next dev` in Playwright's webServer got no env** — CI's env passthrough doesn't cross the pnpm→playwright→pnpm-dev subprocess chain. Explicit `env:` block on webServer forwards every var.
+
+**Skill used:** `/security-review` — no high-confidence findings on the reviewed surfaces (auth, RLS, webhook, copilot, mini-app APIs, proxy, CI workflow). Codebase safe for first public release.
+
+Angle: "5 CI fights, each one taught me something about the env-passthrough chain that dev-loop hid" — the CI-specific edge cases turn into permanent hardening. Good post-mortem material.
+
+## 2026-08-09 11:47 — CI green
+
+Root cause of the length=1 failures: `printf "%s" "$value" | gh secret set --body -` was silently writing garbage under certain conditions. Switched to `gh secret set --env-file $tmpfile` with a proper dotenv-formatted temp file. Length diag confirmed the fix (208 chars anon, 219 chars service_role) — 14/14 e2e specs green in 41s.
+
+**Total CI iteration debt for this go-live: 6 red runs → 1 green.** Each red run taught something specific about local↔CI divergence:
+1. pnpm double-version (input + packageManager) → drop the input
+2. gym-routine missing `next` as declared dep → add devDep + peerDep
+3. `new URL(NEXT_PUBLIC_APP_URL)` at module load → wrap in safeAppUrl try/catch
+4. Stripe + Kimi factories throwing at import → lazy Proxy singletons
+5. `next dev` inside playwright.webServer got no env → explicit env passthrough in config
+6. `gh secret set --body -` stdin pipe malformed values → `--env-file` bulk update
+
+**Skill used:** `/security-review` returned no high-confidence findings on the reviewed surfaces.
+
+Nothing Superapp is now a **public open-source project on GitHub with green CI**. github.com/rmadrazo97/nothing-superapp.
+
