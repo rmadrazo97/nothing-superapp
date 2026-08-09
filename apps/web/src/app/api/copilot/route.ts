@@ -1,49 +1,62 @@
 /**
- * POST /api/copilot — Kimi K2 streaming chat endpoint.
+ * POST /api/copilot — Vercel AI SDK v5 streamed chat with tool-calling.
  *
- * Read-only across the user's mini-app data. This endpoint MUST NOT write
- * anything to the database (spec §3). It:
- *   1. resolves the session via `@supabase/ssr` server client,
- *   2. assembles a compact JSON context from profiles + preferences + last-20
- *      calorie entries + last-20 events (all scoped to the user),
- *   3. prepends a system prompt that pins read-only + no-fabrication rules,
- *   4. streams the Kimi response as Server-Sent Events.
+ * The copilot went from a read-only chat to a tool-calling agent (v0.4).
+ * It can now:
+ *   - search foods (search_foods) + tell you today's totals (get_daily_summary)
+ *   - log a meal / water / weight on your behalf (log_*)
+ *   - fire a "start pomodoro" action-intent (start_pomodoro)
+ *   - read your gym history + calorie streak (get_gym_history, get_streak)
  *
- * SSE frame formats emitted:
- *   data: {"delta": "..."}\n\n       — visible assistant token
- *   data: {"reasoning": "..."}\n\n   — Kimi K2 thinking token (UI may hide)
- *   data: {"error": "..."}\n\n       — recoverable error, stream still closes
- *   data: [DONE]\n\n                 — terminator (mirrors OpenAI's convention)
+ * Every request is:
+ *   1. AUTH gated  — Supabase session cookie (401 if none)
+ *   2. RATE limited — 30 chat calls/user/hour (429)
+ *   3. Bounded to <= MAX_MESSAGES so a caller can't blow up context / cost
  *
- * Next.js 16 route handler: we return a `Response` wrapping a `ReadableStream`
- * (see node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md#streaming).
- * We do NOT use the Vercel AI SDK here — we're one hop from raw Moonshot SSE
- * and rolling our own keeps the wire format transparent for task 13's UI.
+ * Write tools carry a SECOND rate-limit budget (10 writes/user/hour, see
+ * lib/ai/tools/_gate.ts) so a runaway agent loop can't fill the DB.
+ *
+ * Provider config lives in `lib/ai/provider.ts` — one switch case away from
+ * OpenRouter or a fallback provider.
  */
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { createClient } from '@/lib/supabase/server';
-import { kimi, KIMI_MODEL } from '@/lib/kimi/client';
+import { chatModel } from '@/lib/ai/provider';
+import { copilotTools } from '@/lib/ai/tools';
 import { assembleUserContext } from '@/lib/kimi/context';
 import { limitPerKey } from '@/lib/rate-limit';
 
-// Force dynamic — this handler is always request-scoped (auth + streaming).
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const MAX_MESSAGES = 20;
-// Per-user cap. Kimi K2 with reasoning tokens = ~$0.01–0.05 per call at v0.2
-// context sizes. 30/hour ≈ $1.50 worst case per user per hour — hard cap
-// against the $1/mo revenue per user before we're upside-down on inference.
+// 30 chat calls/user/hour. Reasoning-model calls at ~$0.01–0.05 apiece — this
+// hard-caps at ~$1.50/user/hour, well below the $1/mo revenue floor.
 const COPILOT_LIMIT_PER_HOUR = 30;
 const HOUR_MS = 60 * 60 * 1000;
+// Agent loop cap. 5 steps is enough for "search_foods → log_calorie_entry →
+// summarise" with a small buffer, tight enough that a runaway loop terminates.
+const MAX_AGENT_STEPS = 5;
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
-
-function sseFrame(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`;
-}
-
-function sseDone(): string {
-  return 'data: [DONE]\n\n';
-}
+const SYSTEM_PROMPT = [
+  "You are Nothing Superapp's copilot. You can search the user's data, log",
+  'new entries, and start actions on their behalf via the tools provided.',
+  '',
+  'Rules:',
+  "1. When the user's request implies logging (e.g. \"I ate two eggs\"), CALL",
+  "   the appropriate tool — don't just describe what you would log.",
+  '2. Cite the mini-app in your response ("Logged to Calorie Lite · 156 kcal").',
+  "3. Never fabricate a value. If a food isn't in search_foods results, ask",
+  '   the user for kcal/macros before logging a custom entry.',
+  '4. Prefer one tool call per turn unless the user explicitly batches.',
+  '5. Confirm irreversible actions (delete_*) before calling — v1 has no',
+  '   delete tools so this is future-proofing.',
+  '6. If a tool returns { ok: false, error }, tell the user plainly what',
+  '   failed and suggest a fix.',
+  '',
+  'Cross-mini-app context (JSON, read-only, snapshot at request time) follows:',
+  '--- USER CONTEXT ---',
+].join('\n');
 
 export async function POST(request: Request) {
   // 1. Auth.
@@ -58,7 +71,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // 2. Rate limit per user (defence against runaway inference costs).
+  // 2. Rate limit per user (route-entry gate — the write-tool gate is separate).
   const gate = limitPerKey(`copilot:${user.id}`, COPILOT_LIMIT_PER_HOUR, HOUR_MS);
   if (!gate.ok) {
     return new Response(
@@ -74,121 +87,46 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Parse + validate body.
-  let body: { messages?: ChatMessage[] };
+  // 3. Parse + validate body. `useChat()` posts { messages: UIMessage[] }.
+  let body: { messages?: UIMessage[] };
   try {
-    body = (await request.json()) as { messages?: ChatMessage[] };
+    body = (await request.json()) as { messages?: UIMessage[] };
   } catch {
     return new Response(JSON.stringify({ error: 'invalid_json' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  if (messages.length === 0) {
+  const uiMessages = Array.isArray(body.messages) ? body.messages : [];
+  if (uiMessages.length === 0) {
     return new Response(JSON.stringify({ error: 'messages_required' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
-  if (messages.length > MAX_MESSAGES) {
+  if (uiMessages.length > MAX_MESSAGES) {
     return new Response(
       JSON.stringify({ error: 'too_many_messages', max: MAX_MESSAGES }),
       { status: 400, headers: { 'Content-Type': 'application/json' } },
     );
   }
-  // Shape check on each item.
-  for (const m of messages) {
-    if (
-      !m ||
-      (m.role !== 'user' && m.role !== 'assistant') ||
-      typeof m.content !== 'string'
-    ) {
-      return new Response(
-        JSON.stringify({ error: 'invalid_message_shape' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-  }
 
-  // 4. Assemble cross-mini-app context (read-only).
+  // 4. Assemble cross-mini-app context (still useful for one-shot Q&A that
+  //    doesn't warrant a tool call). Attached to the system prompt.
   const { context } = await assembleUserContext(user.id, supabase);
+  const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---`;
 
-  const systemPrompt = [
-    "You are Nothing Superapp's copilot. You have read-only access to the",
-    "user's data across every mini-app they use, provided as JSON below.",
-    '',
-    'Mini-apps and their data keys:',
-    '  • calorie_lite.recent_entries        — nutrition log (kcal + macros)',
-    '  • gym_routine.recent_sessions        — completed / live workouts',
-    '  • gym_routine.saved_routines         — user\'s workout templates',
-    '  • pomodoro.summary                   — focus stats (today + last 7 days)',
-    '  • pomodoro.recent_sessions           — last 3 pomodoro cycles',
-    '  • profile / preferences              — display name, calorie goal, theme',
-    '',
-    'How to answer:',
-    '  1. When you cite data, name the mini-app it came from and the numeric',
-    '     value (e.g. "you logged 1,340 kcal in calorie_lite today").',
-    '  2. Prefer synthesis across mini-apps (e.g. calorie deficit + heavy',
-    '     leg workout yesterday → suggest tomorrow\'s intensity accordingly).',
-    '  3. If the relevant data key is empty or missing, say so honestly.',
-    '     Never fabricate a number or invent an entry.',
-    '  4. Never claim to have taken action on the user\'s behalf — you cannot',
-    '     write to any table.',
-    '  5. Never suggest external URLs, apps, or file paths.',
-    '',
-    '--- USER CONTEXT (JSON) ---',
-    context,
-    '--- END CONTEXT ---',
-  ].join('\n');
-
-  // 5. Kick off the upstream stream.
-  //    We intentionally construct the ReadableStream ourselves so we can
-  //    normalize Moonshot's `reasoning_content` deltas alongside `content`.
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        const upstream = await kimi.chat.completions.create({
-          model: KIMI_MODEL,
-          stream: true,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        });
-
-        for await (const chunk of upstream) {
-          const delta = chunk.choices?.[0]?.delta as
-            | { content?: string | null; reasoning_content?: string | null }
-            | undefined;
-          if (!delta) continue;
-          if (delta.content) {
-            controller.enqueue(encoder.encode(sseFrame({ delta: delta.content })));
-          }
-          if (delta.reasoning_content) {
-            controller.enqueue(
-              encoder.encode(sseFrame({ reasoning: delta.reasoning_content })),
-            );
-          }
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'copilot_upstream_error';
-        controller.enqueue(encoder.encode(sseFrame({ error: message })));
-      } finally {
-        controller.enqueue(encoder.encode(sseDone()));
-        controller.close();
-      }
-    },
+  // 5. Kick off the streamed generation. Tools + step cap keep the agent
+  //    bounded; UIMessageStream shape is what `useChat()` on the client
+  //    knows how to parse.
+  const modelMessages = await convertToModelMessages(uiMessages);
+  const result = streamText({
+    model: chatModel(),
+    system,
+    messages: modelMessages,
+    tools: copilotTools(user.id, supabase),
+    stopWhen: stepCountIs(MAX_AGENT_STEPS),
   });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  return result.toUIMessageStreamResponse();
 }
