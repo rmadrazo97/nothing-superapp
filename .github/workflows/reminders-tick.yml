@@ -1,0 +1,34 @@
+name: reminders-tick
+
+# Vercel Hobby caps cron jobs at daily resolution. We need every-5-minutes
+# for reminders to feel responsive, so we run the tick from GitHub Actions
+# instead — free, external, no plan constraints.
+#
+# Requires GitHub secret `CRON_SECRET` matching the same env var in Vercel
+# (production, preview, development). The tick handler verifies via
+# `authorization: Bearer <secret>`.
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub Actions cron drift can be up to ~10min under
+    # heavy load — that's fine for reminders (worst case a reminder fires
+    # ~10min late). If we ever need tighter SLAs, upgrade Vercel to Pro
+    # and re-enable the vercel.json cron.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire tick
+        run: |
+          set -eu
+          code=$(curl -s -o /tmp/tick.out -w "%{http_code}" \
+            -X POST \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "content-type: application/json" \
+            https://nothing-superapp.vercel.app/api/reminders/tick)
+          echo "status=${code}"
+          cat /tmp/tick.out
+          test "${code}" = "200"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && pnpm --filter @nothing/web build",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile=false",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/reminders/tick",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
