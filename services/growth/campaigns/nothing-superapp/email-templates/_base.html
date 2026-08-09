@@ -1,0 +1,99 @@
+<!--
+  Nothing Superapp — base auth email template.
+
+  Constraints (email clients are worse than browsers):
+  - No CSS variables (Outlook / older Gmail eat them).
+  - Table-based layout for the container to survive every renderer.
+  - Web fonts loaded via <link>, with system-font fallback in the stack.
+  - Dark theme by default (matches the app); prefers-color-scheme detection
+    is unreliable across clients — we lock to dark and let it look great
+    everywhere.
+  - Cadmium red (#D71921) accent only on the CTA + the ● brand mark.
+  - Line length capped at 560px so it reads well in a preview pane.
+
+  Slots (search-and-replace when instantiating):
+    {{HEADING}}     Bold Doto headline. 2–4 words. UPPERCASE if you want the
+                    "instrument panel" tone; sentence case for warmer copy.
+    {{BODY}}        1–3 short paragraphs in Space Grotesk. Wrap in <p>.
+    {{CTA_LABEL}}   Button copy. UPPERCASE Space Mono, action verb + object.
+    {{CTA_URL}}     Full URL — typically `{{ .ConfirmationURL }}`.
+    {{POSTSCRIPT}}  Optional muted paragraph under the button. Use for
+                    "didn't request this?" copy, expiry timing, etc. Blank if
+                    you don't need it.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="supported-color-schemes" content="dark" />
+  <title>Nothing Superapp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Space+Grotesk:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; display: block; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+
+    /* Layout */
+    body { background-color: #000000; color: #E8E8E8; font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .wrap { width: 100%; background-color: #000000; padding: 32px 16px; }
+    .card { width: 100%; max-width: 560px; margin: 0 auto; background-color: #111111; border: 1px solid #333333; border-radius: 14px; padding: 32px; }
+    .brand { font-family: 'Doto', 'Space Mono', 'Courier New', monospace; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFFFFF; margin: 0 0 32px 0; }
+    .brand .dot { color: #D71921; }
+    .headline { font-family: 'Doto', 'Space Mono', 'Courier New', monospace; font-weight: 900; font-size: 40px; line-height: 1.05; letter-spacing: -0.02em; color: #FFFFFF; margin: 0 0 20px 0; }
+    .body-copy { font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 16px; line-height: 1.55; color: #E8E8E8; margin: 0 0 16px 0; }
+    .body-copy a { color: #D71921; text-decoration: underline; }
+    .cta-wrap { text-align: left; margin: 28px 0 8px 0; }
+    .cta { display: inline-block; background-color: #D71921; color: #FFFFFF !important; font-family: 'Space Mono', 'Courier New', monospace; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; padding: 14px 24px; border-radius: 999px; mso-padding-alt: 0; }
+    .cta:hover { background-color: #E82530; }
+    .postscript { font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.55; color: #999999; margin: 24px 0 0 0; padding-top: 20px; border-top: 1px solid #222222; }
+    .postscript a { color: #999999; }
+    .footer { max-width: 560px; margin: 24px auto 0 auto; text-align: center; }
+    .footer-text { font-family: 'Space Mono', 'Courier New', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #666666; margin: 0; }
+    .footer-text a { color: #666666; text-decoration: underline; }
+
+    /* Outlook-only shim so button background renders */
+    .cta[href] { background-color: #D71921 !important; }
+  </style>
+  <!--[if mso]>
+  <style>
+    .brand, .headline { font-family: 'Courier New', monospace !important; }
+    .body-copy { font-family: Arial, sans-serif !important; }
+    .cta { font-family: 'Courier New', monospace !important; }
+  </style>
+  <![endif]-->
+</head>
+<body>
+  <table role="presentation" class="wrap" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+      <td align="center">
+        <table role="presentation" class="card" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 560px;">
+          <tr>
+            <td>
+              <p class="brand">NOTHING SUPERAPP <span class="dot">●</span></p>
+              <h1 class="headline">{{HEADING}}</h1>
+              {{BODY}}
+              <div class="cta-wrap">
+                <a class="cta" href="{{CTA_URL}}" target="_blank" rel="noopener">{{CTA_LABEL}}</a>
+              </div>
+              {{POSTSCRIPT}}
+            </td>
+          </tr>
+        </table>
+        <div class="footer">
+          <p class="footer-text">
+            One app. One subscription. Everything.<br>
+            <a href="https://nothing-superapp.vercel.app/legal/privacy">Privacy</a>
+            &nbsp;&middot;&nbsp;
+            <a href="https://nothing-superapp.vercel.app/legal/terms">Terms</a>
+          </p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
