@@ -29,9 +29,13 @@ import { useEntitlement } from '@/lib/hooks/use-entitlement';
 // horizontal-padding token.
 const tileInnerPadding = 'var(--space-4)';
 
+// Locked to 2 columns on every viewport width. `minmax(0, 1fr)` lets tiles
+// shrink below their intrinsic min so the grid never wraps to a single
+// column on narrow iPhone widths (which the previous `minmax(140px, 1fr)`
+// was doing once safe-area insets ate into the horizontal space).
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
   gap: 'var(--space-4)',
   width: '100%',
 };
