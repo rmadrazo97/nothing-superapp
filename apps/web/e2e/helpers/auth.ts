@@ -37,6 +37,21 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
   );
 }
 
+// One-shot diagnostic — helps tell "wrong key" from "expired key" from
+// "empty env" when CI barks "Invalid API key". Not sensitive: we only
+// log the header segment of a JWT which is `{"alg":"HS256","typ":"JWT"}`
+// base64 and role-agnostic; the role itself sits in the payload segment.
+{
+  const [header, payload] = (SUPABASE_SERVICE_ROLE_KEY || '').split('.');
+  let role = 'unknown';
+  try {
+    if (payload) role = JSON.parse(Buffer.from(payload, 'base64').toString()).role ?? 'unknown';
+  } catch { /* leave as unknown */ }
+  const anonLen = (SUPABASE_ANON_KEY || '').length;
+  const svcLen = (SUPABASE_SERVICE_ROLE_KEY || '').length;
+  console.log(`[e2e] key diag: URL=${SUPABASE_URL} anon.len=${anonLen} svc.len=${svcLen} svc.role=${role} header=${(header || '').slice(0, 8)}`);
+}
+
 /** Extracted from the URL — used to build the cookie name. */
 const PROJECT_REF = new URL(SUPABASE_URL).host.split('.')[0];
 const COOKIE_NAME = `sb-${PROJECT_REF}-auth-token`;
