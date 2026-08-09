@@ -37,3 +37,6 @@ test-results/
 supabase/.temp/
 .vercel
 .env*
+
+# USDA raw download cache (multi-MB CSVs)
+.cache/
