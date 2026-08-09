@@ -4,12 +4,18 @@
  * FoodSearch — the SEARCH FOOD tab in the Add Meal flow.
  *
  * Flow:
- *   1. User types → debounced fetch to `/api/mini-apps/calorie-lite/foods`
+ *   1. On mount: fetch `/favorites` + `/recent-foods` in parallel. When the
+ *      search box is empty, render both as horizontal chip rows ABOVE the
+ *      category chips so a returning user's most-used foods are one tap away
+ *      (MFP-parity — this is why people log 12 weeks in a row instead of 3).
+ *   2. User types → debounced fetch to `/api/mini-apps/calorie-lite/foods`
  *      (with `include_custom=1` so their own customs surface alongside the
  *      shared catalog).
- *   2. Results list renders name + brand + macro preview + kcal badge.
- *   3. Tapping a row opens the quantity picker (default 1 serving).
- *   4. "Add" computes scaled nutrition via `computeEntryNutrition` and POSTs
+ *   3. Results list renders name + brand + macro preview + kcal badge + a
+ *      star toggle. Star cadmium when favorited, muted outline otherwise.
+ *   4. Tapping a row (search result, favorite chip, or recent chip) opens
+ *      the same quantity picker (default 1 serving).
+ *   5. "Add" computes scaled nutrition via `computeEntryNutrition` and POSTs
  *      to `/api/mini-apps/calorie-lite/entries` with `food_id` (or
  *      `custom_food_id`) + full nutrition snapshot + `serving_qty` +
  *      `serving_unit`.
@@ -21,6 +27,11 @@
  *   - Category chips: pill shape, accent border when active.
  *   - Food row: name + serving_label; kcal badge right; macros below in
  *     Space Mono caption.
+ *   - Favorites / Recent section headers: uppercase Space Mono "★ FAVORITES",
+ *     "↺ RECENT". Chips: rounded (--radius-compact), 1px --color-border-visible
+ *     border, rgba(0,0,0,0.5) background, --space-2 / --space-3 padding.
+ *   - Star toggle: ★ (filled, --color-accent) when favorited, ☆ (outline,
+ *     --color-text-disabled) when not. No SVG.
  *   - No hex codes anywhere — tokens only.
  */
 
@@ -38,6 +49,24 @@ import {
 export type FoodResult =
   | (Food & { _source: 'public' })
   | (Food & { _source: 'custom'; user_id: string; created_at: string });
+
+// Server-returned favorite row hydrated with its food. `id` is the
+// favorite_id (used for DELETE). `kind` mirrors `food._source`.
+type FavoriteRecord = {
+  id: string;
+  kind: 'public' | 'custom';
+  food: FoodResult;
+  created_at: string;
+};
+
+// Server-returned recent row hydrated with its food. `id` is the source
+// entry_id (used only as a React key — recent rows aren't directly mutable).
+type RecentRecord = {
+  id: string;
+  kind: 'public' | 'custom';
+  food: FoodResult;
+  created_at: string;
+};
 
 const CATEGORIES: { id: FoodCategory | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -61,6 +90,14 @@ interface FoodSearchProps {
   onSubscriptionRequired: () => void;
 }
 
+/**
+ * Build the dedupe key for a food across the favorites / recent / results
+ * lists. Public and custom foods share id-namespaces separately, so prefix.
+ */
+function foodKey(food: Pick<FoodResult, 'id' | '_source'>): string {
+  return `${food._source}:${food.id}`;
+}
+
 export function FoodSearch({
   meal,
   onSaved,
@@ -72,6 +109,14 @@ export function FoodSearch({
   const [results, setResults] = useState<FoodResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<FoodResult | null>(null);
+
+  // Favorites + recent state. `favorites` maps foodKey → favorite_id so
+  // toggling a star can DELETE by the row id without a second lookup.
+  const [favorites, setFavorites] = useState<FavoriteRecord[]>([]);
+  const [recent, setRecent] = useState<RecentRecord[]>([]);
+  // Foods being toggled RIGHT NOW — used to disable the star button so a
+  // rapid double-tap doesn't fire two POSTs.
+  const [togglingKeys, setTogglingKeys] = useState<Set<string>>(new Set());
 
   // Debounced fetch. AbortController keeps in-flight requests from racing
   // when the user types fast.
@@ -122,6 +167,121 @@ export function FoodSearch({
     return () => clearTimeout(t);
   }, [query, category, doFetch]);
 
+  // Fetch favorites + recent in parallel on mount. Failure is silent (the
+  // sections just don't render) — a missing "★ Favorites" strip should not
+  // block a user from searching, so we don't hoist errors to the toast layer.
+  const loadFavorites = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mini-apps/calorie-lite/favorites', {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) return;
+      const body = (await res.json()) as { favorites: FavoriteRecord[] };
+      setFavorites(body.favorites ?? []);
+    } catch {
+      // Non-fatal.
+    }
+  }, []);
+
+  const loadRecent = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mini-apps/calorie-lite/recent-foods', {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) return;
+      const body = (await res.json()) as { recent: RecentRecord[] };
+      setRecent(body.recent ?? []);
+    } catch {
+      // Non-fatal.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFavorites();
+    void loadRecent();
+  }, [loadFavorites, loadRecent]);
+
+  // Fast lookup for "is this food favorited?" — indexed by foodKey so both
+  // the row-level star and the chip-level presence check hit the same map.
+  const favByKey = useMemo(() => {
+    const m = new Map<string, FavoriteRecord>();
+    for (const f of favorites) m.set(foodKey(f.food), f);
+    return m;
+  }, [favorites]);
+
+  // Recent list, minus anything already in favorites — favorites row wins so
+  // a favorited food never appears twice on the empty-query screen.
+  const recentDeduped = useMemo(
+    () => recent.filter((r) => !favByKey.has(foodKey(r.food))),
+    [recent, favByKey],
+  );
+
+  const toggleFavorite = useCallback(
+    async (food: FoodResult) => {
+      const key = foodKey(food);
+      if (togglingKeys.has(key)) return;
+      setTogglingKeys((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      try {
+        const existing = favByKey.get(key);
+        if (existing) {
+          // Optimistic remove — snap the star back if the request fails.
+          const snapshot = favorites;
+          setFavorites((prev) => prev.filter((f) => f.id !== existing.id));
+          const res = await fetch(
+            `/api/mini-apps/calorie-lite/favorites/${existing.id}`,
+            { method: 'DELETE', credentials: 'same-origin' },
+          );
+          if (!res.ok) {
+            setFavorites(snapshot);
+            if (res.status === 402) onSubscriptionRequired();
+            else if (res.status !== 401) onError('Could not unfavorite.');
+          }
+        } else {
+          const body =
+            food._source === 'custom'
+              ? { custom_food_id: food.id }
+              : { food_id: food.id };
+          const res = await fetch('/api/mini-apps/calorie-lite/favorites', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            if (res.status === 402) onSubscriptionRequired();
+            else if (res.status !== 401) onError('Could not favorite.');
+            return;
+          }
+          const parsed = (await res.json()) as {
+            favorite: { id: string; food_id: string | null; custom_food_id: string | null; created_at: string };
+          };
+          const newFav: FavoriteRecord = {
+            id: parsed.favorite.id,
+            kind: food._source,
+            food,
+            created_at: parsed.favorite.created_at,
+          };
+          // Prepend so the newest favorite appears first, matching the GET
+          // ordering the next reload will produce.
+          setFavorites((prev) => [newFav, ...prev.filter((f) => f.id !== newFav.id)]);
+        }
+      } catch {
+        onError('Network error.');
+      } finally {
+        setTogglingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    },
+    [favByKey, favorites, togglingKeys, onError, onSubscriptionRequired],
+  );
+
   // When the picker is open we don't want the underlying results list to
   // shift around under it — freeze it in a portal-like conditional render.
   if (picked) {
@@ -130,12 +290,19 @@ export function FoodSearch({
         food={picked}
         meal={meal}
         onCancel={() => setPicked(null)}
-        onSaved={onSaved}
+        onSaved={async () => {
+          // A save creates an entry — refresh recent so the just-logged food
+          // pops to the front the next time the user opens Search.
+          void loadRecent();
+          await onSaved();
+        }}
         onError={onError}
         onSubscriptionRequired={onSubscriptionRequired}
       />
     );
   }
+
+  const showEmptyStateChips = query.trim() === '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -153,6 +320,22 @@ export function FoodSearch({
         }}
         aria-label="Search foods"
       />
+
+      {showEmptyStateChips && favorites.length > 0 && (
+        <ChipStrip
+          label="★ FAVORITES"
+          items={favorites}
+          onPick={setPicked}
+        />
+      )}
+
+      {showEmptyStateChips && recentDeduped.length > 0 && (
+        <ChipStrip
+          label="↺ RECENT"
+          items={recentDeduped}
+          onPick={setPicked}
+        />
+      )}
 
       <div
         role="tablist"
@@ -220,34 +403,148 @@ export function FoodSearch({
             flexDirection: 'column',
           }}
         >
-          {(results ?? []).map((f) => (
-            <FoodRow key={`${f._source}-${f.id}`} food={f} onPick={setPicked} />
-          ))}
+          {(results ?? []).map((f) => {
+            const key = foodKey(f);
+            return (
+              <FoodRow
+                key={key}
+                food={f}
+                onPick={setPicked}
+                favorited={favByKey.has(key)}
+                onToggleFavorite={toggleFavorite}
+                toggling={togglingKeys.has(key)}
+              />
+            );
+          })}
         </ul>
       )}
     </div>
   );
 }
 
+// ─── Chip strip (favorites / recent) ────────────────────────────────────────
+//
+// A horizontal, scrollable row of tap-to-pick chips. We deliberately do NOT
+// put a star toggle inside the chip — chips are already small and a
+// secondary tap target would fight the primary "log this food" action.
+// The star for a favorite lives on the full-width row (search results) where
+// there is room to breathe. Removing a favorite is a one-swipe operation
+// from Search: type its name → tap the ★. That parallels MFP.
+
+function ChipStrip({
+  label,
+  items,
+  onPick,
+}: {
+  label: string;
+  items: Array<{ id: string; food: FoodResult }>;
+  onPick: (f: FoodResult) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <span
+        className="label"
+        style={{
+          fontFamily: 'var(--font-label)',
+          letterSpacing: '0.08em',
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        {label}
+      </span>
+      <div
+        role="list"
+        aria-label={label}
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          overflowX: 'auto',
+          paddingBottom: 'var(--space-2)',
+        }}
+      >
+        {items.map((item) => {
+          const f = item.food;
+          const kcal = Math.round(Number(f.kcal));
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="listitem"
+              onClick={() => onPick(f)}
+              style={{
+                flex: '0 0 auto',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 'var(--space-2)',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid var(--color-border-visible)',
+                borderRadius: 'var(--radius-compact)',
+                padding: 'var(--space-2) var(--space-3)',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                maxWidth: '18em',
+              }}
+              title={f.name}
+            >
+              <span
+                style={{
+                  fontSize: 'var(--text-body-sm)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '14em',
+                }}
+              >
+                {f.name}
+              </span>
+              <span
+                className="data"
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  fontSize: 'var(--text-caption)',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {kcal.toLocaleString()} kcal
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Food row (with star toggle) ────────────────────────────────────────────
+
 function FoodRow({
   food,
   onPick,
+  favorited,
+  onToggleFavorite,
+  toggling,
 }: {
   food: FoodResult;
   onPick: (f: FoodResult) => void;
+  favorited: boolean;
+  onToggleFavorite: (f: FoodResult) => void;
+  toggling: boolean;
 }) {
   const kcalPerServing = Math.round(Number(food.kcal));
   return (
     <li
       style={{
         borderBottom: '1px solid var(--color-border)',
+        display: 'flex',
+        alignItems: 'baseline',
       }}
     >
       <button
         type="button"
         onClick={() => onPick(food)}
         style={{
-          width: '100%',
+          flex: 1,
           background: 'transparent',
           border: 0,
           padding: 'var(--space-3) 0',
@@ -294,27 +591,48 @@ function FoodRow({
             {food.serving_label} · {macroPreview(food)}
           </span>
         </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggleFavorite(food)}
+        disabled={toggling}
+        aria-label={favorited ? `Unfavorite ${food.name}` : `Favorite ${food.name}`}
+        aria-pressed={favorited}
+        title={favorited ? 'Unfavorite' : 'Favorite'}
+        style={{
+          background: 'transparent',
+          border: 0,
+          padding: 'var(--space-3) var(--space-2)',
+          color: favorited ? 'var(--color-accent)' : 'var(--color-text-disabled)',
+          fontSize: 'var(--text-body)',
+          lineHeight: 1,
+          cursor: toggling ? 'wait' : 'pointer',
+          opacity: toggling ? 0.6 : 1,
+        }}
+      >
+        {favorited ? '★' : '☆'}
+      </button>
+      <span
+        className="data"
+        style={{
+          color: 'var(--color-text-display)',
+          fontSize: 'var(--text-body)',
+          fontWeight: 700,
+          whiteSpace: 'nowrap',
+          paddingLeft: 'var(--space-2)',
+        }}
+      >
+        {kcalPerServing.toLocaleString()}
         <span
-          className="data"
+          className="label"
           style={{
-            color: 'var(--color-text-display)',
-            fontSize: 'var(--text-body)',
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
+            color: 'var(--color-text-secondary)',
+            marginLeft: 2,
           }}
         >
-          {kcalPerServing.toLocaleString()}
-          <span
-            className="label"
-            style={{
-              color: 'var(--color-text-secondary)',
-              marginLeft: 2,
-            }}
-          >
-            kcal
-          </span>
+          kcal
         </span>
-      </button>
+      </span>
     </li>
   );
 }

@@ -40,6 +40,15 @@ const DEFAULT_PREFERENCES: Omit<Preferences, 'user_id' | 'updated_at'> = {
   weight_goal_kg: null,
   weight_unit: 'kg',
   volume_unit: 'ml',
+  // Wave 2-A onboarding profile — all null until the wizard runs. The
+  // `onboarded_at == null && age_years == null` combo is the "first mount"
+  // signal that fires the wizard.
+  sex: null,
+  age_years: null,
+  height_cm: null,
+  activity_level: null,
+  goal_direction: null,
+  onboarded_at: null,
 };
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -63,7 +72,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: prefsRow } = await supabase
     .from('preferences')
     .select(
-      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, updated_at',
+      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -87,6 +96,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       (prefsRow?.weight_unit ?? DEFAULT_PREFERENCES.weight_unit) as Preferences['weight_unit'],
     volume_unit:
       (prefsRow?.volume_unit ?? DEFAULT_PREFERENCES.volume_unit) as Preferences['volume_unit'],
+    // Wave 2-A onboarding profile hydration — all nullable, no coercion beyond
+    // Number() for the numeric column so downstream math has real numbers.
+    sex: (prefsRow?.sex ?? null) as Preferences['sex'],
+    age_years:
+      prefsRow?.age_years != null ? Number(prefsRow.age_years) : null,
+    height_cm:
+      prefsRow?.height_cm != null ? Number(prefsRow.height_cm) : null,
+    activity_level:
+      (prefsRow?.activity_level ?? null) as Preferences['activity_level'],
+    goal_direction:
+      (prefsRow?.goal_direction ?? null) as Preferences['goal_direction'],
+    onboarded_at: prefsRow?.onboarded_at ?? null,
     updated_at: prefsRow?.updated_at ?? new Date().toISOString(),
   };
 

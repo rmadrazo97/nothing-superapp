@@ -13,7 +13,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { macroGoalPctSchema } from '@nothing/shared';
+import {
+  activityLevelEnum,
+  goalDirectionEnum,
+  macroGoalPctSchema,
+  sexEnum,
+} from '@nothing/shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,6 +29,8 @@ export const runtime = 'nodejs';
 //   weight_goal_kg  — nullable numeric (kg)
 //   weight_unit     — 'kg' | 'lb' (display preference only, storage stays kg)
 //   volume_unit     — 'ml' | 'oz' (display preference only, storage stays ml)
+// Wave 2-A (onboarding wizard) additions — all nullable:
+//   sex, age_years, height_cm, activity_level, goal_direction, onboarded_at
 // Rules — only ADD new fields; GET + upsert structure are untouched.
 const preferencesPatchSchema = z
   .object({
@@ -35,6 +42,12 @@ const preferencesPatchSchema = z
     weight_goal_kg: z.number().positive().max(500).nullable().optional(),
     weight_unit: z.enum(['kg', 'lb']).optional(),
     volume_unit: z.enum(['ml', 'oz']).optional(),
+    sex: sexEnum.nullable().optional(),
+    age_years: z.number().int().positive().max(129).nullable().optional(),
+    height_cm: z.number().positive().min(50).max(260).nullable().optional(),
+    activity_level: activityLevelEnum.nullable().optional(),
+    goal_direction: goalDirectionEnum.nullable().optional(),
+    onboarded_at: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .strict();
 
@@ -51,7 +64,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('preferences')
-    .select('user_id, notifications_enabled, theme, daily_calorie_goal, updated_at')
+    .select(
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
+    )
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -100,7 +115,9 @@ export async function PATCH(request: Request) {
       { user_id: user.id, ...parsed.data },
       { onConflict: 'user_id' },
     )
-    .select('user_id, notifications_enabled, theme, daily_calorie_goal, updated_at')
+    .select(
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
+    )
     .single();
 
   if (error) {

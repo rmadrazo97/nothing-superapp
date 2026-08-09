@@ -45,6 +45,8 @@ import { WaterView } from './components/WaterView.tsx';
 import { WeightView } from './components/WeightView.tsx';
 import { ReportsView } from './components/ReportsView.tsx';
 import { CustomMealsPanel } from './components/CustomMealsPanel.tsx';
+import { TodayInsights } from './components/TodayInsights.tsx';
+import { OnboardingWizard } from './components/OnboardingWizard.tsx';
 import {
   computeStreak,
   dailyTotals,
@@ -118,6 +120,33 @@ export default function CalorieLitePage() {
   const [view, setView] = useState<View>('today');
   const [entries, setEntries] = useState<CalorieEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Wave 2-A — first-run onboarding wizard. Auto-opens when the user has
+  // never completed onboarding (no `onboarded_at`) AND has no body profile
+  // (`age_years == null`). The dual check means an existing MFP user who
+  // filled in age via some other flow doesn't get re-prompted.
+  const needsOnboarding =
+    preferences.onboarded_at == null && preferences.age_years == null;
+  const [wizardOpen, setWizardOpen] = useState<boolean>(needsOnboarding);
+  // Keep the auto-open trigger in sync if preferences hydrate after mount
+  // (e.g. re-hydrate after `preferences_updated` from another tab).
+  useEffect(() => {
+    if (needsOnboarding) setWizardOpen(true);
+  }, [needsOnboarding]);
+  // When the wizard emits `preferences_updated`, force a full page refresh
+  // via router-less soft reload: the shell's server layout re-fetches
+  // preferences on nav so the simplest reliable path is `location.reload()`.
+  // We only do this when the wizard closes cleanly (saved OR skipped).
+  const closeWizard = useCallback(() => {
+    setWizardOpen(false);
+    // Nudge the server-rendered layout to re-hydrate preferences without a
+    // hard reload — Next 15 refreshes on router.refresh() but mini-apps live
+    // under a client boundary, so a same-URL nav is the pragmatic choice.
+    // Fire-and-forget; a stale goal for one paint is fine.
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  }, []);
 
   const todayKey = useMemo(() => toLocalDateKey(new Date().toISOString()), []);
 
@@ -201,7 +230,15 @@ export default function CalorieLitePage() {
         paddingBottom: 'var(--space-12)',
       }}
     >
-      <Header view={view} onChangeView={setView} streak={streak.current} />
+      <Header
+        view={view}
+        onChangeView={setView}
+        streak={streak.current}
+        showProfileChip={
+          view === 'today' && preferences.age_years == null && !wizardOpen
+        }
+        onOpenWizard={() => setWizardOpen(true)}
+      />
 
       {loadError && (
         <div
@@ -266,6 +303,8 @@ export default function CalorieLitePage() {
           loading={entries === null}
         />
       )}
+
+      {wizardOpen && <OnboardingWizard onClose={closeWizard} />}
     </div>
   );
 }
@@ -276,10 +315,16 @@ function Header({
   view,
   onChangeView,
   streak,
+  showProfileChip = false,
+  onOpenWizard,
 }: {
   view: View;
   onChangeView: (v: View) => void;
   streak: number;
+  /** True when the user hasn't filled in their body profile yet. */
+  showProfileChip?: boolean;
+  /** Called when the user taps the profile chip. */
+  onOpenWizard?: () => void;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -292,7 +337,30 @@ function Header({
         }}
       >
         <span className="label">CALORIE LITE</span>
-        <StreakChip current={streak} />
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          {showProfileChip && onOpenWizard && (
+            <button
+              type="button"
+              onClick={onOpenWizard}
+              aria-label="Set up your profile"
+              style={{
+                background: 'transparent',
+                color: 'var(--color-accent)',
+                border: '1px solid var(--color-accent)',
+                borderRadius: 'var(--radius-compact)',
+                padding: 'var(--space-1) var(--space-3)',
+                fontFamily: 'var(--font-label)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              ◐ Set up profile
+            </button>
+          )}
+          <StreakChip current={streak} />
+        </div>
       </div>
       <div
         role="tablist"
@@ -396,6 +464,10 @@ function TodayView({
       />
 
       <MacroCard protein={protein} carbs={carbs} fat={fat} />
+
+      {/* Server-computed weekly nudges. Sits above the day's entries so it
+          reads as guidance, not history. */}
+      <TodayInsights />
 
       {loading ? (
         <p className="caption">Loading…</p>

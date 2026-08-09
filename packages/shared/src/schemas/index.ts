@@ -53,6 +53,19 @@ export const profileInsertSchema = profileSchema
 export const weightUnitEnum = z.enum(['kg', 'lb']);
 export const volumeUnitEnum = z.enum(['ml', 'oz']);
 
+// Wave 2-A (onboarding wizard) — body profile enums. All three are stored on
+// `preferences` as nullable text so existing users aren't broken; the wizard
+// populates them on first run and `onboarded_at` records that we asked.
+export const sexEnum = z.enum(['male', 'female', 'other']);
+export const activityLevelEnum = z.enum([
+  'sedentary',
+  'light',
+  'moderate',
+  'active',
+  'very_active',
+]);
+export const goalDirectionEnum = z.enum(['lose', 'maintain', 'gain']);
+
 export const preferencesSchema = z.object({
   user_id: z.string().uuid(),
   notifications_enabled: z.boolean().default(false),
@@ -63,6 +76,13 @@ export const preferencesSchema = z.object({
   weight_goal_kg: z.number().positive().nullable().default(null),
   weight_unit: weightUnitEnum.default('kg'),
   volume_unit: volumeUnitEnum.default('ml'),
+  // Wave 2-A onboarding profile — all nullable until the wizard runs.
+  sex: sexEnum.nullable().default(null),
+  age_years: z.number().int().positive().max(129).nullable().default(null),
+  height_cm: z.number().positive().min(50).max(260).nullable().default(null),
+  activity_level: activityLevelEnum.nullable().default(null),
+  goal_direction: goalDirectionEnum.nullable().default(null),
+  onboarded_at: z.string().datetime({ offset: true }).nullable().default(null),
   updated_at: z.string().datetime({ offset: true }),
 });
 
@@ -76,6 +96,12 @@ export const preferencesInsertSchema = preferencesSchema
     weight_goal_kg: z.number().positive().nullable().optional(),
     weight_unit: weightUnitEnum.optional(),
     volume_unit: volumeUnitEnum.optional(),
+    sex: sexEnum.nullable().optional(),
+    age_years: z.number().int().positive().max(129).nullable().optional(),
+    height_cm: z.number().positive().min(50).max(260).nullable().optional(),
+    activity_level: activityLevelEnum.nullable().optional(),
+    goal_direction: goalDirectionEnum.nullable().optional(),
+    onboarded_at: z.string().datetime({ offset: true }).nullable().optional(),
   });
 
 // ─── subscriptions ─────────────────────────────────────────────────────────
@@ -197,6 +223,37 @@ export const customFoodInsertSchema = customFoodSchema
     cholesterol_mg: z.number().nonnegative().default(0).optional(),
   });
 
+// ─── food_favorites (v3 MFP-tier Wave 2-B) ─────────────────────────────────
+// Exactly one of `food_id` (public catalog) or `custom_food_id` (user's own
+// custom food) must be set. Server enforces via DB CHECK constraints; the
+// `.refine` here mirrors that so client-side validation never sends a broken
+// row over the wire.
+
+export const foodFavoriteSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  food_id: z.string().max(120).nullable().optional(),
+  custom_food_id: z.string().uuid().nullable().optional(),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+export const foodFavoriteInsertSchema = z
+  .object({
+    food_id: z.string().max(120).nullable().optional(),
+    custom_food_id: z.string().uuid().nullable().optional(),
+  })
+  .refine(
+    (v) => {
+      const hasPublic = v.food_id != null && v.food_id !== '';
+      const hasCustom = v.custom_food_id != null && v.custom_food_id !== '';
+      return hasPublic !== hasCustom; // XOR — exactly one target
+    },
+    { message: 'exactly one of food_id or custom_food_id must be set' },
+  );
+
+export type FoodFavorite = z.infer<typeof foodFavoriteSchema>;
+export type FoodFavoriteInsert = z.infer<typeof foodFavoriteInsertSchema>;
+
 export const mealComponentSchema = z.object({
   food_id: z.string().nullable().optional(),
   custom_food_id: z.string().uuid().nullable().optional(),
@@ -264,6 +321,9 @@ export type ProfileInsert = z.infer<typeof profileInsertSchema>;
 
 export type Preferences = z.infer<typeof preferencesSchema>;
 export type PreferencesInsert = z.infer<typeof preferencesInsertSchema>;
+export type Sex = z.infer<typeof sexEnum>;
+export type ActivityLevel = z.infer<typeof activityLevelEnum>;
+export type GoalDirection = z.infer<typeof goalDirectionEnum>;
 
 export type Subscription = z.infer<typeof subscriptionSchema>;
 export type SubscriptionInsert = z.infer<typeof subscriptionInsertSchema>;
