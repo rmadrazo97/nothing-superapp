@@ -2,6 +2,24 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — Copilot goes multimodal — photograph a plate, dictate a meal, share a restaurant menu
+
+The copilot stopped being text-only. Users can now attach up to 3 photos per turn (jpeg/png/webp, ≤5 MB) and dictate messages with the browser microphone. Kimi K2.6 already advertises `supports_image_in` against Moonshot's `/v1/models`, so vision rides on the primary model — no separate provider, no OpenRouter fallback, no `BLOCKED-vision.md`.
+
+**Provider (apps/web/src/lib/ai/provider.ts).** `chatModel(variant: 'text' | 'vision')` reads optional `KIMI_VISION_MODEL` for the vision variant and falls through to `KIMI_MODEL` when unset. Route (`app/api/copilot/route.ts`) inspects incoming `UIMessage[]` for any `file` part with an image mediaType and switches variants — one line, no cost delta today, one env flip away from routing to `moonshot-v1-32k-vision-preview` if we ever want a distinct vision model.
+
+**System prompt.** Extended with an `Image handling` block: photo of food → identify + estimate portions with a "± 20 %" caveat and either call `log_calorie_entry` or return an estimate; photo of a restaurant menu → call `get_daily_summary` first, then recommend the best macro-fit dish; ambiguous or blurry photo → ask a clarifying question before logging. Insertion point comment (`NSA_SYSTEM_PROMPT_APPEND`) reserved for meal-plan / in-app awareness workers.
+
+**Composer (apps/web/src/components/copilot/Composer.tsx).** Two cadmium icon buttons flank the textarea. `◐ IMG` opens a hidden file input, validates type + size client-side (rejects with a toast), reads each accepted file as a data URL, and renders 56×56 thumbnails above the textarea with `×` to remove. Max 3 concurrent attachments — button disables at cap. `◐ MIC` feature-detects `SpeechRecognition ?? webkitSpeechRecognition` on mount and hides itself entirely on unsupported browsers (desktop Firefox, some Androids). While listening, the button pulses cadmium via `@keyframes nsa-voice-pulse`, the textarea placeholder switches to "Listening…", and interim + final transcripts stream into the input on top of a captured base value so multiple recognition sessions concatenate cleanly instead of clobbering typed text. `onspeechend` auto-stops; tap-to-stop and unmount-cleanup are both wired.
+
+**Wire-up (CopilotChat.tsx).** `send()` now takes attachments and passes them as `FileUIPart[]` (`{ type: 'file', mediaType, filename, url: dataUrl }`) on `sendMessage({ text, files })`. When the user attaches images without typing, we send a whitespace text placeholder so the AI SDK's typed union stays happy, then trim it back to empty for the bubble. Sent images render as 96×96 thumbnails inside the user MessageBubble so users see exactly what the model saw.
+
+**Privacy stance.** Image contents are never console-logged and never written to the audit log — only filename + size. Supabase Storage is intentionally out of scope for v1; every image rides inline base64 on send and disappears from the client after `sendMessage`.
+
+**Smoke.** `POST /v1/chat/completions` with `model: kimi-k2.6` and a base64 PNG in `content: [{type:'text'}, {type:'image_url'}]` returned a valid vision response (recognised a black square) — confirms Moonshot's OpenAI-compat surface accepts image parts on the primary model. `pnpm --filter @nothing/web typecheck` + `build` clean. Prod HEAD 200.
+
+**Angle.** Photograph a plate → "That's ~450 kcal, want me to log it?". Snap a restaurant menu on a first date → "You have 780 kcal left today, the grilled chicken bowl fits, the carbonara does not." Say "add a coffee and a banana" while walking to the office → the mic keeps up. The copilot stops being a text box and starts being a camera + a microphone. Follow-up: Whisper server-side fallback for desktop-Firefox users, Supabase Storage-backed history so photos survive between sessions, and per-food confidence intervals in the tool response so the UI can render an "estimate" badge instead of a hard number.
+
 ## 2026-08-09 — Gym-routine v2 — coach-grade schema + copilot can author a full 5-day plan
 
 Gym-routine grew a real training plan format and the copilot got the tool to generate one from a paragraph of natural language.

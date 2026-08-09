@@ -3,6 +3,11 @@ import { z } from 'zod';
 // v2 gym routine schemas (add-only re-export — see ./gym.ts for the shape)
 export * from './gym.ts';
 
+// meal plan v1 schemas (add-only re-export — see ./meal-plan.ts for the shape)
+// Re-exports include: mealPlanSchema, planSchema, planMealSchema, ingredientSchema,
+// planRulesSchema, mealPlanAdherenceSchema + all types + mealSlotIdToMfpSlot().
+export * from './meal-plan.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([
@@ -96,6 +101,10 @@ export const preferencesSchema = z.object({
   // remember the account-level intent + which broadcasts to fan out to.
   push_enabled: z.boolean().default(false),
   push_topics: z.array(pushTopicEnum).default(['releases']),
+  // v0.5 (meal plans) — pointer to the currently-active meal plan for this
+  // user. Nullable so brand-new users default to no plan. Set/cleared via
+  // /api/mini-apps/calorie-lite/meal-plans/[id]/activate.
+  active_meal_plan_id: z.string().uuid().nullable().default(null),
   updated_at: z.string().datetime({ offset: true }),
 });
 
