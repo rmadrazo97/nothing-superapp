@@ -1,56 +1,74 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { parseCopilotStream } from '@/lib/copilot/sse-parser';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useToast } from '@/lib/toast/context';
 import { Composer } from './Composer';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
+import { ToolCallCard } from './ToolCallCard';
 
 /**
- * Copilot chat surface (task 13).
+ * Copilot chat surface — Vercel AI SDK v5 rewrite (v0.4).
  *
- * Layout — mirrors the Shell's 480px column:
- *   [ suggested prompts / message list ] — scrolls
- *   [ composer ]                        — fixed above the TabBar
+ * The old hand-rolled SSE parser + local message state is gone. `useChat()`
+ * owns the message list, streaming, and error surfacing. We keep local `input`
+ * state (v5 dropped `input`/`handleInputChange` in favour of `sendMessage`)
+ * and a busy flag derived from `status`.
  *
- * State:
- *   messages       — ordered list; assistant messages accumulate SSE `delta`
- *                    frames into `content` and `reasoning` frames into `reasoning`.
- *   input          — controlled textarea value.
- *   busy           — true while a stream is in flight; disables the composer.
- *   error          — one-shot banner for network/SSE errors.
- *
- * Persistence: none in v1 — refresh clears the thread (spec v3 §deferrals).
+ * Rendering: each assistant message is decomposed into its `parts` array —
+ * text parts still render as MessageBubbles; `tool-*` parts render as
+ * ToolCallCards (cadmium for writes, muted for reads). Reasoning parts are
+ * grouped into a single ReasoningDisclosure via the existing MessageBubble
+ * component so users can peek at the model's chain of thought.
  */
 
 const SUGGESTED_PROMPTS = [
-  'What did I eat this week?',
-  'How am I tracking against my calorie target?',
-  'Summarize the last thing I logged.',
+  'Log a coffee with 40 kcal',
+  "What's my calorie streak?",
+  'How am I tracking today?',
 ];
 
-// Height of the fixed TabBar area (approx: 44px content + ~28px padding +
-// safe-area inset). Keeps the composer above the tabs without overlap.
 const TAB_BAR_CLEARANCE = 92;
 
-function makeId(): string {
-  // Non-cryptographic; sufficient for stable React keys.
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
 export function CopilotChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [uiError, setUiError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: '/api/copilot',
+      }),
+    [],
+  );
+
+  const { messages, sendMessage, status, error, clearError } = useChat({
+    transport,
+    onError(err) {
+      // Map server errors → human toast copy. `err.message` may include the
+      // JSON body when the response wasn't 2xx.
+      const raw = err.message ?? '';
+      const isRate = raw.includes('rate_limited') || raw.includes('429');
+      const isPay = raw.includes('payment_required') || raw.includes('402');
+      const isAuth = raw.includes('unauthorized') || raw.includes('401');
+      if (isRate) {
+        toast.info("Slow down — you'll get another 30 messages in about an hour.");
+      } else if (isPay) {
+        toast.info("This one's paid. Subscribe on the paywall.");
+      } else if (!isAuth) {
+        toast.error("Something broke on our end. We're logging it.");
+      }
+      setUiError(raw || 'Network error');
+    },
+  });
+
+  const busy = status === 'submitted' || status === 'streaming';
+
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  // Track whether the user is pinned to the bottom. If they scroll up mid-stream
-  // we stop auto-scrolling so we don't fight them.
   const stickToBottomRef = useRef(true);
 
-  // Auto-scroll on new content — only if the user hasn't scrolled up.
   useEffect(() => {
     if (!stickToBottomRef.current) return;
     const el = scrollerRef.current;
@@ -61,113 +79,21 @@ export function CopilotChat() {
   const handleScroll = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    // Treat "within 40px of bottom" as still stuck to bottom — accommodates
-    // rounding + the last streamed token nudging scrollHeight.
     const distanceFromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
     stickToBottomRef.current = distanceFromBottom < 40;
   }, []);
 
   const send = useCallback(
-    async (rawText: string) => {
+    (rawText: string) => {
       const text = rawText.trim();
       if (text.length === 0 || busy) return;
-
-      setError(null);
-
-      const userMsg: ChatMessage = {
-        id: makeId(),
-        role: 'user',
-        content: text,
-        reasoning: '',
-      };
-      const assistantId = makeId();
-      const assistantMsg: ChatMessage = {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        reasoning: '',
-        streaming: true,
-      };
-
-      // Snapshot outbound history *before* setState (React batches, so we can't
-      // rely on `messages` being current inside this closure).
-      const outboundHistory = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      setInput('');
-      setBusy(true);
-      // A fresh send pins us back to the bottom of the scroller.
+      setUiError(null);
+      if (error) clearError();
       stickToBottomRef.current = true;
-
-      try {
-        const response = await fetch('/api/copilot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: outboundHistory }),
-        });
-
-        if (!response.ok || !response.body) {
-          // Try to surface the server's JSON error, but don't blow up if it isn't JSON.
-          let msg = `Request failed (${response.status})`;
-          try {
-            const data = (await response.json()) as { error?: string };
-            if (data.error) msg = data.error;
-          } catch {
-            /* fall through */
-          }
-          // Human-tier toast copy per status. 401 is silent — the proxy
-          // redirects to /login on the next nav — so we don't spam.
-          if (response.status === 429) {
-            toast.info("Slow down — you'll get another 30 messages in about an hour.");
-          } else if (response.status === 402) {
-            toast.info("This one's paid. Subscribe on the paywall.");
-          } else if (response.status >= 500) {
-            toast.error("Something broke on our end. We're logging it.");
-          } else if (response.status !== 401) {
-            toast.error(msg);
-          }
-          throw new Error(msg);
-        }
-
-        for await (const frame of parseCopilotStream(response.body)) {
-          if ('delta' in frame) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + frame.delta } : m,
-              ),
-            );
-          } else if ('reasoning' in frame) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, reasoning: m.reasoning + frame.reasoning } : m,
-              ),
-            );
-          } else if ('error' in frame) {
-            // Mid-stream error frame — inline banner stays for context;
-            // toast so the user notices even if scrolled up.
-            setError(frame.error);
-            toast.error(frame.error);
-          }
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Network error';
-        // Only toast for pure network failures — HTTP errors already
-        // toasted above. Detect by absence of an HTTP-shaped message.
-        if (err instanceof TypeError) {
-          toast.error("Can't reach the server. Check your connection.");
-        }
-        setError(msg);
-      } finally {
-        setBusy(false);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
-        );
-      }
+      void sendMessage({ text });
+      setInput('');
     },
-    [busy, messages, toast],
+    [busy, error, clearError, sendMessage],
   );
 
   const isEmpty = messages.length === 0;
@@ -177,10 +103,6 @@ export function CopilotChat() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        // Fill the viewport minus the shell's top padding + the tabbar zone.
-        // The <main> wrapper already pads 170px on the bottom; we override the
-        // visual "chat area" to be a proper flex column by absolute-positioning
-        // the composer.
         minHeight: `calc(100vh - var(--space-6) - ${TAB_BAR_CLEARANCE}px)`,
         position: 'relative',
       }}
@@ -192,7 +114,6 @@ export function CopilotChat() {
         <h1 className="display-md">Assistant</h1>
       </header>
 
-      {/* Scroll region — messages OR empty-state suggestions */}
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
@@ -206,16 +127,19 @@ export function CopilotChat() {
         }}
       >
         {isEmpty ? (
-          <EmptyState
-            onPick={(prompt) => setInput(prompt)}
-            disabled={busy}
-          />
+          <EmptyState onPick={(prompt) => setInput(prompt)} disabled={busy} />
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          messages.map((m) => (
+            <RenderedMessage
+              key={m.id}
+              message={m}
+              streaming={busy && m.id === messages[messages.length - 1]?.id && m.role === 'assistant'}
+            />
+          ))
         )}
       </div>
 
-      {error && (
+      {uiError && (
         <div
           role="alert"
           style={{
@@ -230,11 +154,10 @@ export function CopilotChat() {
           }}
         >
           <span className="status-line status-error">error</span>{' '}
-          <span>{error}</span>
+          <span>{uiError}</span>
         </div>
       )}
 
-      {/* Composer — sticks above the TabBar. */}
       <div
         style={{
           position: 'fixed',
@@ -266,6 +189,87 @@ export function CopilotChat() {
   );
 }
 
+/**
+ * Render a single UIMessage — user messages are single-text bubbles;
+ * assistant messages are decomposed into parts so tool calls render as
+ * ToolCallCards inline with text.
+ */
+function RenderedMessage({
+  message,
+  streaming,
+}: {
+  message: UIMessage;
+  streaming: boolean;
+}) {
+  if (message.role === 'user') {
+    const text = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => (p as { text: string }).text)
+      .join('');
+    const bubble: ChatMessage = {
+      id: message.id,
+      role: 'user',
+      content: text,
+      reasoning: '',
+    };
+    return <MessageBubble message={bubble} />;
+  }
+
+  // Assistant — combine text parts into one bubble (v5 usually only emits one
+  // per turn) and render tool parts as cards between/after text.
+  const text = message.parts
+    .filter((p) => p.type === 'text')
+    .map((p) => (p as { text: string }).text)
+    .join('');
+  const reasoning = message.parts
+    .filter((p) => p.type === 'reasoning')
+    .map((p) => (p as { text: string }).text)
+    .join('');
+  const bubble: ChatMessage = {
+    id: message.id,
+    role: 'assistant',
+    content: text,
+    reasoning,
+    streaming: streaming && text.length === 0,
+  };
+
+  const toolParts = message.parts.filter(
+    (p) => typeof p.type === 'string' && (p.type.startsWith('tool-') || p.type === 'dynamic-tool'),
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      {(text.length > 0 || reasoning.length > 0 || bubble.streaming || toolParts.length === 0) && (
+        <MessageBubble message={bubble} />
+      )}
+      {toolParts.map((p, idx) => {
+        const anyPart = p as {
+          type: string;
+          toolName?: string;
+          state?: string;
+          input?: unknown;
+          output?: unknown;
+          errorText?: string;
+        };
+        const toolName =
+          anyPart.type === 'dynamic-tool'
+            ? (anyPart.toolName ?? 'tool')
+            : anyPart.type.replace(/^tool-/, '');
+        return (
+          <ToolCallCard
+            key={`${message.id}-tool-${idx}`}
+            toolName={toolName}
+            state={anyPart.state ?? 'input-available'}
+            input={anyPart.input}
+            output={anyPart.output}
+            errorText={anyPart.errorText ?? null}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function EmptyState({
   onPick,
   disabled,
@@ -282,11 +286,9 @@ function EmptyState({
         padding: 'var(--space-4) 0',
       }}
     >
-      <p
-        className="caption"
-        style={{ color: 'var(--color-text-secondary)' }}
-      >
-        Ask across every mini-app you use. Read-only.
+      <p className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+        Ask across every mini-app you use. I can also log meals, water, weight,
+        and start a pomodoro on your behalf.
       </p>
       <div
         style={{
