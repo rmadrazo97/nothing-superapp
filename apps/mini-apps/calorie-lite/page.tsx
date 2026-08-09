@@ -50,6 +50,7 @@ import { CustomMealsPanel } from './components/CustomMealsPanel.tsx';
 import { TodayInsights } from './components/TodayInsights.tsx';
 import { OnboardingWizard } from './components/OnboardingWizard.tsx';
 import { MealPlanView } from './components/MealPlanView.tsx';
+import { FromPlanDropdown } from './components/FromPlanDropdown.tsx';
 import {
   computeStreak,
   dailyTotals,
@@ -281,6 +282,7 @@ export default function CalorieLitePage() {
           carbs={todayCarbs}
           fat={todayFat}
           loading={entries === null}
+          activeMealPlanId={preferences.active_meal_plan_id}
           onAdd={() => setView('add')}
         />
       )}
@@ -461,6 +463,7 @@ function TodayView({
   carbs,
   fat,
   loading,
+  activeMealPlanId,
   onAdd,
 }: {
   total: number;
@@ -473,6 +476,7 @@ function TodayView({
   carbs: number;
   fat: number;
   loading: boolean;
+  activeMealPlanId: string | null;
   onAdd: () => void;
 }) {
   return (
@@ -504,25 +508,34 @@ function TodayView({
           so users see saved options before jumping to the ADD form. */}
       <CustomMealsPanel todayEntries={entries} defaultMealSlot="lunch" />
 
-      <button
-        type="button"
-        onClick={onAdd}
+      <div
         style={{
-          background: 'var(--color-accent)',
-          color: 'var(--color-text-display)',
-          border: 0,
-          borderRadius: 'var(--radius-button)',
-          padding: 'var(--space-3) var(--space-6)',
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          alignSelf: 'flex-start',
+          display: 'flex',
+          gap: 'var(--space-3)',
+          alignItems: 'center',
+          flexWrap: 'wrap',
         }}
       >
-        + Add meal
-      </button>
+        <button
+          type="button"
+          onClick={onAdd}
+          style={{
+            background: 'var(--color-accent)',
+            color: 'var(--color-text-display)',
+            border: 0,
+            borderRadius: 'var(--radius-button)',
+            padding: 'var(--space-3) var(--space-6)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-label)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          + Add meal
+        </button>
+        <FromPlanDropdown activeMealPlanId={activeMealPlanId} />
+      </div>
     </div>
   );
 }
