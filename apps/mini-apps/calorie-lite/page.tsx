@@ -49,6 +49,7 @@ import { ReportsView } from './components/ReportsView.tsx';
 import { CustomMealsPanel } from './components/CustomMealsPanel.tsx';
 import { TodayInsights } from './components/TodayInsights.tsx';
 import { OnboardingWizard } from './components/OnboardingWizard.tsx';
+import { MealPlanView } from './components/MealPlanView.tsx';
 import {
   computeStreak,
   dailyTotals,
@@ -58,7 +59,7 @@ import {
 // Alphabetical-after-locked-first ordering: today → add → water → weight →
 // reports → history. Wave C owns `reports`; workers A/B own `add`, `water`,
 // `weight` respectively.
-type View = 'today' | 'add' | 'water' | 'weight' | 'reports' | 'history';
+type View = 'today' | 'add' | 'water' | 'weight' | 'plan' | 'reports' | 'history';
 
 const MEAL_OPTIONS: { id: Meal; label: string }[] = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -300,6 +301,10 @@ export default function CalorieLitePage() {
 
       {view === 'weight' && <WeightView />}
 
+      {view === 'plan' && (
+        <MealPlanView activeMealPlanId={preferences.active_meal_plan_id} />
+      )}
+
       {view === 'reports' && (
         <ReportsView dailyCalorieGoal={goalIsExplicit ? goalKcal : null} />
       )}
@@ -393,6 +398,9 @@ function Header({
         </TabButton>
         <TabButton active={view === 'weight'} onClick={() => onChangeView('weight')}>
           Weight
+        </TabButton>
+        <TabButton active={view === 'plan'} onClick={() => onChangeView('plan')}>
+          Plan
         </TabButton>
         <TabButton active={view === 'reports'} onClick={() => onChangeView('reports')}>
           Reports
