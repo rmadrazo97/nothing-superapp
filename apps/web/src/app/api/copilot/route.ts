@@ -26,6 +26,7 @@ import { chatModel } from '@/lib/ai/provider';
 import { copilotTools } from '@/lib/ai/tools';
 import { assembleUserContext } from '@/lib/kimi/context';
 import { limitPerKey } from '@/lib/rate-limit';
+import { deriveThreadTitle } from '@nothing/shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -265,9 +266,15 @@ export async function POST(request: Request) {
   //    Optional `context` field lets a mini-app scope the copilot ("I'm
   //    inside calorie-lite") so the system prompt + injected snapshot can
   //    steer tool selection.
-  let body: { messages?: UIMessage[]; context?: string };
+  //    Optional `thread_id` opts the turn into persistent history — the
+  //    route loads prior messages + upserts new turns via onFinish.
+  let body: { messages?: UIMessage[]; context?: string; thread_id?: string };
   try {
-    body = (await request.json()) as { messages?: UIMessage[]; context?: string };
+    body = (await request.json()) as {
+      messages?: UIMessage[];
+      context?: string;
+      thread_id?: string;
+    };
   } catch {
     return new Response(JSON.stringify({ error: 'invalid_json' }), {
       status: 400,
@@ -299,6 +306,31 @@ export async function POST(request: Request) {
     : '';
   const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---${scopedPromptAppend}${scopedContextBlock}`;
 
+  // 4b. Resolve thread persistence — if `thread_id` is present and belongs
+  //     to the caller, we'll persist the fresh turn on stream finish. If not
+  //     present, no persistence happens (backwards-compatible with clients
+  //     that don't opt in yet).
+  const threadIdRaw = typeof body.thread_id === 'string' ? body.thread_id.trim() : '';
+  const threadId = /^[0-9a-fA-F-]{36}$/.test(threadIdRaw) ? threadIdRaw : null;
+  let threadValid = false;
+  if (threadId) {
+    const { data: threadRow } = await supabase
+      .from('copilot_threads')
+      .select('id, title')
+      .eq('id', threadId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    threadValid = Boolean(threadRow);
+  }
+
+  // The last message in `uiMessages` is the fresh user turn — everything
+  // before it is history already known to the client (and, if the thread is
+  // persistent, already stored). We persist only the last user turn + the
+  // new assistant response, not the entire array (avoids double-writes).
+  const lastUserMsg =
+    uiMessages.length > 0 ? uiMessages[uiMessages.length - 1] : null;
+  const isFreshUserTurn = lastUserMsg?.role === 'user';
+
   // 5. Kick off the streamed generation. Tools + step cap keep the agent
   //    bounded; UIMessageStream shape is what `useChat()` on the client
   //    knows how to parse.
@@ -310,7 +342,173 @@ export async function POST(request: Request) {
     messages: modelMessages,
     tools: copilotTools(user.id, supabase),
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
+    async onFinish({ response }) {
+      // Persist only when the caller opted in AND the thread is theirs.
+      if (!threadValid || !threadId) return;
+      try {
+        await persistTurn({
+          supabase,
+          userId: user.id,
+          threadId,
+          userMessage: isFreshUserTurn ? lastUserMsg : null,
+          assistantMessages: response.messages,
+        });
+      } catch (err) {
+        // Never bubble a persistence failure into the stream — the user
+        // already sees the reply. Log for triage.
+        console.error('[copilot] persist_turn_failed', err);
+      }
+    },
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+/**
+ * Persist the fresh turn (last user message + assistant response messages)
+ * to `copilot_messages`, then bump the thread's `last_message_at` +
+ * auto-title from the first user turn if the title is still the default.
+ *
+ * All writes go through the same authed supabase client so RLS still gates
+ * them — a compromised thread_id would fail the WHERE user_id = auth.uid()
+ * check on the trigger's underlying policies.
+ */
+async function persistTurn({
+  supabase,
+  userId,
+  threadId,
+  userMessage,
+  assistantMessages,
+}: {
+  supabase: SupabaseClient;
+  userId: string;
+  threadId: string;
+  userMessage: UIMessage | null;
+  assistantMessages: Array<{ role: string; content: unknown }>;
+}) {
+  const inserts: Array<{
+    thread_id: string;
+    user_id: string;
+    role: 'user' | 'assistant' | 'system';
+    parts: unknown;
+  }> = [];
+
+  if (userMessage) {
+    inserts.push({
+      thread_id: threadId,
+      user_id: userId,
+      role: 'user',
+      // Store the raw parts as jsonb — round-trips text + file parts
+      // exactly as the client sent them.
+      parts: Array.isArray(userMessage.parts) ? userMessage.parts : [],
+    });
+  }
+
+  // The AI SDK response messages array holds one entry per assistant step.
+  // We flatten each entry's content array into UIMessage-shaped `parts` so
+  // rehydration through /threads/[id] can render tool calls + text alike.
+  for (const msg of assistantMessages) {
+    if (msg.role !== 'assistant') continue;
+    const parts = normalizeAssistantContent(msg.content);
+    if (parts.length === 0) continue;
+    inserts.push({
+      thread_id: threadId,
+      user_id: userId,
+      role: 'assistant',
+      parts,
+    });
+  }
+
+  if (inserts.length > 0) {
+    const { error } = await supabase.from('copilot_messages').insert(inserts);
+    if (error) throw new Error(`insert_messages: ${error.message}`);
+  }
+
+  // Bump last_message_at + auto-title. We fetch title first so we only
+  // rewrite the default; if the user renamed it, we leave it alone.
+  const { data: threadRow } = await supabase
+    .from('copilot_threads')
+    .select('title')
+    .eq('id', threadId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const patch: Record<string, unknown> = {
+    last_message_at: new Date().toISOString(),
+  };
+  const currentTitle = (threadRow?.title as string | null) ?? null;
+  if (currentTitle == null || currentTitle === 'New chat') {
+    // Derive a fresh title from the first user message text.
+    const firstUserText = extractText(userMessage);
+    if (firstUserText.length > 0) {
+      patch.title = deriveThreadTitle(firstUserText);
+    }
+  }
+  await supabase
+    .from('copilot_threads')
+    .update(patch)
+    .eq('id', threadId)
+    .eq('user_id', userId);
+}
+
+/**
+ * Convert an AI SDK response-message `content` field (which can be a string
+ * OR an array of parts with variant `text` / `tool-call` / `tool-result` /
+ * `reasoning`) into a UIMessage-shaped `parts` array that the client's
+ * useChat() will re-render identically.
+ */
+function normalizeAssistantContent(content: unknown): unknown[] {
+  if (typeof content === 'string') {
+    return content.length > 0 ? [{ type: 'text', text: content }] : [];
+  }
+  if (!Array.isArray(content)) return [];
+  const parts: unknown[] = [];
+  for (const c of content) {
+    if (!c || typeof c !== 'object') continue;
+    const part = c as Record<string, unknown>;
+    const t = part.type;
+    if (t === 'text' && typeof part.text === 'string') {
+      parts.push({ type: 'text', text: part.text });
+    } else if (t === 'reasoning' && typeof part.text === 'string') {
+      parts.push({ type: 'reasoning', text: part.text });
+    } else if (t === 'tool-call') {
+      // Represent tool calls as UI 'tool-*' parts so the ToolCallCard
+      // renders correctly on rehydration. State = output-available since
+      // we're persisting after the run finished.
+      parts.push({
+        type: `tool-${String(part.toolName ?? 'tool')}`,
+        toolCallId: part.toolCallId,
+        state: 'output-available',
+        input: part.input ?? part.args ?? null,
+      });
+    } else if (t === 'tool-result') {
+      // Attach the result to the matching tool-call part we just pushed.
+      // Look backwards for the freshest tool-* entry to enrich.
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i] as Record<string, unknown>;
+        if (typeof p.type === 'string' && p.type.startsWith('tool-') && !p.output) {
+          p.output = part.output ?? part.result ?? null;
+          if (part.isError) {
+            p.state = 'output-error';
+            p.errorText =
+              typeof part.output === 'string' ? part.output : 'tool_failed';
+          }
+          break;
+        }
+      }
+    }
+  }
+  return parts;
+}
+
+function extractText(msg: UIMessage | null): string {
+  if (!msg || !Array.isArray(msg.parts)) return '';
+  let out = '';
+  for (const p of msg.parts) {
+    const part = p as { type?: string; text?: string };
+    if (part.type === 'text' && typeof part.text === 'string') {
+      out += part.text;
+    }
+  }
+  return out;
 }

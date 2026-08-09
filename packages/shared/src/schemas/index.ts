@@ -8,6 +8,12 @@ export * from './gym.ts';
 // planRulesSchema, mealPlanAdherenceSchema + all types + mealSlotIdToMfpSlot().
 export * from './meal-plan.ts';
 
+// copilot thread persistence schemas (migration 015 — see ./copilot-thread.ts).
+// Re-exports include: copilotThreadSchema, copilotThreadInsertSchema,
+// copilotThreadUpdateSchema, copilotMessageSchema, copilotMessageInsertSchema,
+// deriveThreadTitle() + all types.
+export * from './copilot-thread.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([
