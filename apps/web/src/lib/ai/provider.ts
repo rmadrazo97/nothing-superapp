@@ -26,15 +26,28 @@ function readProviderName(): AIProviderName {
   throw new Error(`Unsupported AI_PROVIDER: ${raw}`);
 }
 
-/** Build the LanguageModel for the currently-configured provider. */
-export function chatModel(): LanguageModel {
+/**
+ * Build the LanguageModel for the currently-configured provider.
+ *
+ * `variant`:
+ *   - 'text'   — default, uses KIMI_MODEL (kimi-k2.6 by default; text + tools)
+ *   - 'vision' — uses KIMI_VISION_MODEL when set, otherwise falls through to
+ *                KIMI_MODEL. Kimi K2.6 already advertises `supports_image_in`
+ *                (verified against /v1/models), so a distinct vision model is
+ *                optional — the env exists so we can force e.g.
+ *                `moonshot-v1-32k-vision-preview` if the primary changes.
+ */
+export function chatModel(variant: 'text' | 'vision' = 'text'): LanguageModel {
   const name = readProviderName();
   switch (name) {
     case 'kimi': {
       const apiKey = process.env.KIMI_API_KEY;
       if (!apiKey) throw new Error('KIMI_API_KEY is not set');
       const baseURL = process.env.KIMI_BASE_URL ?? 'https://api.moonshot.ai/v1';
-      const modelId = process.env.KIMI_MODEL ?? 'kimi-k2.6';
+      const modelId =
+        variant === 'vision'
+          ? (process.env.KIMI_VISION_MODEL ?? process.env.KIMI_MODEL ?? 'kimi-k2.6')
+          : (process.env.KIMI_MODEL ?? 'kimi-k2.6');
       const provider = createOpenAICompatible({
         name: 'kimi',
         baseURL,
@@ -46,6 +59,9 @@ export function chatModel(): LanguageModel {
 }
 
 /** Symbolic model id — exposed for logging + audit rows. */
-export function chatModelId(): string {
+export function chatModelId(variant: 'text' | 'vision' = 'text'): string {
+  if (variant === 'vision') {
+    return process.env.KIMI_VISION_MODEL ?? process.env.KIMI_MODEL ?? 'kimi-k2.6';
+  }
   return process.env.KIMI_MODEL ?? 'kimi-k2.6';
 }

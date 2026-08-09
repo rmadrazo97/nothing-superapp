@@ -54,9 +54,45 @@ const SYSTEM_PROMPT = [
   '6. If a tool returns { ok: false, error }, tell the user plainly what',
   '   failed and suggest a fix.',
   '',
+  'Image handling:',
+  '- When the user shares a photo of food, identify the items and estimate',
+  '  portions. Then either call log_calorie_entry (if the user asked to log',
+  '  it) or return an estimate with a confidence caveat: "This looks like',
+  '  ~450 kcal of chicken and rice, but portion sizes from photos are ± 20%."',
+  '- When the user shares a restaurant menu photo, extract dish names and',
+  '  prices. If they asked what fits their macros, call get_daily_summary',
+  '  first to see what\'s left in their budget, then recommend the best-fit',
+  '  dish(es) explaining the macro reasoning.',
+  '- If a photo is ambiguous or blurry, ask a clarifying question before',
+  '  logging.',
+  '',
+  // Insertion point for future workers (meal plans, in-app awareness).
+  // NSA_SYSTEM_PROMPT_APPEND — additional context blocks land above this line.
   'Cross-mini-app context (JSON, read-only, snapshot at request time) follows:',
   '--- USER CONTEXT ---',
 ].join('\n');
+
+/**
+ * True if any UI message carries a `file` part with an image mediaType.
+ * Kimi K2.6 already handles images, but we still route through the vision
+ * variant so operators can override with `moonshot-v1-*-vision-preview` via
+ * `KIMI_VISION_MODEL` without touching code.
+ */
+function hasImageParts(messages: UIMessage[]): boolean {
+  for (const m of messages) {
+    if (!Array.isArray(m.parts)) continue;
+    for (const p of m.parts) {
+      if (
+        (p as { type?: string }).type === 'file' &&
+        typeof (p as { mediaType?: string }).mediaType === 'string' &&
+        (p as { mediaType: string }).mediaType.startsWith('image')
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 export async function POST(request: Request) {
   // 1. Auth.
@@ -120,8 +156,9 @@ export async function POST(request: Request) {
   //    bounded; UIMessageStream shape is what `useChat()` on the client
   //    knows how to parse.
   const modelMessages = await convertToModelMessages(uiMessages);
+  const variant: 'text' | 'vision' = hasImageParts(uiMessages) ? 'vision' : 'text';
   const result = streamText({
-    model: chatModel(),
+    model: chatModel(variant),
     system,
     messages: modelMessages,
     tools: copilotTools(user.id, supabase),

@@ -1,0 +1,373 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "file": "Dieta_Jose_Alejandro_Madrazo.pdf",
+    "title": "DIETA – JOSÉ ALEJANDRO MADRAZO ÁVILA",
+    "language_original": "es",
+    "author_role": "nutritionist"
+  },
+  "athlete": {
+    "name": "José Alejandro Madrazo Ávila",
+    "weight_kg": 73,
+    "height_m": 1.71,
+    "activity": {
+      "description_es": "trabajo de baja actividad + 5 entrenamientos semanales",
+      "description_en": "low-activity job + 5 training sessions per week",
+      "occupational_activity": "low",
+      "training_sessions_per_week": 5
+    }
+  },
+  "plan": {
+    "id": "diet_jam_v1",
+    "goal_es": "perder grasa manteniendo y desarrollando masa muscular",
+    "goal_en": "lose fat while maintaining and building muscle mass",
+    "meals_per_day": 3,
+    "units": {
+      "mass": "g",
+      "volume": "ml",
+      "energy": "kcal"
+    },
+    "daily_targets": {
+      "label_es": "Calorías iniciales",
+      "calories_kcal": 2100,
+      "protein_g": 109,
+      "fat_g": 47,
+      "carbs_g": 308,
+      "is_starting_point": true
+    },
+    "rules": {
+      "weighing": {
+        "state": "raw",
+        "note_es": "Todos los alimentos van pesados en crudo.",
+        "note_en": "All foods are weighed raw."
+      },
+      "vegetables": {
+        "applies_to": ["comida", "cena"],
+        "unlimited": true,
+        "optional": true,
+        "fallback": "multivitamin",
+        "note_en": "Vegetables at lunch and dinner are free and optional; if skipped, take a multivitamin."
+      },
+      "free_meal": {
+        "per_week": 1,
+        "note_es": "sin desfasar",
+        "note_en": "One free meal per week, without going overboard."
+      },
+      "hydration": {
+        "min_water_litres": 2.5
+      },
+      "allowed_free_drinks": ["coffee", "herbal_teas", "zero_calorie_drinks"],
+      "option_interchangeability": {
+        "across_meals": true,
+        "note_en": "Options are interchangeable between days: e.g. breakfast option 1, lunch option 4, dinner option 2."
+      },
+      "protein_source_swap": {
+        "allowed": true,
+        "scope": "within_and_between_options",
+        "note_en": "Protein sources can be swapped between options, e.g. chicken instead of beef with the rice."
+      }
+    },
+    "meals": [
+      {
+        "id": "desayuno",
+        "name_es": "DESAYUNO",
+        "name_en": "Breakfast",
+        "order": 1,
+        "targets": { "protein_g": 35, "carbs_g": 95, "fat_g": 15, "calories_kcal": 650 },
+        "options": [
+          {
+            "option": 1,
+            "label_es": "Opción 1",
+            "ingredients": [
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 125, "unit": "g"},
+              {"name_es": "Huevos", "name_en": "Eggs", "quantity": 2, "unit": "unit"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 130, "unit": "g"},
+              {"name_es": "Queso fresco", "name_en": "Fresh cheese", "quantity": 45, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 20, "unit": "g"},
+              {"name_es": "Leche semidesnatada", "name_en": "Semi-skimmed milk", "quantity": 200, "unit": "ml"}
+            ]
+          },
+          {
+            "option": 2,
+            "label_es": "Opción 2",
+            "ingredients": [
+              {"name_es": "Crema de arroz", "name_en": "Rice cream (rice flour porridge)", "quantity": 80, "unit": "g"},
+              {"name_es": "Whey", "name_en": "Whey protein", "quantity": 20, "unit": "g"},
+              {"name_es": "Leche semidesnatada", "name_en": "Semi-skimmed milk", "quantity": 300, "unit": "ml"},
+              {"name_es": "Plátano", "name_en": "Banana", "quantity": 160, "unit": "g"},
+              {"name_es": "Crema de cacahuete", "name_en": "Peanut butter", "quantity": 7, "unit": "g"}
+            ]
+          },
+          {
+            "option": 3,
+            "label_es": "Opción 3",
+            "ingredients": [
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 120, "unit": "g"},
+              {"name_es": "Jamón cocido de pavo", "name_en": "Cooked turkey ham", "quantity": 80, "unit": "g"},
+              {"name_es": "Huevos", "name_en": "Eggs", "quantity": 2, "unit": "unit"},
+              {"name_es": "Queso curado", "name_en": "Cured cheese", "quantity": 20, "unit": "g"},
+              {"name_es": "Sandía", "name_en": "Watermelon", "quantity": 300, "unit": "g"}
+            ]
+          },
+          {
+            "option": 4,
+            "label_es": "Opción 4",
+            "ingredients": [
+              {"name_es": "Queso fresco batido 0%", "name_en": "0% fat quark / fromage frais", "quantity": 300, "unit": "g"},
+              {"name_es": "Avena", "name_en": "Oats", "quantity": 75, "unit": "g"},
+              {"name_es": "Frutos rojos", "name_en": "Berries", "quantity": 150, "unit": "g"},
+              {"name_es": "Plátano", "name_en": "Banana", "quantity": 120, "unit": "g"},
+              {"name_es": "Nueces", "name_en": "Walnuts", "quantity": 10, "unit": "g"},
+              {"name_es": "Miel", "name_en": "Honey", "quantity": 10, "unit": "g"}
+            ]
+          },
+          {
+            "option": 5,
+            "label_es": "Opción 5",
+            "dish_es": "Tortitas",
+            "dish_en": "Pancakes",
+            "ingredients": [
+              {"name_es": "Harina de avena", "name_en": "Oat flour", "quantity": 75, "unit": "g"},
+              {"name_es": "Huevos", "name_en": "Eggs", "quantity": 2, "unit": "unit"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 150, "unit": "g"},
+              {"name_es": "Plátano", "name_en": "Banana", "quantity": 150, "unit": "g"},
+              {"name_es": "Chocolate negro 85%", "name_en": "85% dark chocolate", "quantity": 8, "unit": "g"},
+              {"name_es": "Miel", "name_en": "Honey", "quantity": 12, "unit": "g"}
+            ]
+          },
+          {
+            "option": 6,
+            "label_es": "Opción 6",
+            "ingredients": [
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 125, "unit": "g"},
+              {"name_es": "Jamón serrano", "name_en": "Serrano ham", "quantity": 50, "unit": "g"},
+              {"name_es": "Huevo", "name_en": "Egg", "quantity": 1, "unit": "unit"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 130, "unit": "g"},
+              {"name_es": "Queso fresco", "name_en": "Fresh cheese", "quantity": 50, "unit": "g"},
+              {"name_es": "Fruta", "name_en": "Fruit (unspecified)", "quantity": 150, "unit": "g", "generic": true}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "comida",
+        "name_es": "COMIDA",
+        "name_en": "Lunch",
+        "order": 2,
+        "targets": { "protein_g": 40, "carbs_g": 115, "fat_g": 17, "calories_kcal": 775 },
+        "options": [
+          {
+            "option": 1,
+            "label_es": "Opción 1",
+            "ingredients": [
+              {"name_es": "Batata", "name_en": "Sweet potato", "quantity": 570, "unit": "g"},
+              {"name_es": "Pechuga de pollo", "name_en": "Chicken breast", "quantity": 145, "unit": "g"},
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 30, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 12, "unit": "g"},
+              {"name_es": "Ensalada sencilla", "name_en": "Simple salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 2,
+            "label_es": "Opción 2",
+            "ingredients": [
+              {"name_es": "Arroz", "name_en": "Rice", "quantity": 140, "unit": "g"},
+              {"name_es": "Carne magra de vaca", "name_en": "Lean beef", "quantity": 135, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 10, "unit": "g"},
+              {"name_es": "Ensalada de tomate, hojas verdes y cebolla", "name_en": "Tomato, leafy greens and onion salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 3,
+            "label_es": "Opción 3",
+            "ingredients": [
+              {"name_es": "Patata al horno o airfryer", "name_en": "Oven- or air-fryer-baked potato", "quantity": 650, "unit": "g"},
+              {"name_es": "Lomo de cerdo magro", "name_en": "Lean pork loin", "quantity": 150, "unit": "g"},
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 35, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 11, "unit": "g"},
+              {"name_es": "Ensalada", "name_en": "Salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 4,
+            "label_es": "Opción 4",
+            "ingredients": [
+              {"name_es": "Pasta", "name_en": "Pasta", "quantity": 140, "unit": "g"},
+              {"name_es": "Carne picada de ternera 5%", "name_en": "5% fat minced beef", "quantity": 135, "unit": "g"},
+              {"name_es": "Tomate triturado", "name_en": "Crushed tomato", "quantity": 180, "unit": "g"},
+              {"name_es": "Queso curado", "name_en": "Cured cheese", "quantity": 20, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 7, "unit": "g"}
+            ]
+          },
+          {
+            "option": 5,
+            "label_es": "Opción 5",
+            "ingredients": [
+              {"name_es": "Lentejas cocidas", "name_en": "Cooked lentils", "quantity": 300, "unit": "g"},
+              {"name_es": "Arroz", "name_en": "Rice", "quantity": 65, "unit": "g"},
+              {"name_es": "Pechuga de pollo", "name_en": "Chicken breast", "quantity": 85, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 9, "unit": "g"},
+              {"name_es": "Verduras", "name_en": "Vegetables", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 6,
+            "label_es": "Opción 6",
+            "ingredients": [
+              {"name_es": "Alubias cocidas", "name_en": "Cooked white beans", "quantity": 300, "unit": "g"},
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 75, "unit": "g"},
+              {"name_es": "Pechuga de pavo", "name_en": "Turkey breast", "quantity": 90, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 35, "unit": "g"},
+              {"name_es": "Ensalada", "name_en": "Salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 7,
+            "label_es": "Opción 7",
+            "ingredients": [
+              {"name_es": "Arroz", "name_en": "Rice", "quantity": 130, "unit": "g"},
+              {"name_es": "Salmón", "name_en": "Salmon", "quantity": 135, "unit": "g"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 100, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 4, "unit": "g"},
+              {"name_es": "Verduras", "name_en": "Vegetables", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 8,
+            "label_es": "Opción 8",
+            "dish_es": "Hamburguesa",
+            "dish_en": "Burger",
+            "ingredients": [
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 110, "unit": "g"},
+              {"name_es": "Hamburguesa de ternera 5%", "name_en": "5% fat beef burger patty", "quantity": 145, "unit": "g"},
+              {"name_es": "Patata airfryer", "name_en": "Air-fryer potato", "quantity": 400, "unit": "g"},
+              {"name_es": "Queso curado", "name_en": "Cured cheese", "quantity": 20, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 25, "unit": "g"}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cena",
+        "name_es": "CENA",
+        "name_en": "Dinner",
+        "order": 3,
+        "targets": { "protein_g": 34, "carbs_g": 98, "fat_g": 15, "calories_kcal": 675 },
+        "options": [
+          {
+            "option": 1,
+            "label_es": "Opción 1",
+            "ingredients": [
+              {"name_es": "Batata", "name_en": "Sweet potato", "quantity": 490, "unit": "g"},
+              {"name_es": "Pechuga de pollo", "name_en": "Chicken breast", "quantity": 125, "unit": "g"},
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 25, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 11, "unit": "g"},
+              {"name_es": "Ensalada", "name_en": "Salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 2,
+            "label_es": "Opción 2",
+            "ingredients": [
+              {"name_es": "Arroz", "name_en": "Rice", "quantity": 120, "unit": "g"},
+              {"name_es": "Carne magra de vaca", "name_en": "Lean beef", "quantity": 120, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 35, "unit": "g"},
+              {"name_es": "Verduras", "name_en": "Vegetables", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 3,
+            "label_es": "Opción 3",
+            "ingredients": [
+              {"name_es": "Patata airfryer", "name_en": "Air-fryer potato", "quantity": 560, "unit": "g"},
+              {"name_es": "Huevos", "name_en": "Eggs", "quantity": 2, "unit": "unit"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 150, "unit": "g"},
+              {"name_es": "Queso fresco", "name_en": "Fresh cheese", "quantity": 35, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 5, "unit": "g"}
+            ]
+          },
+          {
+            "option": 4,
+            "label_es": "Opción 4",
+            "ingredients": [
+              {"name_es": "Pasta", "name_en": "Pasta", "quantity": 120, "unit": "g"},
+              {"name_es": "Pechuga de pavo", "name_en": "Turkey breast", "quantity": 120, "unit": "g"},
+              {"name_es": "Tomate triturado", "name_en": "Crushed tomato", "quantity": 180, "unit": "g"},
+              {"name_es": "Queso curado", "name_en": "Cured cheese", "quantity": 20, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 8, "unit": "g"}
+            ]
+          },
+          {
+            "option": 5,
+            "label_es": "Opción 5",
+            "ingredients": [
+              {"name_es": "Lentejas cocidas", "name_en": "Cooked lentils", "quantity": 270, "unit": "g"},
+              {"name_es": "Arroz", "name_en": "Rice", "quantity": 50, "unit": "g"},
+              {"name_es": "Lomo de cerdo magro", "name_en": "Lean pork loin", "quantity": 90, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 35, "unit": "g"},
+              {"name_es": "Ensalada", "name_en": "Salad", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 6,
+            "label_es": "Opción 6",
+            "dish_es": "Pizza",
+            "dish_en": "Pizza",
+            "ingredients": [
+              {"name_es": "Base de masa madre", "name_en": "Sourdough pizza base", "quantity": 145, "unit": "g"},
+              {"name_es": "Pechuga de pollo", "name_en": "Chicken breast", "quantity": 95, "unit": "g"},
+              {"name_es": "Queso light", "name_en": "Light cheese", "quantity": 45, "unit": "g"},
+              {"name_es": "Tomate triturado", "name_en": "Crushed tomato", "quantity": 150, "unit": "g"},
+              {"name_es": "AOVE", "name_en": "Extra virgin olive oil", "quantity": 6, "unit": "g"}
+            ]
+          },
+          {
+            "option": 7,
+            "label_es": "Opción 7",
+            "dish_es": "Bocadillo",
+            "dish_en": "Sandwich",
+            "ingredients": [
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 145, "unit": "g"},
+              {"name_es": "Jamón cocido de pavo", "name_en": "Cooked turkey ham", "quantity": 100, "unit": "g"},
+              {"name_es": "Queso curado", "name_en": "Cured cheese", "quantity": 25, "unit": "g"},
+              {"name_es": "Aguacate", "name_en": "Avocado", "quantity": 30, "unit": "g"},
+              {"name_es": "Tomate", "name_en": "Tomato", "quantity": null, "unit": null, "free": true}
+            ]
+          },
+          {
+            "option": 8,
+            "label_es": "Opción 8",
+            "ingredients": [
+              {"name_es": "Salmón", "name_en": "Salmon", "quantity": 125, "unit": "g"},
+              {"name_es": "Patata airfryer", "name_en": "Air-fryer potato", "quantity": 500, "unit": "g"},
+              {"name_es": "Pan de masa madre", "name_en": "Sourdough bread", "quantity": 30, "unit": "g"},
+              {"name_es": "Claras", "name_en": "Egg whites", "quantity": 80, "unit": "g"},
+              {"name_es": "Ensalada", "name_en": "Salad", "quantity": null, "unit": null, "free": true}
+            ]
+          }
+        ]
+      }
+    ],
+    "tracking_fields": [
+      "date",
+      "meal_id",
+      "option_selected",
+      "substitutions",
+      "adherence",
+      "free_meal_used",
+      "water_litres",
+      "bodyweight_kg",
+      "notes"
+    ]
+  },
+  "parsing_notes": [
+    "Per-meal macro targets sum exactly to the daily targets (protein 35+40+34=109 g, carbs 95+115+98=308 g, fat 15+17+15=47 g, calories 650+775+675=2100 kcal), so no reconciliation was needed.",
+    "Every option within a meal is designed to hit that meal's macro targets, so options are equivalent substitutes rather than distinct macro profiles.",
+    "Quantities are as prescribed and refer to raw weight; unquantified items (salads, vegetables, tomato) are represented with quantity: null and free: true.",
+    "Eggs are counted in units ('uds'); milk is in ml; everything else is in grams.",
+    "'Fruta 150 g' in breakfast option 6 is generic in the source and is flagged with generic: true — any fruit is implied.",
+    "Combined-item names were kept intact ('Patata al horno o airfryer', 'Ensalada de tomate, hojas verdes y cebolla') rather than split, since the source treats them as a single line.",
+    "Dish names given in the source ('Tortitas', 'Hamburguesa', 'Pizza', 'Bocadillo') are preserved in dish_es/dish_en; other options have none.",
+    "Calorie figures are the nutritionist's own; no macro or energy values were recomputed from food databases."
+  ]
+}
