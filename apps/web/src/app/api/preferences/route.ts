@@ -13,15 +13,28 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { macroGoalPctSchema } from '@nothing/shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Wave C (MFP-tier) additions to the PATCH allow-list:
+//   macro_goal_pct — jsonb {protein, carbs, fat} summing to 100
+//   water_goal_ml   — positive int, default 2500
+//   weight_goal_kg  — nullable numeric (kg)
+//   weight_unit     — 'kg' | 'lb' (display preference only, storage stays kg)
+//   volume_unit     — 'ml' | 'oz' (display preference only, storage stays ml)
+// Rules — only ADD new fields; GET + upsert structure are untouched.
 const preferencesPatchSchema = z
   .object({
     notifications_enabled: z.boolean().optional(),
     theme: z.enum(['dark', 'light']).optional(),
     daily_calorie_goal: z.number().int().positive().max(20000).nullable().optional(),
+    macro_goal_pct: macroGoalPctSchema.optional(),
+    water_goal_ml: z.number().int().positive().max(10000).optional(),
+    weight_goal_kg: z.number().positive().max(500).nullable().optional(),
+    weight_unit: z.enum(['kg', 'lb']).optional(),
+    volume_unit: z.enum(['ml', 'oz']).optional(),
   })
   .strict();
 

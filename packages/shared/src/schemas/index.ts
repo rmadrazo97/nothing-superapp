@@ -50,11 +50,19 @@ export const profileInsertSchema = profileSchema
 
 // ─── preferences ───────────────────────────────────────────────────────────
 
+export const weightUnitEnum = z.enum(['kg', 'lb']);
+export const volumeUnitEnum = z.enum(['ml', 'oz']);
+
 export const preferencesSchema = z.object({
   user_id: z.string().uuid(),
   notifications_enabled: z.boolean().default(false),
   theme: themeEnum.default('dark'),
   daily_calorie_goal: z.number().int().positive().nullable(),
+  // v3 (MFP-tier) — water + weight sub-mini-apps
+  water_goal_ml: z.number().int().positive().default(2500),
+  weight_goal_kg: z.number().positive().nullable().default(null),
+  weight_unit: weightUnitEnum.default('kg'),
+  volume_unit: volumeUnitEnum.default('ml'),
   updated_at: z.string().datetime({ offset: true }),
 });
 
@@ -64,6 +72,10 @@ export const preferencesInsertSchema = preferencesSchema
     notifications_enabled: z.boolean().default(false).optional(),
     theme: themeEnum.default('dark').optional(),
     daily_calorie_goal: z.number().int().positive().nullable().optional(),
+    water_goal_ml: z.number().int().positive().optional(),
+    weight_goal_kg: z.number().positive().nullable().optional(),
+    weight_unit: weightUnitEnum.optional(),
+    volume_unit: volumeUnitEnum.optional(),
   });
 
 // ─── subscriptions ─────────────────────────────────────────────────────────
@@ -264,6 +276,8 @@ export type CalorieEntry = z.infer<typeof calorieEntrySchema>;
 export type CalorieEntryInsert = z.infer<typeof calorieEntryInsertSchema>;
 export type Meal = z.infer<typeof mealEnum>;
 export type Theme = z.infer<typeof themeEnum>;
+export type WeightUnit = z.infer<typeof weightUnitEnum>;
+export type VolumeUnit = z.infer<typeof volumeUnitEnum>;
 
 // v3 MFP-tier
 export type FoodCategory = z.infer<typeof foodCategoryEnum>;

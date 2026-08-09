@@ -33,6 +33,13 @@ const DEFAULT_PREFERENCES: Omit<Preferences, 'user_id' | 'updated_at'> = {
   notifications_enabled: false,
   theme: 'dark',
   daily_calorie_goal: null,
+  // v3 MFP-tier defaults — mirror the DB defaults in migration 005 so brand-
+  // new users (no preferences row yet) see sensible fallbacks in the water +
+  // weight sub-mini-apps rather than 0 goals + broken UI.
+  water_goal_ml: 2500,
+  weight_goal_kg: null,
+  weight_unit: 'kg',
+  volume_unit: 'ml',
 };
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -55,7 +62,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const { data: prefsRow } = await supabase
     .from('preferences')
-    .select('notifications_enabled, theme, daily_calorie_goal, updated_at')
+    .select(
+      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, updated_at',
+    )
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -66,6 +75,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     theme: (prefsRow?.theme ?? DEFAULT_PREFERENCES.theme) as Preferences['theme'],
     daily_calorie_goal:
       prefsRow?.daily_calorie_goal ?? DEFAULT_PREFERENCES.daily_calorie_goal,
+    // NULL-safe: `weight_goal_kg` is legitimately nullable (no goal set), the
+    // other three have DB-level non-null defaults so `??` only matters when
+    // the row itself is missing (brand-new user).
+    water_goal_ml: prefsRow?.water_goal_ml ?? DEFAULT_PREFERENCES.water_goal_ml,
+    weight_goal_kg:
+      prefsRow?.weight_goal_kg != null
+        ? Number(prefsRow.weight_goal_kg)
+        : DEFAULT_PREFERENCES.weight_goal_kg,
+    weight_unit:
+      (prefsRow?.weight_unit ?? DEFAULT_PREFERENCES.weight_unit) as Preferences['weight_unit'],
+    volume_unit:
+      (prefsRow?.volume_unit ?? DEFAULT_PREFERENCES.volume_unit) as Preferences['volume_unit'],
     updated_at: prefsRow?.updated_at ?? new Date().toISOString(),
   };
 

@@ -43,9 +43,22 @@ const entryInsertBodySchema = z
     meal: mealEnum,
     kcal: z.number().int().nonnegative().max(20000),
     raw_input: z.string().trim().max(500).nullable().optional(),
-    protein_g: z.number().int().nonnegative().max(2000).optional(),
-    carbs_g: z.number().int().nonnegative().max(2000).optional(),
-    fat_g: z.number().int().nonnegative().max(2000).optional(),
+    protein_g: z.number().nonnegative().max(2000).optional(),
+    carbs_g: z.number().nonnegative().max(2000).optional(),
+    fat_g: z.number().nonnegative().max(2000).optional(),
+    // v3 MFP-tier nutrition — optional; DB defaults to 0.
+    fiber_g: z.number().nonnegative().max(2000).optional(),
+    sugar_g: z.number().nonnegative().max(2000).optional(),
+    sodium_mg: z.number().nonnegative().max(100000).optional(),
+    cholesterol_mg: z.number().nonnegative().max(10000).optional(),
+    // v3 MFP-tier food link. Client sends the ID of the picked food (or
+    // custom food) plus the qty × unit used; we snapshot the derived
+    // nutrition into the row so a later food edit/delete never rewrites
+    // historical logs.
+    food_id: z.string().max(120).nullable().optional(),
+    custom_food_id: z.string().uuid().nullable().optional(),
+    serving_qty: z.number().positive().max(10000).nullable().optional(),
+    serving_unit: z.string().max(20).nullable().optional(),
     // Client-provided timestamp; optional. Server will validate the window.
     entered_at: z.string().datetime({ offset: true }).optional(),
   })
@@ -54,7 +67,7 @@ const entryInsertBodySchema = z
 const dateParamSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
 const SELECT_COLUMNS =
-  'id, user_id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g';
+  'id, user_id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, cholesterol_mg, food_id, custom_food_id, serving_qty, serving_unit';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -174,6 +187,14 @@ export async function POST(request: Request) {
     protein_g: parsed.data.protein_g ?? 0,
     carbs_g: parsed.data.carbs_g ?? 0,
     fat_g: parsed.data.fat_g ?? 0,
+    fiber_g: parsed.data.fiber_g ?? 0,
+    sugar_g: parsed.data.sugar_g ?? 0,
+    sodium_mg: parsed.data.sodium_mg ?? 0,
+    cholesterol_mg: parsed.data.cholesterol_mg ?? 0,
+    food_id: parsed.data.food_id ?? null,
+    custom_food_id: parsed.data.custom_food_id ?? null,
+    serving_qty: parsed.data.serving_qty ?? null,
+    serving_unit: parsed.data.serving_unit ?? null,
     ...(enteredAt ? { entered_at: enteredAt } : {}),
   };
 

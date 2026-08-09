@@ -39,13 +39,22 @@ import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
 import { StreakChip } from './components/StreakChip.tsx';
 import { Sparkline, type SparklineDay } from './components/Sparkline.tsx';
+import { FoodSearch } from './components/FoodSearch.tsx';
+import { CustomFoodList } from './components/CustomFoodList.tsx';
+import { WaterView } from './components/WaterView.tsx';
+import { WeightView } from './components/WeightView.tsx';
+import { ReportsView } from './components/ReportsView.tsx';
+import { CustomMealsPanel } from './components/CustomMealsPanel.tsx';
 import {
   computeStreak,
   dailyTotals,
   toLocalDateKey,
 } from './lib/aggregate.ts';
 
-type View = 'today' | 'add' | 'history';
+// Alphabetical-after-locked-first ordering: today → add → water → weight →
+// reports → history. Wave C owns `reports`; workers A/B own `add`, `water`,
+// `weight` respectively.
+type View = 'today' | 'add' | 'water' | 'weight' | 'reports' | 'history';
 
 const MEAL_OPTIONS: { id: Meal; label: string }[] = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -237,6 +246,14 @@ export default function CalorieLitePage() {
         />
       )}
 
+      {view === 'water' && <WaterView />}
+
+      {view === 'weight' && <WeightView />}
+
+      {view === 'reports' && (
+        <ReportsView dailyCalorieGoal={goalIsExplicit ? goalKcal : null} />
+      )}
+
       {view === 'history' && (
         <HistoryView
           entries={entries ?? []}
@@ -288,6 +305,15 @@ function Header({
       >
         <TabButton active={view === 'today'} onClick={() => onChangeView('today')}>
           Today
+        </TabButton>
+        <TabButton active={view === 'water'} onClick={() => onChangeView('water')}>
+          Water
+        </TabButton>
+        <TabButton active={view === 'weight'} onClick={() => onChangeView('weight')}>
+          Weight
+        </TabButton>
+        <TabButton active={view === 'reports'} onClick={() => onChangeView('reports')}>
+          Reports
         </TabButton>
         <TabButton active={view === 'history'} onClick={() => onChangeView('history')}>
           History
@@ -371,6 +397,19 @@ function TodayView({
 
       <MacroCard protein={protein} carbs={carbs} fat={fat} />
 
+      {loading ? (
+        <p className="caption">Loading…</p>
+      ) : entries.length === 0 ? (
+        <EmptyToday onAdd={onAdd} />
+      ) : (
+        <EntryList entries={entries} />
+      )}
+
+      {/* MY MEALS panel — reusable custom meal templates. Sits below the day's
+          entries so it doesn't crowd the TotalCard, and above the ADD MEAL CTA
+          so users see saved options before jumping to the ADD form. */}
+      <CustomMealsPanel todayEntries={entries} defaultMealSlot="lunch" />
+
       <button
         type="button"
         onClick={onAdd}
@@ -390,14 +429,6 @@ function TodayView({
       >
         + Add meal
       </button>
-
-      {loading ? (
-        <p className="caption">Loading…</p>
-      ) : entries.length === 0 ? (
-        <EmptyToday onAdd={onAdd} />
-      ) : (
-        <EntryList entries={entries} />
-      )}
     </div>
   );
 }
@@ -582,7 +613,18 @@ function mealLabel(m: Meal): string {
   return MEAL_OPTIONS.find((o) => o.id === m)?.label ?? m;
 }
 
-// ─── Add view ───────────────────────────────────────────────────────────────
+// ─── Add view — v3 MFP-tier tabbed flow ─────────────────────────────────────
+//
+// The Add view now hosts three subviews:
+//   SEARCH    — search the shared foods catalog (153 seeded) + user customs
+//   CUSTOM    — manage user's own custom foods, log from them
+//   QUICK LOG — the v2 free-text form (kept for muscle-memory users)
+//
+// The meal-slot selector stays on ALL tabs so switching tabs doesn't lose
+// the user's chosen meal context. Errors from any tab are hoisted here so
+// the same inline banner + toast plumbing lights them up.
+
+type AddSubView = 'search' | 'custom' | 'quicklog';
 
 function AddView({
   userId,
@@ -594,20 +636,206 @@ function AddView({
   onSaved: () => Promise<void> | void;
 }) {
   const { toast } = useToast();
+  const [subview, setSubview] = useState<AddSubView>('search');
+  const [meal, setMeal] = useState<Meal>('lunch');
+  const [error, setError] = useState<string | null>(null);
+
+  // userId is currently only used for optimistic-UI paths; keeping the prop
+  // threaded through so future work (e.g. offline queue keyed on caller)
+  // has an obvious wire.
+  void userId;
+
+  function handleError(msg: string) {
+    setError(msg);
+    toast.error(msg);
+  }
+
+  function handleSubscriptionRequired() {
+    setError('Subscription required to save entries.');
+    toast.info("This one's paid. Subscribe on the paywall.");
+  }
+
+  return (
+    <div
+      style={{
+        background: 'rgba(0, 0, 0, 0.5)',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+        padding: 'var(--space-4)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+      }}
+    >
+      <span className="label">ADD MEAL</span>
+
+      <div
+        role="tablist"
+        aria-label="Add meal method"
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          borderBottom: '1px solid var(--color-border)',
+        }}
+      >
+        <SubTabButton active={subview === 'search'} onClick={() => setSubview('search')}>
+          Search
+        </SubTabButton>
+        <SubTabButton active={subview === 'custom'} onClick={() => setSubview('custom')}>
+          Custom
+        </SubTabButton>
+        <SubTabButton active={subview === 'quicklog'} onClick={() => setSubview('quicklog')}>
+          Quick log
+        </SubTabButton>
+      </div>
+
+      {/* Meal slot picker persists across ALL subviews. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+          MEAL SLOT
+        </span>
+        <div
+          role="radiogroup"
+          aria-label="Meal slot"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}
+        >
+          {MEAL_OPTIONS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={meal === m.id}
+              onClick={() => setMeal(m.id)}
+              style={{
+                background: meal === m.id ? 'var(--color-text-display)' : 'transparent',
+                color: meal === m.id ? 'var(--color-bg)' : 'var(--color-text-primary)',
+                border: `1px solid ${meal === m.id ? 'var(--color-text-display)' : 'var(--color-border-visible)'}`,
+                borderRadius: 'var(--radius-button)',
+                padding: 'var(--space-2) var(--space-4)',
+                fontFamily: 'var(--font-label)',
+                fontSize: 'var(--text-label)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
+          {error}
+        </p>
+      )}
+
+      {subview === 'search' && (
+        <FoodSearch
+          meal={meal}
+          onSaved={onSaved}
+          onError={handleError}
+          onSubscriptionRequired={handleSubscriptionRequired}
+        />
+      )}
+      {subview === 'custom' && (
+        <CustomFoodList
+          meal={meal}
+          onSaved={onSaved}
+          onError={handleError}
+          onSubscriptionRequired={handleSubscriptionRequired}
+        />
+      )}
+      {subview === 'quicklog' && (
+        <QuickLogForm
+          meal={meal}
+          onSaved={onSaved}
+          onError={handleError}
+          onSubscriptionRequired={handleSubscriptionRequired}
+        />
+      )}
+
+      <div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn btn-secondary"
+          style={{
+            padding: 'var(--space-3) var(--space-6)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-label)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SubTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      style={{
+        background: 'transparent',
+        border: 0,
+        borderBottom: active
+          ? '2px solid var(--color-accent)'
+          : '2px solid transparent',
+        color: active ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
+        padding: 'var(--space-2) var(--space-3)',
+        fontFamily: 'var(--font-label)',
+        fontSize: 'var(--text-label)',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Quick log (v2 form, preserved) ─────────────────────────────────────────
+//
+// Free-text name + kcal + optional macros. Kept in the tabbed flow as
+// "QUICK LOG" so v2 muscle memory still works and users who don't want to
+// search can type a number and move on.
+
+function QuickLogForm({
+  meal,
+  onSaved,
+  onError,
+  onSubscriptionRequired,
+}: {
+  meal: Meal;
+  onSaved: () => Promise<void> | void;
+  onError: (msg: string) => void;
+  onSubscriptionRequired: () => void;
+}) {
   const [mealName, setMealName] = useState('');
   const [kcal, setKcal] = useState('');
   const [servingSize, setServingSize] = useState('');
-  const [meal, setMeal] = useState<Meal>('lunch');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // userId is currently only used for optimistic-UI paths in v2; keeping the
-  // prop threaded through so future work (e.g. offline queue keyed on
-  // caller) has an obvious wire.
-  void userId;
 
   const canSubmit = kcal.trim() !== '' && Number(kcal) >= 0 && !saving;
 
@@ -627,7 +855,6 @@ function AddView({
     evt.preventDefault();
     if (!canSubmit) return;
     setSaving(true);
-    setError(null);
     try {
       const rawInputParts = [mealName.trim(), servingSize.trim()].filter(Boolean);
       const proteinN = macroOrUndefined(protein);
@@ -647,31 +874,23 @@ function AddView({
         }),
       });
       if (!res.ok) {
-        if (res.status === 402) {
-          setError('Subscription required to save entries.');
-          toast.info("This one's paid. Subscribe on the paywall.");
-        } else if (res.status === 401) {
-          // Inline banner only — proxy redirects on next nav.
-          setError('Session expired. Sign in again.');
-        } else if (res.status === 400) {
-          // Field-level validation echo — leave silent so the inline
-          // error under the form is the single source of truth.
+        if (res.status === 402) onSubscriptionRequired();
+        else if (res.status === 400) {
           const body = await res.json().catch(() => null);
-          setError(body?.error === 'invalid_body' ? 'Check the fields and try again.' : 'Could not save.');
-        } else if (res.status >= 500) {
-          setError('Could not save.');
-          toast.error("Something broke on our end. We're logging it.");
-        } else {
-          setError('Could not save.');
-          toast.error('Could not save.');
+          onError(
+            body?.error === 'invalid_body'
+              ? 'Check the fields and try again.'
+              : 'Could not save.',
+          );
+        } else if (res.status !== 401) {
+          onError('Could not save.');
         }
         setSaving(false);
         return;
       }
       await onSaved();
     } catch {
-      setError('Network error.');
-      toast.error("Can't reach the server. Check your connection.");
+      onError('Network error.');
       setSaving(false);
     }
   }
@@ -680,17 +899,11 @@ function AddView({
     <form
       onSubmit={submit}
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
-        border: '1px solid var(--color-border-visible)',
-        borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-4)',
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--space-4)',
       }}
     >
-      <span className="label">ADD MEAL</span>
-
       <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>MEAL NAME</span>
         <input
@@ -764,46 +977,7 @@ function AddView({
         />
       </label>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>MEAL SLOT</span>
-        <div
-          role="radiogroup"
-          aria-label="Meal slot"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}
-        >
-          {MEAL_OPTIONS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              role="radio"
-              aria-checked={meal === m.id}
-              onClick={() => setMeal(m.id)}
-              style={{
-                background: meal === m.id ? 'var(--color-text-display)' : 'transparent',
-                color: meal === m.id ? 'var(--color-bg)' : 'var(--color-text-primary)',
-                border: `1px solid ${meal === m.id ? 'var(--color-text-display)' : 'var(--color-border-visible)'}`,
-                borderRadius: 'var(--radius-button)',
-                padding: 'var(--space-2) var(--space-4)',
-                fontFamily: 'var(--font-label)',
-                fontSize: 'var(--text-label)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {error && (
-        <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
-          {error}
-        </p>
-      )}
-
-      <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+      <div>
         <button
           type="submit"
           disabled={!canSubmit}
@@ -821,22 +995,6 @@ function AddView({
           }}
         >
           {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="btn btn-secondary"
-          style={{
-            padding: 'var(--space-3) var(--space-6)',
-            fontFamily: 'var(--font-label)',
-            fontSize: 'var(--text-label)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            cursor: saving ? 'not-allowed' : 'pointer',
-          }}
-        >
-          Cancel
         </button>
       </div>
     </form>

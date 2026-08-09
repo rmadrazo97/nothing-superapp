@@ -18,6 +18,25 @@
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useEntitlement } from '@/lib/hooks/use-entitlement';
 import { useToast } from '@/lib/toast/context';
+import { MacroGoalEditor } from '@/components/settings/MacroGoalEditor';
+import type { MacroGoalPct } from '@nothing/shared';
+
+// Defaults mirror the DB defaults on the `preferences` row (migration 005) so
+// a first-time user's form pre-fills the same values the server would.
+const DEFAULT_MACRO_GOAL: MacroGoalPct = { protein: 30, carbs: 40, fat: 30 };
+const DEFAULT_WATER_GOAL_ML = 2500;
+
+/** Round to nearest cup (250 ml) for a friendly "≈ N cups" derived label. */
+function mlToCups(ml: number): number {
+  if (!Number.isFinite(ml) || ml <= 0) return 0;
+  return Math.round((ml / 250) * 10) / 10;
+}
+
+/** kg → lb, rounded to one decimal so the "≈ N lb" hint stays legible. */
+function kgToLb(kg: number): number {
+  if (!Number.isFinite(kg) || kg <= 0) return 0;
+  return Math.round(kg * 2.20462 * 10) / 10;
+}
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -156,8 +175,17 @@ export default function SettingsPage() {
   // Preferences state
   const [darkMode, setDarkMode] = useState<boolean>(true);
   const [calorieTarget, setCalorieTarget] = useState<number>(2000);
+  const [macroGoal, setMacroGoal] = useState<MacroGoalPct>(DEFAULT_MACRO_GOAL);
+  const [waterGoalMl, setWaterGoalMl] = useState<number>(DEFAULT_WATER_GOAL_ML);
+  // Weight goal is optional — empty string means "not set" and PATCHes as
+  // null. We keep it as a string in local state so the input can be blank.
+  const [weightGoalKg, setWeightGoalKg] = useState<string>('');
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lb'>('kg');
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [prefsStatus, setPrefsStatus] = useState<SaveStatus>({ kind: 'idle' });
+
+  const macroSum = macroGoal.protein + macroGoal.carbs + macroGoal.fat;
+  const macroIsValid = Math.abs(macroSum - 100) < 0.5;
 
   // Subscription — hook lands via task 08
   const { entitlement, subscription, isLoading: entitlementLoading } = useEntitlement();
@@ -210,6 +238,10 @@ export default function SettingsPage() {
           preferences: {
             theme: 'dark' | 'light';
             daily_calorie_goal: number | null;
+            macro_goal_pct?: MacroGoalPct | null;
+            water_goal_ml?: number | null;
+            weight_goal_kg?: number | null;
+            weight_unit?: 'kg' | 'lb' | null;
           } | null;
         };
         if (cancelled) return;
@@ -217,6 +249,29 @@ export default function SettingsPage() {
           setDarkMode(body.preferences.theme !== 'light');
           if (typeof body.preferences.daily_calorie_goal === 'number') {
             setCalorieTarget(body.preferences.daily_calorie_goal);
+          }
+          // Only overwrite state from the server when the field actually
+          // arrives — the GET currently doesn't select the new columns, so
+          // this stays a safe no-op when they're undefined. Once the GET is
+          // expanded (out of scope here) this picks them up automatically.
+          if (body.preferences.macro_goal_pct) {
+            const { protein, carbs, fat } = body.preferences.macro_goal_pct;
+            if (
+              typeof protein === 'number' &&
+              typeof carbs === 'number' &&
+              typeof fat === 'number'
+            ) {
+              setMacroGoal({ protein, carbs, fat });
+            }
+          }
+          if (typeof body.preferences.water_goal_ml === 'number') {
+            setWaterGoalMl(body.preferences.water_goal_ml);
+          }
+          if (typeof body.preferences.weight_goal_kg === 'number') {
+            setWeightGoalKg(String(body.preferences.weight_goal_kg));
+          }
+          if (body.preferences.weight_unit === 'kg' || body.preferences.weight_unit === 'lb') {
+            setWeightUnit(body.preferences.weight_unit);
           }
         }
         setPrefsLoaded(true);
@@ -275,8 +330,29 @@ export default function SettingsPage() {
   const savePreferences = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      // Belt-and-suspenders — the submit button is disabled when invalid,
+      // but a determined user could still submit via Enter. Bail cleanly.
+      if (!macroIsValid) {
+        setPrefsStatus({
+          kind: 'error',
+          message: 'Macro split must sum to 100.',
+        });
+        return;
+      }
       setPrefsStatus({ kind: 'saving' });
       try {
+        // weight_goal_kg is optional — send null when the input is blank so
+        // the server clears any previously-set goal. Any non-numeric value
+        // is dropped (rather than sent as NaN) so the API sees a clean shape.
+        const trimmedWeight = weightGoalKg.trim();
+        const weightGoalNum = trimmedWeight === '' ? null : Number(trimmedWeight);
+        const weightGoalPayload =
+          weightGoalNum === null
+            ? null
+            : Number.isFinite(weightGoalNum) && weightGoalNum > 0
+              ? weightGoalNum
+              : undefined;
+
         const res = await fetch('/api/preferences', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -284,6 +360,14 @@ export default function SettingsPage() {
           body: JSON.stringify({
             theme: darkMode ? 'dark' : 'light',
             daily_calorie_goal: Number.isFinite(calorieTarget) ? calorieTarget : 2000,
+            macro_goal_pct: macroGoal,
+            water_goal_ml: Number.isFinite(waterGoalMl) && waterGoalMl > 0
+              ? waterGoalMl
+              : DEFAULT_WATER_GOAL_ML,
+            weight_unit: weightUnit,
+            ...(weightGoalPayload !== undefined
+              ? { weight_goal_kg: weightGoalPayload }
+              : {}),
           }),
         });
         if (!res.ok) {
@@ -309,7 +393,16 @@ export default function SettingsPage() {
         });
       }
     },
-    [darkMode, calorieTarget, toast],
+    [
+      darkMode,
+      calorieTarget,
+      macroGoal,
+      macroIsValid,
+      waterGoalMl,
+      weightGoalKg,
+      weightUnit,
+      toast,
+    ],
   );
 
   const openPortal = useCallback(async () => {
@@ -501,14 +594,86 @@ export default function SettingsPage() {
             </p>
           </div>
 
+          {/* ── Macro split (%) — MFP-tier ── */}
+          <MacroGoalEditor
+            value={macroGoal}
+            calorieTarget={calorieTarget}
+            disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
+            onChange={setMacroGoal}
+            onEdit={() => {
+              if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
+            }}
+          />
+
+          {/* ── Water goal ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label htmlFor="settings-water-goal" style={FIELD_LABEL_STYLE}>
+              Water goal (ml)
+            </label>
+            <input
+              id="settings-water-goal"
+              type="number"
+              inputMode="numeric"
+              min={250}
+              max={10000}
+              step={250}
+              value={waterGoalMl}
+              onChange={(e) => {
+                const next = Number.parseInt(e.target.value, 10);
+                setWaterGoalMl(Number.isFinite(next) ? next : 0);
+                if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
+              }}
+              disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
+              style={INPUT_STYLE}
+            />
+            <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
+              ≈ {mlToCups(waterGoalMl)} cups (250 ml each)
+            </p>
+          </div>
+
+          {/* ── Weight goal (optional) ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label htmlFor="settings-weight-goal" style={FIELD_LABEL_STYLE}>
+              Weight goal (kg) — optional
+            </label>
+            <input
+              id="settings-weight-goal"
+              type="number"
+              inputMode="decimal"
+              min={20}
+              max={400}
+              step={0.5}
+              value={weightGoalKg}
+              placeholder="e.g. 72"
+              onChange={(e) => {
+                setWeightGoalKg(e.target.value);
+                if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
+              }}
+              disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
+              style={INPUT_STYLE}
+            />
+            {weightUnit === 'lb' && weightGoalKg.trim() !== '' && Number(weightGoalKg) > 0 ? (
+              <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
+                ≈ {kgToLb(Number(weightGoalKg))} lb
+              </p>
+            ) : (
+              <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
+                Leave blank to clear. Displayed in {weightUnit}.
+              </p>
+            )}
+          </div>
+
           <button
             type="submit"
-            disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
+            disabled={!prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid}
             style={{
               ...PRIMARY_BTN_STYLE,
-              opacity: !prefsLoaded || prefsStatus.kind === 'saving' ? 0.6 : 1,
+              opacity:
+                !prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid ? 0.6 : 1,
               cursor:
-                !prefsLoaded || prefsStatus.kind === 'saving' ? 'not-allowed' : 'pointer',
+                !prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid
+                  ? 'not-allowed'
+                  : 'pointer',
             }}
           >
             {prefsStatus.kind === 'saving' ? 'Saving…' : 'Save preferences'}
