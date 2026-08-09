@@ -84,14 +84,20 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'empty_patch' }, { status: 400 });
   }
 
+  // Upsert (not update) so a missing profile row self-heals. Belt to the
+  // migration-004 trigger's suspenders — if the trigger is somehow bypassed,
+  // the first PATCH still succeeds instead of 500-ing.
   const { data, error } = await supabase
     .from('profiles')
-    .update(parsed.data)
-    .eq('id', user.id)
+    .upsert(
+      { id: user.id, ...parsed.data },
+      { onConflict: 'id' },
+    )
     .select('id, display_name, locale, created_at, updated_at')
     .single();
 
   if (error) {
+    console.error('[api/profile] upsert failed', error);
     return NextResponse.json({ error: 'db_error' }, { status: 500 });
   }
 

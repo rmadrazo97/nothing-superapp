@@ -30,29 +30,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Bootstrap the profile row for first-time sign-ins. Idempotent via upsert
-  // on the primary key so returning users don't overwrite their own data.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    // Insert-if-missing only — do NOT overwrite existing rows, otherwise a
-    // returning user's subscription_status would get reset to 'inactive' on
-    // every sign-in. Column default at the DB layer handles the initial
-    // status. `ignoreDuplicates: true` makes Postgres skip conflicting rows.
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert(
-        { id: user.id, email: user.email, subscription_status: 'inactive' },
-        { onConflict: 'id', ignoreDuplicates: true },
-      );
-
-    if (profileError) {
-      // Non-fatal — surface for observability but let the user in.
-      console.error('[auth/callback] profile upsert failed', profileError);
-    }
-  }
+  // Profile row bootstrapping used to live here as an idempotent upsert, but
+  // the code referenced columns (email, subscription_status) that don't exist
+  // on the `profiles` schema — silent failure meant Google-OAuth users landed
+  // at /app with no profile row, which broke Save Profile in Settings.
+  //
+  // Moved to a DB trigger in migration 004 (`on_auth_user_created` fires on
+  // insert into auth.users → inserts a matching profiles row via
+  // handle_new_user()). Bulletproof, provider-agnostic, and impossible to
+  // forget when adding a new auth flow.
 
   return NextResponse.redirect(`${origin}${next}`);
 }
