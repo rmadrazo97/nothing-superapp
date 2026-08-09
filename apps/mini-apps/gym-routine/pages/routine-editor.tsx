@@ -235,10 +235,24 @@ export default function RoutineEditorPage({
             });
           }
         }
+        // Pick a representative block_role for the session — 'superset' if
+        // the day contains any, else 'top_set' if the day leads with a
+        // top set, else 'straight'. plan_exercise_id points at the first
+        // exercise so the session UI can highlight it.
+        const firstEx = day.exercises[0];
+        const rolePref =
+          day.exercises.some((e) => e.structure === 'superset')
+            ? 'superset' as const
+            : firstEx?.structure === 'top_set_backoff'
+              ? 'top_set' as const
+              : 'straight' as const;
         const { session } = await api.createSession({
           routine_id: id,
           name: `${routine.name} — Day ${day.day}`,
           entries,
+          plan_day: day.day,
+          plan_exercise_id: firstEx?.id ?? null,
+          block_role: rolePref,
         });
         try {
           sessionStorage.setItem('gym-routine.sessionId', session.id);

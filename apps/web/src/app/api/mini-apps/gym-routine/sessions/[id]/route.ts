@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const SELECT_COLUMNS =
-  'id, user_id, routine_id, name, started_at, ended_at, entries, created_at';
+  'id, user_id, routine_id, name, started_at, ended_at, entries, plan_day, plan_exercise_id, block_role, created_at';
 
 const idSchema = z.string().uuid();
 

@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const SELECT_COLUMNS =
-  'id, user_id, routine_id, name, started_at, ended_at, entries, created_at';
+  'id, user_id, routine_id, name, started_at, ended_at, entries, plan_day, plan_exercise_id, block_role, created_at';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
@@ -82,6 +82,9 @@ export async function POST(request: Request) {
       routine_id: parsed.data.routine_id ?? null,
       name: parsed.data.name ?? null,
       entries: parsed.data.entries ?? [],
+      plan_day: parsed.data.plan_day ?? null,
+      plan_exercise_id: parsed.data.plan_exercise_id ?? null,
+      block_role: parsed.data.block_role ?? null,
     })
     .select(SELECT_COLUMNS)
     .single();

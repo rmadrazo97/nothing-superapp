@@ -501,6 +501,11 @@ export const workoutSessionSchema = z.object({
   started_at: z.string().datetime({ offset: true }),
   ended_at: z.string().datetime({ offset: true }).nullable(),
   entries: z.array(sessionEntrySchema).default([]),
+  // v2 (migration 011) — optional back-refs into the plan the session
+  // was started from. All nullable so v1 sessions still parse.
+  plan_day: z.number().int().nullable().optional(),
+  plan_exercise_id: z.string().max(40).nullable().optional(),
+  block_role: z.enum(['top_set', 'backoff', 'straight', 'superset']).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
 });
 
@@ -509,6 +514,9 @@ export const workoutSessionInsertSchema = z
     routine_id: z.string().uuid().nullable().optional(),
     name: z.string().min(1).max(120).nullable().optional(),
     entries: z.array(sessionEntrySchema).default([]).optional(),
+    plan_day: z.number().int().positive().max(14).nullable().optional(),
+    plan_exercise_id: z.string().max(40).nullable().optional(),
+    block_role: z.enum(['top_set', 'backoff', 'straight', 'superset']).nullable().optional(),
   })
   .strict();
 
