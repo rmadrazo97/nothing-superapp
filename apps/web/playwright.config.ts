@@ -67,5 +67,28 @@ export default defineConfig({
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
+    // On CI, `apps/web/.env.local` doesn't exist so Next dev has no env source
+    // besides what we pass through here. Forward every env the app reads so a
+    // subprocess env drop can't leave `next dev` with blank Supabase URLs.
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '',
+      NEXT_PUBLIC_STRIPE_PRICE_ID: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ?? '',
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+      SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      SUPABASE_PROJECT_ID: process.env.SUPABASE_PROJECT_ID ?? '',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
+      STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID ?? '',
+      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+      KIMI_API_KEY: process.env.KIMI_API_KEY ?? '',
+      KIMI_BASE_URL: process.env.KIMI_BASE_URL ?? 'https://api.moonshot.ai/v1',
+      KIMI_MODEL: process.env.KIMI_MODEL ?? 'kimi-k2.6',
+      // Preserve NODE_ENV / PATH etc from parent
+      NODE_ENV: process.env.NODE_ENV ?? 'development',
+      PATH: process.env.PATH ?? '',
+    },
   },
 });
