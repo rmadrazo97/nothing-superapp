@@ -2,6 +2,26 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — Gym-routine v2 — coach-grade schema + copilot can author a full 5-day plan
+
+Gym-routine grew a real training plan format and the copilot got the tool to generate one from a paragraph of natural language.
+
+**Schema (migration 011).** `workout_routines` gains five nullable columns — `schema_version text`, `plan jsonb`, `source jsonb`, `athlete jsonb`, `parsing_notes text[]` — plus a GIN index on `plan`. `workout_sessions` gains `plan_day`, `plan_exercise_id`, `block_role` so a live session knows which day of which plan it's executing. v1 routines (flat `exercises` column) are untouched — coexistence, not migration.
+
+**Zod (packages/shared/src/schemas/gym.ts).** `routineV2Schema` — schema_version literal '1.0' + source + athlete + plan + parsing_notes. `planSchema` — id + split + sessions_per_week + units + conventions (free-form record so every coach's shorthand rides through) + cardio + days. `planExerciseSchema` — discriminated union on `structure` (`straight` | `top_set_backoff` | `superset`, cluster + drop_set reserved). Ranges are the primitive: `repRangeSchema`, `rirRangeSchema`, `restRangeSchema`, each `{min, max}` with a `.refine(max >= min)`. `RoutineV2Insert` is what the copilot fills. Reference coach plan lives at `apps/mini-apps/gym-routine/fixtures/jam-v1.json` (5 days, 11 exercises, covers top-set/backoff, superset with rounds, unilateral+per-side, alternatives, raw notation) — validates cleanly via `node scripts/validate-reference-routine.mjs` (dep-free, uses Node 22 strip-types).
+
+**Copilot tools (3 new).** `create_gym_routine` — inputSchema is `routineV2InsertSchema`, description teaches the discriminant + range convention explicitly ("Reps and RIR are ALWAYS ranges of the form {min, max}, even when the coach wrote a single number"). Full write-gate stack (entitlement + 10/hr write budget) + audit-log row. `get_gym_routine` — read-only lookup by id / name substring / most recent, `summary_only=true` returns day names + focus + counts without the full plan blob. `list_gym_routines` — compact rollup with day_count + exercise_count computed on the fly so v1 and v2 both make sense. Registered in the same `copilotTools` factory — 11 tools total.
+
+**UI.** `PlanDayCard` (collapsible per-day with focus chips + "Start day N" CTA), `PlanExerciseRow` (renders top-set/backoff as compact `TOP SET · 1×6-8 · RIR 1-2` rows, superset as an indented two-line group under a `SUPERSET · N ROUNDS` header, unilateral gets a `PER SIDE` badge, alternatives read `or: Hack squat / Pendulum squat`, coach's raw notation shown as a Space Mono legend line). `PlanConventionsCard` (collapsible `▸ NOTATION & RULES` disclosure that surfaces the coach's own definitions once, up-front). `PlanCardioCard` (compact daily-steps + post-workout summary). All four wired into `routine-editor.tsx` behind a v2 detection guard — if `plan` parses as `planSchema`, render the read-only structured view; else fall back to the v1 flat editor untouched.
+
+**Session bridge.** `Start day N` flattens the coach-authored blocks/superset components into v1-shape session `entries` so the existing session UI logs against them unchanged, then passes `plan_day + plan_exercise_id + block_role` into the session so history knows which slice of the plan was actually done. Superset components become sibling entries; top_set + backoff blocks flatten to one entry with concatenated sets sized to `reps.max` as a starting target.
+
+**Smoke.** Inserted the reference plan into prod via psql, read it back — `structures` array came out `["top_set_backoff", "straight", "straight", "top_set_backoff", "straight", "top_set_backoff", "straight", "straight", "straight", "superset", "straight"]`. GIN index active. Build clean. Prod 200.
+
+**Angle.** The copilot can now generate a full periodized 5-day plan from a natural-language description or a coach's paste. "Build me a 5-day upper/lower with top sets on the compounds and 8-10 rep back-off, RIR 2, add a bike finisher" → `create_gym_routine` fires with a valid `RoutineV2Insert` because the tool's Zod schema is the shape of the coach's mental model, not a bag of scalars. The user opens Gym → Routines → sees the new plan → tap DAY 1 → session opens pre-populated with target reps. First real "the copilot writes structured content, not just log rows" moment.
+
+**Follow-up.** v2 routine editor (v1 UI is read-only for now); RLS-tight jsonb path queries once we start filtering ("show me plans that hit chest on Monday"); auto-progression heuristic that reads `sessions[].entries[].sets[].reps` vs `plan.days[].exercises[].blocks[].reps` and suggests load bumps.
+
 ## 2026-08-09 — Mini-App Resource Framework (declare-once REST + copilot tools + client hooks)
 
 Mini-apps stopped hand-writing 400 lines of Supabase-plus-Zod-plus-fetch plumbing per data type. They now declare a `resources.ts` and get the whole data layer for free.
