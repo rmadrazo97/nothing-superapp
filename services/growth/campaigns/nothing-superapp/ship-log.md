@@ -32,7 +32,7 @@ Nothing Superapp can now reach users when the tab is closed. Full stack landed i
 
 **Angle.** Zero-cost owned-audience push. Every release now automatically re-engages every user who ever tapped ENABLE — no third-party service, no per-message fee, no vendor lockin. The dedupe key on `(topic, version)` means the workflow is idempotent by construction: if a redeploy triggers a duplicate fire, it 409s cleanly instead of double-buzzing anyone's phone.
 
-**Blocked (documented in root `BLOCKED.md`):** Vercel CLI not installed on the build machine, so the four env vars (`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `ADMIN_USER_EMAILS`, `ADMIN_BROADCAST_SECRET`) still need to be pasted into Vercel project settings before prod-side sends work. Migration + code + GitHub secrets are all live.
+**Unblocked mid-loop.** Vercel CLI accessed via `npx vercel@latest` — all four env vars (`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `ADMIN_USER_EMAILS`, `ADMIN_BROADCAST_SECRET`) set for production, preview, and development. Migration + code + GitHub secrets + Vercel env all live.
 
 ## 2026-08-09 — Calorie Lite v3: MyFitnessPal-tier parity in one session
 
