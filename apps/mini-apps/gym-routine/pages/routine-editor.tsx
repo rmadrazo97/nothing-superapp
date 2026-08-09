@@ -15,11 +15,15 @@
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Exercise, RoutineExercise, WorkoutRoutine } from '@nothing/shared';
+import type { Exercise, Plan, PlanDay, RoutineExercise, WorkoutRoutine } from '@nothing/shared';
+import { planSchema } from '@nothing/shared';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
+import { PlanDayCard } from '../components/PlanDayCard.tsx';
+import { PlanConventionsCard } from '../components/PlanConventionsCard.tsx';
+import { PlanCardioCard } from '../components/PlanCardioCard.tsx';
 
 export default function RoutineEditorPage({
   params,
@@ -181,6 +185,77 @@ export default function RoutineEditorPage({
 
   const totalSets = useMemo(() => items.reduce((s, r) => s + r.sets.length, 0), [items]);
 
+  // v2 detection — routine.plan is jsonb; if it parses as a Plan, render
+  // the read-only structured view instead of the v1 editor. Coach-authored
+  // v2 routines aren't editable in v1 of the UI (coming later); this
+  // coexistence keeps v1 routines fully editable and v2 routines viewable.
+  const v2Plan = useMemo<Plan | null>(() => {
+    if (!routine?.plan) return null;
+    const parsed = planSchema.safeParse(routine.plan);
+    return parsed.success ? parsed.data : null;
+  }, [routine]);
+
+  const startV2Day = useCallback(
+    async (day: PlanDay) => {
+      if (!routine) return;
+      setStarting(true);
+      setError(null);
+      try {
+        // Flatten the day's exercises into v1-shape session entries so the
+        // existing session UI can log against them. superset components
+        // become sibling entries; top_set / backoff blocks flatten into a
+        // single entry with concatenated sets sized to reps.max as a
+        // starting target.
+        const entries: Array<{ exercise_id: string; name: string; sets: Array<{ reps: number; weight_kg: number | null; completed_at: null }> }> = [];
+        for (const ex of day.exercises) {
+          if (ex.structure === 'superset') {
+            for (const c of ex.components) {
+              entries.push({
+                exercise_id: c.exercise_id ?? `${ex.id}.c${c.order}`,
+                name: c.name_en ?? c.name_es ?? '(component)',
+                sets: Array.from({ length: c.sets }, () => ({
+                  reps: c.reps.max,
+                  weight_kg: null,
+                  completed_at: null,
+                })),
+              });
+            }
+          } else {
+            const flat = ex.blocks.flatMap((b) =>
+              Array.from({ length: b.sets }, () => ({
+                reps: b.reps.max,
+                weight_kg: null,
+                completed_at: null,
+              })),
+            );
+            entries.push({
+              exercise_id: ex.exercise_id ?? ex.id,
+              name: ex.name_en ?? ex.name_es ?? '(exercise)',
+              sets: flat,
+            });
+          }
+        }
+        const { session } = await api.createSession({
+          routine_id: id,
+          name: `${routine.name} — Day ${day.day}`,
+          entries,
+        });
+        try {
+          sessionStorage.setItem('gym-routine.sessionId', session.id);
+        } catch {
+          /* private mode — non-fatal */
+        }
+        router.push(`/app/gym-routine/session/${session.id}`);
+      } catch (e) {
+        setStarting(false);
+        setError(e instanceof ApiError ? e.message : 'Could not start session.');
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
+      }
+    },
+    [id, routine, router, toast],
+  );
+
   if (!routine) {
     return (
       <div style={{ paddingTop: 'var(--space-6)' }}>
@@ -188,6 +263,78 @@ export default function RoutineEditorPage({
           <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>{error}</p>
         ) : (
           <p className="caption">Loading routine…</p>
+        )}
+      </div>
+    );
+  }
+
+  if (v2Plan) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+          paddingTop: 'var(--space-6)',
+          paddingBottom: 'var(--space-12)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span className="label">ROUTINE · V2</span>
+          <Link href="/app/gym-routine/routines" style={{ textDecoration: 'none' }}>
+            <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+              ← Back
+            </span>
+          </Link>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <h1 className="display-md" style={{ margin: 0 }}>
+            {routine.name}
+          </h1>
+          <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+            {v2Plan.split ?? `${v2Plan.days.length}-day plan`} ·{' '}
+            {v2Plan.sessions_per_week ?? v2Plan.days.length}× per week
+          </span>
+        </div>
+
+        {v2Plan.cardio && <PlanCardioCard cardio={v2Plan.cardio} />}
+        {v2Plan.conventions && <PlanConventionsCard conventions={v2Plan.conventions} />}
+
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          {v2Plan.days.map((day, idx) => (
+            <li key={day.day}>
+              <PlanDayCard
+                day={day}
+                defaultOpen={idx === 0}
+                onStartDay={starting ? undefined : startV2Day}
+              />
+            </li>
+          ))}
+        </ul>
+
+        {error && (
+          <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
+            {error}
+          </p>
+        )}
+
+        {Array.isArray(routine.parsing_notes) && routine.parsing_notes.length > 0 && (
+          <details style={{ ...cardStyle, borderStyle: 'dashed' }}>
+            <summary
+              className="label"
+              style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+            >
+              PARSING NOTES ({routine.parsing_notes.length})
+            </summary>
+            <ul style={{ margin: 'var(--space-3) 0 0', paddingLeft: 'var(--space-4)', color: 'var(--color-text-primary)' }}>
+              {routine.parsing_notes.map((n, i) => (
+                <li key={i} style={{ fontSize: 'var(--text-caption)', lineHeight: 1.5 }}>
+                  {n}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </div>
     );

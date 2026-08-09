@@ -453,6 +453,15 @@ export const workoutRoutineSchema = z.object({
   user_id: z.string().uuid(),
   name: z.string().min(1).max(120),
   exercises: z.array(routineExerciseSchema).default([]),
+  // v2 columns (added in migration 011 — optional on the shared row so v1
+  // consumers still parse older rows). Full v2 shape validation happens in
+  // ./gym.ts (routineV2Schema); here we keep them permissive so a client
+  // hydrating any row won't reject on a stricter renderer's payload.
+  schema_version: z.string().nullable().optional(),
+  plan: z.unknown().nullable().optional(),
+  source: z.unknown().nullable().optional(),
+  athlete: z.unknown().nullable().optional(),
+  parsing_notes: z.array(z.string()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 });

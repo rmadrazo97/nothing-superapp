@@ -135,8 +135,18 @@ export default function RoutinesPage() {
                   </span>
                 </div>
                 <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-                  {r.exercises.length} exercise{r.exercises.length === 1 ? '' : 's'} ·{' '}
-                  {r.exercises.reduce((s, e) => s + e.sets.length, 0)} sets
+                  {(() => {
+                    // v2 rows carry the plan blob; count days + exercises there.
+                    const plan = (r as unknown as { plan?: { days?: Array<{ exercises?: unknown[] }> } }).plan;
+                    if (plan && Array.isArray(plan.days) && plan.days.length > 0) {
+                      const exCount = plan.days.reduce(
+                        (n, d) => n + (Array.isArray(d.exercises) ? d.exercises.length : 0),
+                        0,
+                      );
+                      return `V2 · ${plan.days.length} day${plan.days.length === 1 ? '' : 's'} · ${exCount} exercises`;
+                    }
+                    return `${r.exercises.length} exercise${r.exercises.length === 1 ? '' : 's'} · ${r.exercises.reduce((s, e) => s + e.sets.length, 0)} sets`;
+                  })()}
                 </span>
                 <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                   <Link href={`/app/gym-routine/routines/${r.id}`} style={{ textDecoration: 'none' }}>
