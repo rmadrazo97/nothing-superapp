@@ -22,6 +22,11 @@ import { makeStartPomodoroTool } from './start-pomodoro';
 import { makeCreateGymRoutineTool } from './create-gym-routine';
 import { makeGetGymRoutineTool } from './get-gym-routine';
 import { makeListGymRoutinesTool } from './list-gym-routines';
+// Framework-generated CRUD tools — every mini-app's declared resources get
+// list/get/create/update/delete for free. Coexists with hand-written tools:
+// hand-written wins on semantic clarity ("log_water"), framework fills the
+// long tail ("calorie_lite_custom_foods_update").
+import { resourceTools } from '@/lib/ai/resource-tools';
 
 export function copilotTools(userId: string, supabase: SupabaseClient) {
   return {
@@ -37,6 +42,8 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     create_gym_routine: makeCreateGymRoutineTool(userId, supabase),
     get_gym_routine: makeGetGymRoutineTool(userId, supabase),
     list_gym_routines: makeListGymRoutinesTool(userId, supabase),
+    // framework-generated (calorie_lite_*, pomodoro_*, ...)
+    ...resourceTools(userId, supabase),
   };
 }
 
