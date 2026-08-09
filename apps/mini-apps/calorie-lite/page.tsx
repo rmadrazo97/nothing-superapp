@@ -642,6 +642,50 @@ function EmptyToday({ onAdd }: { onAdd: () => void }) {
   );
 }
 
+/**
+ * Bucket entries by `meal_group_id` while preserving TODAY's newest-first
+ * order. Ungrouped rows (null id) stay as solo `EntryRow`s. Grouped rows
+ * collapse under one `MealGroupCard` per bucket. The bucket's sort key is
+ * the newest entry inside it, so a freshly-logged meal jumps to the top.
+ */
+type EntryBucket =
+  | { kind: 'solo'; entry: CalorieEntry }
+  | { kind: 'group'; groupId: string; label: string; entries: CalorieEntry[] };
+
+function bucketEntries(entries: CalorieEntry[]): EntryBucket[] {
+  const groups = new Map<string, CalorieEntry[]>();
+  const solos: CalorieEntry[] = [];
+  for (const e of entries) {
+    const gid = e.meal_group_id ?? null;
+    if (gid) {
+      const arr = groups.get(gid) ?? [];
+      arr.push(e);
+      groups.set(gid, arr);
+    } else {
+      solos.push(e);
+    }
+  }
+  const buckets: { sortKey: string; bucket: EntryBucket }[] = [];
+  for (const e of solos) {
+    buckets.push({ sortKey: e.entered_at, bucket: { kind: 'solo', entry: e } });
+  }
+  for (const [groupId, groupEntries] of groups) {
+    // Newest entry inside the group drives the group's timeline position.
+    const sorted = [...groupEntries].sort((a, b) =>
+      b.entered_at.localeCompare(a.entered_at),
+    );
+    const label =
+      sorted.find((e) => e.meal_group_label)?.meal_group_label ?? 'Meal';
+    buckets.push({
+      sortKey: sorted[0]!.entered_at,
+      bucket: { kind: 'group', groupId, label, entries: sorted },
+    });
+  }
+  // Newest first — same rule TODAY has always used for solo entries.
+  buckets.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  return buckets.map((b) => b.bucket);
+}
+
 function EntryList({
   entries,
   onChanged,
@@ -649,10 +693,7 @@ function EntryList({
   entries: CalorieEntry[];
   onChanged?: () => void | Promise<void>;
 }) {
-  // Newest first.
-  const sorted = [...entries].sort((a, b) =>
-    b.entered_at.localeCompare(a.entered_at),
-  );
+  const buckets = useMemo(() => bucketEntries(entries), [entries]);
   return (
     <ul
       style={{
@@ -663,10 +704,289 @@ function EntryList({
         flexDirection: 'column',
       }}
     >
-      {sorted.map((e) => (
-        <EntryRow key={e.id} entry={e} onChanged={onChanged} />
-      ))}
+      {buckets.map((b) =>
+        b.kind === 'solo' ? (
+          <EntryRow key={b.entry.id} entry={b.entry} onChanged={onChanged} />
+        ) : (
+          <MealGroupCard
+            key={b.groupId}
+            groupId={b.groupId}
+            label={b.label}
+            entries={b.entries}
+            onChanged={onChanged}
+          />
+        ),
+      )}
     </ul>
+  );
+}
+
+/**
+ * Collapsible card grouping every `app_calorie_entries` row that shares a
+ * `meal_group_id` (stamped server-side by `log_meal_from_plan`).
+ *
+ * Header row:
+ *   - Chevron + label (`Comida · Opción 2`, Space Mono uppercase)
+ *   - Total kcal + macros
+ *   - `× Delete group` two-tap confirm chip (auto-disarm 3s)
+ *
+ * Body (when expanded): each entry rendered by the untouched `EntryRow`
+ * component, so per-row ✎ EDIT + × DELETE still work.
+ *
+ * Collapse rules:
+ *   - Groups with ≥3 rows default to collapsed
+ *   - Prior user choice (sessionStorage keyed by `meal_group_id`) wins
+ *
+ * Delete-group loops row-by-row through the framework DELETE endpoint —
+ * simple and works today; a future `delete_meal_group` batch endpoint
+ * would make it a single call.
+ */
+function MealGroupCard({
+  groupId,
+  label,
+  entries,
+  onChanged,
+}: {
+  groupId: string;
+  label: string;
+  entries: CalorieEntry[];
+  onChanged?: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const events = useEvents();
+
+  // Per-group collapse memory. sessionStorage (not localStorage) so a fresh
+  // browser session starts from the "≥3 rows collapse by default" heuristic
+  // rather than remembering forever.
+  const storageKey = `calorie-lite:meal-group-collapsed:${groupId}`;
+  const [expanded, setExpanded] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return entries.length < 3;
+    const saved = window.sessionStorage.getItem(storageKey);
+    if (saved === 'expanded') return true;
+    if (saved === 'collapsed') return false;
+    return entries.length < 3;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(storageKey, expanded ? 'expanded' : 'collapsed');
+  }, [expanded, storageKey]);
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const t = setTimeout(() => setConfirmingDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmingDelete]);
+
+  // Aggregate totals across the group — computed inline so a per-row edit
+  // is immediately reflected after `onChanged` refetches the list.
+  const totals = entries.reduce(
+    (acc, e) => ({
+      kcal: acc.kcal + (e.kcal ?? 0),
+      protein: acc.protein + (e.protein_g ?? 0),
+      carbs: acc.carbs + (e.carbs_g ?? 0),
+      fat: acc.fat + (e.fat_g ?? 0),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  const macros = macroLine(totals.protein, totals.carbs, totals.fat);
+
+  async function handleDeleteGroup(evt: React.MouseEvent) {
+    evt.stopPropagation();
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      // Loop DELETE — no batch endpoint yet. Sequential rather than
+      // Promise.all to keep server-side write budget honest.
+      let failed = 0;
+      for (const e of entries) {
+        const res = await fetch(
+          `/api/mini-apps/calorie-lite/resources/entries/${e.id}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) failed += 1;
+      }
+      if (failed === 0) {
+        toast.success(`Deleted ${entries.length} entries.`);
+      } else if (failed < entries.length) {
+        toast.error(`Deleted ${entries.length - failed}/${entries.length} — retry.`);
+      } else {
+        toast.error('Delete failed.');
+      }
+      events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
+      await onChanged?.();
+      // Purge the collapse memory so a re-log with a new group id starts
+      // from the default heuristic.
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(storageKey);
+      }
+    } catch {
+      toast.error("Can't reach the server.");
+    } finally {
+      setBusy(false);
+      setConfirmingDelete(false);
+    }
+  }
+
+  return (
+    <li
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-4)',
+        margin: 'var(--space-3) 0',
+        background: 'rgba(0, 0, 0, 0.5)',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Collapse meal group' : 'Expand meal group'}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 'var(--space-2)',
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <span
+            className="data"
+            aria-hidden
+            style={{
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--text-caption)',
+              width: '1ch',
+              display: 'inline-block',
+            }}
+          >
+            {expanded ? '▾' : '▸'}
+          </span>
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-primary)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </span>
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-disabled)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              marginLeft: 'var(--space-2)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            · {entries.length} {entries.length === 1 ? 'item' : 'items'}
+          </span>
+        </button>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 'var(--space-1)',
+          }}
+        >
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-display)',
+              fontSize: 'var(--text-body)',
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {totals.kcal.toLocaleString()}
+          </span>
+          {macros && (
+            <span
+              className="data"
+              style={{
+                color: 'var(--color-text-disabled)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.04em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {macros}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={handleDeleteGroup}
+          disabled={busy}
+          className="data"
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            padding: 'var(--space-1) var(--space-3)',
+            border: `1px solid ${
+              confirmingDelete ? 'var(--color-accent)' : 'var(--color-border-visible)'
+            }`,
+            borderRadius: 'var(--radius-pill, 999px)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: confirmingDelete
+              ? 'var(--color-accent)'
+              : 'var(--color-text-secondary)',
+            opacity: busy ? 0.5 : 1,
+          }}
+        >
+          {confirmingDelete ? '× Confirm delete group?' : '× Delete group'}
+        </button>
+      </div>
+
+      {expanded && (
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            paddingLeft: 'var(--space-3)',
+            borderLeft: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {entries.map((e) => (
+            <EntryRow key={e.id} entry={e} onChanged={onChanged} />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 
