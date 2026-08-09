@@ -59,8 +59,10 @@ export interface CopilotChatProps {
    * flow with the container so it plays nicely inside a drawer.
    */
   layout?: 'standalone' | 'embedded';
-  /** Optional thread id — for now purely decorative (persistence lands in a follow-up slice). */
+  /** Optional thread id — forwarded to /api/copilot so the server persists the turn. */
   threadId?: string | null;
+  /** Initial messages — set when hydrating a saved thread. */
+  initialMessages?: UIMessage[];
   /** Fired on successful send so the parent page can update its URL / thread state. */
   onFirstMessage?: (firstUserText: string) => void;
 }
@@ -70,6 +72,7 @@ export function CopilotChat({
   suggestedPrompts,
   layout = 'standalone',
   threadId,
+  initialMessages,
   onFirstMessage,
 }: CopilotChatProps = {}) {
   const [input, setInput] = useState('');
@@ -92,6 +95,7 @@ export function CopilotChat({
 
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     transport,
+    messages: initialMessages,
     onError(err) {
       // Map server errors → human toast copy. `err.message` may include the
       // JSON body when the response wasn't 2xx.
