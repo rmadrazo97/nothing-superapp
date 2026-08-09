@@ -6,6 +6,14 @@ import { ReasoningDisclosure } from './ReasoningDisclosure';
 
 export type ChatRole = 'user' | 'assistant';
 
+export type ChatAttachmentPreview = {
+  /** Data URL or hosted URL — rendered as-is in an <img>. */
+  url: string;
+  filename?: string;
+  /** e.g. "image/png" — non-image types are ignored by the bubble. */
+  mediaType: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -14,6 +22,8 @@ export type ChatMessage = {
   reasoning: string;
   /** True while an assistant message is still receiving SSE frames. */
   streaming?: boolean;
+  /** Image previews rendered inside the bubble (user turns only in v0.5). */
+  attachments?: ChatAttachmentPreview[];
 };
 
 /**
@@ -136,6 +146,35 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               </button>
             )}
           </>
+        )}
+        {message.attachments && message.attachments.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 'var(--space-2)',
+              flexWrap: 'wrap',
+              marginBottom: message.content.length > 0 ? 'var(--space-2)' : 0,
+            }}
+          >
+            {message.attachments
+              .filter((a) => a.mediaType.startsWith('image'))
+              .map((a, idx) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`${message.id}-att-${idx}`}
+                  src={a.url}
+                  alt={a.filename ?? `attachment ${idx + 1}`}
+                  style={{
+                    width: 96,
+                    height: 96,
+                    objectFit: 'cover',
+                    borderRadius: 'var(--radius-compact)',
+                    border: '1px solid var(--color-border-visible)',
+                    display: 'block',
+                  }}
+                />
+              ))}
+          </div>
         )}
         {message.content.length > 0 ? (
           message.content

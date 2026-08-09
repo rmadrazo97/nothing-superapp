@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, type UIMessage } from 'ai';
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from 'ai';
 import { useToast } from '@/lib/toast/context';
-import { Composer } from './Composer';
+import { Composer, type ComposerAttachment } from './Composer';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ToolCallCard } from './ToolCallCard';
 
@@ -84,13 +84,28 @@ export function CopilotChat() {
   }, []);
 
   const send = useCallback(
-    (rawText: string) => {
+    (rawText: string, attachments: ComposerAttachment[] = []) => {
       const text = rawText.trim();
-      if (text.length === 0 || busy) return;
+      // Allow attachment-only sends ("here's my plate"), still block empty ones.
+      if (text.length === 0 && attachments.length === 0) return;
+      if (busy) return;
       setUiError(null);
       if (error) clearError();
       stickToBottomRef.current = true;
-      void sendMessage({ text });
+      if (attachments.length > 0) {
+        // FileUIPart accepts a data URL directly — no server-side storage in
+        // v1. Filename kept for the model + UI thumbnails; contents are never
+        // logged (audit log stores metadata only).
+        const files: FileUIPart[] = attachments.map((att) => ({
+          type: 'file',
+          mediaType: att.file.type,
+          filename: att.file.name,
+          url: att.dataUrl,
+        }));
+        void sendMessage({ text: text.length > 0 ? text : ' ', files });
+      } else {
+        void sendMessage({ text });
+      }
       setInput('');
     },
     [busy, error, clearError, sendMessage],
@@ -180,7 +195,7 @@ export function CopilotChat() {
           <Composer
             value={input}
             onChange={setInput}
-            onSend={() => send(input)}
+            onSend={(attachments) => send(input, attachments)}
             busy={busy}
           />
         </div>
@@ -206,11 +221,26 @@ function RenderedMessage({
       .filter((p) => p.type === 'text')
       .map((p) => (p as { text: string }).text)
       .join('');
+    const images = message.parts
+      .filter(
+        (p) =>
+          (p as { type?: string }).type === 'file' &&
+          typeof (p as { mediaType?: string }).mediaType === 'string' &&
+          (p as { mediaType: string }).mediaType.startsWith('image'),
+      )
+      .map((p) => p as { url: string; filename?: string; mediaType: string });
     const bubble: ChatMessage = {
       id: message.id,
       role: 'user',
-      content: text,
+      // Trim the whitespace placeholder we send when the user attaches images
+      // with no text so the bubble doesn't render a bare space.
+      content: text.trim(),
       reasoning: '',
+      attachments: images.map((img) => ({
+        url: img.url,
+        filename: img.filename,
+        mediaType: img.mediaType,
+      })),
     };
     return <MessageBubble message={bubble} />;
   }

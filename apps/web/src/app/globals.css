@@ -105,3 +105,12 @@
 @media (hover: none), (pointer: coarse) {
   .nsa-copy-btn { opacity: 0.7; }
 }
+
+/* ── Composer voice-input pulse ────────────────────────────────────────
+   Cadmium subtle border pulse while webkitSpeechRecognition is active.
+   Respects prefers-reduced-motion via the Composer opting out (no
+   animation prop when the media query matches). */
+@keyframes nsa-voice-pulse {
+  0%,   100% { box-shadow: 0 0 0 0 var(--color-accent-subtle); }
+  50%        { box-shadow: 0 0 0 4px var(--color-accent-subtle); }
+}
