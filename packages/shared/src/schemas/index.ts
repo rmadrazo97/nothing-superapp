@@ -228,6 +228,13 @@ export const calorieEntrySchema = z.object({
   custom_food_id: z.string().uuid().nullable().optional(),
   serving_qty: z.number().nullable().optional(),
   serving_unit: z.string().nullable().optional(),
+  // Migration 016 — soft meal grouping. `meal_group_id` bundles the
+  // ingredient rows produced by one `log_meal_from_plan` call so TODAY can
+  // collapse them under a single card. `meal_group_label` is a snapshot at
+  // log-time (e.g. "Comida · Opción 2") so the client doesn't have to
+  // re-derive from the plan blob. Both null for solo/manual entries.
+  meal_group_id: z.string().uuid().nullable().optional(),
+  meal_group_label: z.string().max(120).nullable().optional(),
 });
 
 export const calorieEntryInsertSchema = calorieEntrySchema
@@ -241,6 +248,9 @@ export const calorieEntryInsertSchema = calorieEntrySchema
     sugar_g: z.number().nonnegative().default(0).optional(),
     sodium_mg: z.number().nonnegative().default(0).optional(),
     cholesterol_mg: z.number().nonnegative().default(0).optional(),
+    // Server-generated on the log-meal-from-plan path — client never sets.
+    meal_group_id: z.string().uuid().nullable().optional(),
+    meal_group_label: z.string().max(120).nullable().optional(),
   });
 
 // ─── v3 MFP-tier calorie schemas ───────────────────────────────────────────
