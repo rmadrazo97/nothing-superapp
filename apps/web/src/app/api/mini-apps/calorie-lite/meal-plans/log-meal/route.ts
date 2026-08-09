@@ -26,6 +26,7 @@
  * raw_input). This ships correct-shape data on day 1 without blocking on a
  * full ingredient-linking pass.
  */
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -250,8 +251,18 @@ export async function POST(request: Request) {
     custom_food_id: string | null;
     serving_qty: number | null;
     serving_unit: string | null;
+    meal_group_id: string;
+    meal_group_label: string;
   };
   const inserts: Insert[] = [];
+
+  // Soft meal group — one id shared by every ingredient row from this call.
+  // Client never sets these; server owns the id + snapshotted label so a
+  // later rename of the plan can't retroactively rewrite past logs.
+  const mealGroupId = randomUUID();
+  const mealNameForLabel =
+    meal.name_en?.trim() || meal.name_es?.trim() || meal.id;
+  const mealGroupLabel = `${mealNameForLabel} · Opción ${body.option_selected}`;
 
   for (const ing of option.ingredients) {
     if (ing.free) continue;
@@ -296,6 +307,8 @@ export async function POST(request: Request) {
       custom_food_id: ing.custom_food_id ?? null,
       serving_qty: ing.quantity,
       serving_unit: ing.unit,
+      meal_group_id: mealGroupId,
+      meal_group_label: mealGroupLabel,
     });
   }
 
@@ -305,7 +318,7 @@ export async function POST(request: Request) {
       .from('app_calorie_entries')
       .insert(inserts)
       .select(
-        'id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g',
+        'id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g, meal_group_id, meal_group_label',
       );
     if (error) {
       return NextResponse.json({ error: 'db_error', message: error.message }, { status: 500 });
@@ -354,5 +367,7 @@ export async function POST(request: Request) {
     entries,
     adherence_id: adherence.id,
     meal_slot: mealSlot,
+    meal_group_id: mealGroupId,
+    meal_group_label: mealGroupLabel,
   });
 }

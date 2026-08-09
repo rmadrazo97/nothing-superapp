@@ -7,6 +7,7 @@
  * (single source of truth) — this tool inlines the DB writes so it doesn't
  * fan out through HTTP but reuses the exact same shape guarantees.
  */
+import { randomUUID } from 'node:crypto';
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -81,6 +82,8 @@ export interface LogMealFromPlanResult {
     adherence_id: string;
     meal_slot: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
     entries: unknown[];
+    meal_group_id: string;
+    meal_group_label: string;
   };
 }
 export interface ToolError { ok: false; error: string }
@@ -109,7 +112,7 @@ function ingredientLabel(ing: Ingredient): string {
 export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient) {
   return tool({
     description:
-      "Log a meal from the user's meal plan. Provide meal_id (plan slug like 'desayuno') and option_selected (1-based). Inserts one app_calorie_entries row per quantified ingredient (free items are skipped; unresolved ones land at kcal=0 with a TODO breadcrumb) and upserts a meal_plan_adherence row for today. Uses the user's active plan when meal_plan_id is omitted.",
+      "Log a meal from the user's meal plan. Provide meal_id (plan slug like 'desayuno') and option_selected (1-based). Inserts one app_calorie_entries row per quantified ingredient (free items are skipped; unresolved ones land at kcal=0 with a TODO breadcrumb) and upserts a meal_plan_adherence row for today. Uses the user's active plan when meal_plan_id is omitted. All inserted rows share a `meal_group_id` and carry a `meal_group_label` so the client renders them as one collapsible card and the user can delete the whole meal in one gesture. TODO: a `delete_meal_group` tool would let the copilot undo a whole logged meal directly; for now delete rows individually via calorie_lite_entries_delete.",
     inputSchema,
     async execute(input: Input): Promise<LogMealFromPlanResult | ToolError> {
       const auditBase = { supabase, userId, toolName: 'log_meal_from_plan', input } as const;
@@ -215,6 +218,14 @@ export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient
 
         const mealSlot = input.override_slot ?? mealSlotIdToMfpSlot(meal.id);
 
+        // Soft meal group — same id + snapshotted label on every ingredient
+        // row this tool inserts. Deletes/renames of the plan never rewrite
+        // the historical log; grouping is a client-side render concern.
+        const mealGroupId = randomUUID();
+        const mealNameForLabel =
+          meal.name_en?.trim() || meal.name_es?.trim() || meal.id;
+        const mealGroupLabel = `${mealNameForLabel} · Opción ${input.option_selected}`;
+
         const inserts = [];
         for (const ing of option.ingredients) {
           if (ing.free) continue;
@@ -244,6 +255,8 @@ export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient
             custom_food_id: ing.custom_food_id ?? null,
             serving_qty: ing.quantity,
             serving_unit: ing.unit,
+            meal_group_id: mealGroupId,
+            meal_group_label: mealGroupLabel,
           });
         }
 
@@ -252,7 +265,7 @@ export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient
           const { data, error } = await supabase
             .from('app_calorie_entries')
             .insert(inserts)
-            .select('id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g');
+            .select('id, entered_at, meal, raw_input, kcal, protein_g, carbs_g, fat_g, meal_group_id, meal_group_label');
           if (error) {
             await insertToolAudit({ ...auditBase, status: 'error', errorMessage: error.message });
             return { ok: false, error: error.message };
@@ -290,12 +303,14 @@ export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient
 
         const output: LogMealFromPlanResult = {
           ok: true,
-          summary: `Logged ${meal.name_en ?? meal.name_es ?? meal.id} option ${input.option_selected} — ${inserts.length} entr${inserts.length === 1 ? 'y' : 'ies'} into ${mealSlot}.`,
+          summary: `Logged ${inserts.length} ingredient${inserts.length === 1 ? '' : 's'} as ${mealGroupLabel} (group ${mealGroupId.slice(0, 8)}) into ${mealSlot}. Delete individual rows or the whole group card from the TODAY view.`,
           data: {
             inserted: inserts.length,
             adherence_id: adherence.id as string,
             meal_slot: mealSlot,
             entries,
+            meal_group_id: mealGroupId,
+            meal_group_label: mealGroupLabel,
           },
         };
         await insertToolAudit({ ...auditBase, output, status: 'ok' });
