@@ -58,6 +58,8 @@ export function MealPlanView({
   const [adherence, setAdherence] = useState<MealPlanAdherence[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [activating, setActivating] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoadErr(null);
@@ -139,6 +141,47 @@ export function MealPlanView({
     }
   }
 
+  // Delete flow — two-tap confirm. FK `preferences.active_meal_plan_id ...
+  // on delete set null` means deleting the currently-active plan cleanly
+  // unwires activation. The optimistic UI just reloads to rehydrate.
+  async function remove(id: string) {
+    if (pendingDelete !== id) {
+      setPendingDelete(id);
+      return;
+    }
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/mini-apps/calorie-lite/meal-plans/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        toast.error('Could not delete plan.');
+        return;
+      }
+      toast.success('Plan deleted.');
+      setPendingDelete(null);
+      // If we deleted the active plan, reload so the layout re-reads the
+      // now-null active_meal_plan_id from preferences.
+      if (id === activeMealPlanId) {
+        if (typeof window !== 'undefined') window.location.reload();
+        return;
+      }
+      await loadAll();
+    } catch {
+      toast.error('Network error.');
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  // Auto-disarm confirm after 3s.
+  useEffect(() => {
+    if (!pendingDelete) return;
+    const t = setTimeout(() => setPendingDelete(null), 3000);
+    return () => clearTimeout(t);
+  }, [pendingDelete]);
+
   // ─── Empty state — no active plan ────────────────────────────────────────
   if (!activeMealPlanId) {
     if (allPlans === null) {
@@ -149,7 +192,10 @@ export function MealPlanView({
         loadErr={loadErr}
         allPlans={allPlans}
         activating={activating}
+        pendingDelete={pendingDelete}
+        deleting={deleting}
         onActivate={activate}
+        onDelete={remove}
       />
     );
   }
@@ -172,9 +218,36 @@ export function MealPlanView({
           gap: 'var(--space-3)',
         }}
       >
-        <span className="label label-strong">
-          PLAN · {activePlan.name.toUpperCase()}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <span className="label label-strong">
+            PLAN · {activePlan.name.toUpperCase()}
+          </span>
+          <button
+            type="button"
+            onClick={() => void remove(activePlan.id)}
+            disabled={deleting === activePlan.id}
+            className="data"
+            aria-label={pendingDelete === activePlan.id ? 'Confirm delete plan' : 'Delete plan'}
+            style={{
+              all: 'unset',
+              cursor: deleting === activePlan.id ? 'not-allowed' : 'pointer',
+              padding: 'var(--space-1) var(--space-2)',
+              border: `1px solid ${pendingDelete === activePlan.id ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
+              borderRadius: 'var(--radius-pill, 999px)',
+              color: pendingDelete === activePlan.id ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              opacity: deleting === activePlan.id ? 0.5 : 1,
+            }}
+          >
+            {deleting === activePlan.id
+              ? '…'
+              : pendingDelete === activePlan.id
+                ? '× Confirm?'
+                : '× Delete'}
+          </button>
+        </div>
         {activePlan.plan.daily_targets && (
           <span
             className="data"
@@ -224,12 +297,18 @@ function EmptyPlanState({
   loadErr,
   allPlans,
   activating,
+  pendingDelete,
+  deleting,
   onActivate,
+  onDelete,
 }: {
   loadErr: string | null;
   allPlans: MealPlanRow[];
   activating: string | null;
+  pendingDelete: string | null;
+  deleting: string | null;
   onActivate: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const [showExample, setShowExample] = useState(false);
   const example = referenceFixture as unknown as MealPlan;
@@ -323,25 +402,58 @@ function EmptyPlanState({
                 }}
               >
                 <span style={{ color: 'var(--color-text-primary)' }}>{p.name}</span>
-                <button
-                  type="button"
-                  onClick={() => onActivate(p.id)}
-                  disabled={activating === p.id}
-                  style={{
-                    background: 'var(--color-accent)',
-                    color: 'var(--color-text-display)',
-                    border: 0,
-                    borderRadius: 'var(--radius-button)',
-                    padding: 'var(--space-2) var(--space-4)',
-                    fontFamily: 'var(--font-label)',
-                    fontSize: 'var(--text-label)',
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    cursor: activating === p.id ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {activating === p.id ? 'Activating…' : 'Activate'}
-                </button>
+                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(p.id)}
+                    disabled={deleting === p.id}
+                    aria-label={pendingDelete === p.id ? 'Confirm delete' : 'Delete plan'}
+                    style={{
+                      background: 'transparent',
+                      color: pendingDelete === p.id
+                        ? 'var(--color-accent)'
+                        : 'var(--color-text-secondary)',
+                      border: `1px solid ${
+                        pendingDelete === p.id
+                          ? 'var(--color-accent)'
+                          : 'var(--color-border-visible)'
+                      }`,
+                      borderRadius: 'var(--radius-button)',
+                      padding: 'var(--space-2) var(--space-3)',
+                      fontFamily: 'var(--font-label)',
+                      fontSize: 'var(--text-label)',
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: deleting === p.id ? 'not-allowed' : 'pointer',
+                      opacity: deleting === p.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deleting === p.id
+                      ? '…'
+                      : pendingDelete === p.id
+                        ? '× Confirm?'
+                        : '× Delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onActivate(p.id)}
+                    disabled={activating === p.id}
+                    style={{
+                      background: 'var(--color-accent)',
+                      color: 'var(--color-text-display)',
+                      border: 0,
+                      borderRadius: 'var(--radius-button)',
+                      padding: 'var(--space-2) var(--space-4)',
+                      fontFamily: 'var(--font-label)',
+                      fontSize: 'var(--text-label)',
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: activating === p.id ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {activating === p.id ? 'Activating…' : 'Activate'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
