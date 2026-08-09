@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// v2 gym routine schemas (add-only re-export — see ./gym.ts for the shape)
+export * from './gym.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([

@@ -1,0 +1,285 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "file": "jose-alejandro-training-block-1.xlsx",
+    "sheet": "Bloque 1 — Hipertrofia",
+    "title": "Jose Alejandro — Bloque 1 (Hipertrofia)",
+    "language_original": "es"
+  },
+  "athlete": {
+    "name": "Jose Alejandro Madrazo"
+  },
+  "plan": {
+    "id": "plan_jam_v1",
+    "split": "5-day body-part split",
+    "sessions_per_week": 5,
+    "units": { "load": "kg", "rest": "seconds" },
+    "conventions": {
+      "sets_notation": "'1 + 3' means 1 top set followed by 3 back-off sets; a plain number means straight sets.",
+      "reps_notation": "'6-8 / 8-10' means the first range applies to the top set, the second to the back-off sets.",
+      "rir_notation": "'1-2 / 2' means RIR 1-2 on the top set and RIR 2 on the back-off sets.",
+      "top_set_rule": "The top set is the first and most important set of the exercise; prioritise hitting it before the back-off sets.",
+      "rir_definition": "RIR = Reps In Reserve, i.e. how close to failure to stop. RIR 0-1 means one more rep and you fail.",
+      "coach_note": "This is the baseline block; it will be adapted based on your weekly progress reports."
+    },
+    "cardio": {
+      "daily_steps": 10000,
+      "post_workout": {
+        "modality": "stationary_bike",
+        "duration_minutes": 20,
+        "target_heart_rate_bpm": 130
+      },
+      "note": "Aim for the daily step count on all days including rest; the post-workout bike is optional but recommended on the 3 heavier lifting days."
+    },
+    "tracking_fields": ["weight_used_kg", "reps_completed", "rir_actual", "notes"],
+    "days": [
+      {
+        "day": 1,
+        "name_es": "Día 1 – PECHO Y ESPALDA",
+        "name_en": "Day 1 – Chest and Back",
+        "focus": ["chest", "back"],
+        "exercises": [
+          {
+            "id": "d1e1",
+            "order": 1,
+            "name_es": "Press inclinado en máquina convergente",
+            "name_en": "Incline press, converging machine",
+            "pattern": "horizontal_push",
+            "primary_muscles": ["chest_upper"],
+            "equipment": "machine",
+            "unilateral": false,
+            "structure": "top_set_backoff",
+            "sets_total": 4,
+            "blocks": [
+              { "role": "top_set", "sets": 1, "reps": { "min": 6, "max": 8 }, "rir": { "min": 1, "max": 2 } },
+              { "role": "backoff", "sets": 3, "reps": { "min": 8, "max": 10 }, "rir": { "min": 2, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 120, "max": 120 },
+            "alternatives": ["Incline dumbbell press", "Smith machine incline press"],
+            "raw": {
+              "series": "1 + 3",
+              "reps": "6-8 / 8-10",
+              "descanso": "2 min",
+              "rir": "1-2 / 2"
+            }
+          },
+          {
+            "id": "d1e2",
+            "order": 2,
+            "name_es": "Remo con mancuerna a una mano",
+            "name_en": "One-arm dumbbell row",
+            "pattern": "horizontal_pull",
+            "primary_muscles": ["lats", "mid_back"],
+            "equipment": "dumbbell",
+            "unilateral": true,
+            "reps_per_side": true,
+            "structure": "straight",
+            "sets_total": 3,
+            "blocks": [
+              { "role": "straight", "sets": 3, "reps": { "min": 10, "max": 12 }, "rir": { "min": 1, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 90, "max": 90 }
+          },
+          {
+            "id": "d1e3",
+            "order": 3,
+            "name_es": "Aperturas en polea baja",
+            "name_en": "Low-cable fly",
+            "pattern": "isolation_push",
+            "primary_muscles": ["chest_upper"],
+            "equipment": "cable",
+            "unilateral": false,
+            "structure": "straight",
+            "sets_total": 3,
+            "blocks": [
+              { "role": "straight", "sets": 3, "reps": { "min": 12, "max": 15 }, "rir": { "min": 0, "max": 1 } }
+            ],
+            "rest_seconds": { "min": 60, "max": 90 }
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "name_es": "Día 2 – PIERNA (CUÁDRICEPS)",
+        "name_en": "Day 2 – Legs (quad focus)",
+        "focus": ["quads", "glutes"],
+        "exercises": [
+          {
+            "id": "d2e1",
+            "order": 1,
+            "name_es": "Sentadilla en barra libre",
+            "name_en": "Back squat, barbell",
+            "pattern": "squat",
+            "primary_muscles": ["quads", "glutes"],
+            "equipment": "barbell",
+            "structure": "top_set_backoff",
+            "sets_total": 4,
+            "blocks": [
+              { "role": "top_set", "sets": 1, "reps": { "min": 5, "max": 7 }, "rir": { "min": 1, "max": 2 } },
+              { "role": "backoff", "sets": 3, "reps": { "min": 8, "max": 10 }, "rir": { "min": 2, "max": 3 } }
+            ],
+            "rest_seconds": { "min": 180, "max": 240 },
+            "alternatives": ["Hack squat", "Pendulum squat"]
+          },
+          {
+            "id": "d2e2",
+            "order": 2,
+            "name_es": "Prensa a 45°",
+            "name_en": "Leg press, 45°",
+            "pattern": "squat",
+            "primary_muscles": ["quads"],
+            "equipment": "machine",
+            "structure": "straight",
+            "sets_total": 3,
+            "blocks": [
+              { "role": "straight", "sets": 3, "reps": { "min": 10, "max": 12 }, "rir": { "min": 1, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 120, "max": 120 }
+          }
+        ]
+      },
+      {
+        "day": 3,
+        "name_es": "Día 3 – HOMBRO",
+        "name_en": "Day 3 – Shoulders",
+        "focus": ["delts"],
+        "exercises": [
+          {
+            "id": "d3e1",
+            "order": 1,
+            "name_es": "Press militar en máquina",
+            "name_en": "Overhead press, machine",
+            "pattern": "vertical_push",
+            "primary_muscles": ["delts_front", "delts_side"],
+            "equipment": "machine",
+            "structure": "top_set_backoff",
+            "sets_total": 4,
+            "blocks": [
+              { "role": "top_set", "sets": 1, "reps": { "min": 6, "max": 8 }, "rir": { "min": 1, "max": 2 } },
+              { "role": "backoff", "sets": 3, "reps": { "min": 10, "max": 12 }, "rir": { "min": 2, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 90, "max": 120 }
+          },
+          {
+            "id": "d3e2",
+            "order": 2,
+            "name_es": "Elevaciones laterales en polea",
+            "name_en": "Cable lateral raise",
+            "pattern": "isolation_push",
+            "primary_muscles": ["delts_side"],
+            "equipment": "cable",
+            "unilateral": true,
+            "reps_per_side": true,
+            "structure": "straight",
+            "sets_total": 4,
+            "blocks": [
+              { "role": "straight", "sets": 4, "reps": { "min": 12, "max": 15 }, "rir": { "min": 0, "max": 1 } }
+            ],
+            "rest_seconds": { "min": 60, "max": 60 }
+          }
+        ]
+      },
+      {
+        "day": 4,
+        "name_es": "Día 4 – PIERNA (FEMORAL)",
+        "name_en": "Day 4 – Legs (hamstring focus)",
+        "focus": ["hamstrings", "glutes"],
+        "exercises": [
+          {
+            "id": "d4e1",
+            "order": 1,
+            "name_es": "Peso muerto rumano",
+            "name_en": "Romanian deadlift",
+            "pattern": "hinge",
+            "primary_muscles": ["hamstrings", "glutes"],
+            "equipment": "barbell",
+            "structure": "straight",
+            "sets_total": 4,
+            "blocks": [
+              { "role": "straight", "sets": 4, "reps": { "min": 8, "max": 10 }, "rir": { "min": 1, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 120, "max": 150 }
+          },
+          {
+            "id": "d4e2",
+            "order": 2,
+            "name_es": "Curl femoral tumbado",
+            "name_en": "Lying leg curl",
+            "pattern": "isolation_pull",
+            "primary_muscles": ["hamstrings"],
+            "equipment": "machine",
+            "structure": "straight",
+            "sets_total": 3,
+            "blocks": [
+              { "role": "straight", "sets": 3, "reps": { "min": 10, "max": 12 }, "rir": { "min": 1, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 90, "max": 90 }
+          }
+        ]
+      },
+      {
+        "day": 5,
+        "name_es": "Día 5 – BRAZO (BÍCEPS Y TRÍCEPS)",
+        "name_en": "Day 5 – Arms (biceps and triceps)",
+        "focus": ["biceps", "triceps"],
+        "exercises": [
+          {
+            "id": "d5e1",
+            "order": 1,
+            "structure": "superset",
+            "name_en": "Cable curl + triceps extension superset",
+            "name_es": "Superserie curl polea + extensión tríceps",
+            "sets_total": 6,
+            "rounds": 3,
+            "rest_seconds": { "min": 60, "max": 60 },
+            "rest_note": "Rest applies between superset rounds; move between the two exercises with no rest.",
+            "components": [
+              {
+                "order": 1,
+                "name_en": "Cable curl",
+                "name_es": "Curl polea baja",
+                "primary_muscles": ["biceps"],
+                "equipment": "cable",
+                "sets": 3,
+                "reps": { "min": 10, "max": 15 },
+                "rir": { "min": 1, "max": 2 }
+              },
+              {
+                "order": 2,
+                "name_en": "Triceps rope extension",
+                "name_es": "Extensión de tríceps con cuerda",
+                "primary_muscles": ["triceps"],
+                "equipment": "cable",
+                "sets": 3,
+                "reps": { "min": 10, "max": 15 },
+                "rir": { "min": 1, "max": 2 }
+              }
+            ]
+          },
+          {
+            "id": "d5e2",
+            "order": 2,
+            "name_es": "Curl martillo con mancuernas",
+            "name_en": "Hammer curl, dumbbells",
+            "pattern": "isolation_pull",
+            "primary_muscles": ["biceps", "brachialis"],
+            "equipment": "dumbbell",
+            "unilateral": true,
+            "reps_per_side": true,
+            "structure": "straight",
+            "sets_total": 3,
+            "blocks": [
+              { "role": "straight", "sets": 3, "reps": { "min": 10, "max": 12 }, "rir": { "min": 1, "max": 2 } }
+            ],
+            "rest_seconds": { "min": 75, "max": 90 }
+          }
+        ]
+      }
+    ]
+  },
+  "parsing_notes": [
+    "Source spreadsheet used the shorthand '1 + 3' for top-set + backoff; expanded into structured blocks.",
+    "RIR values that were single numbers ('2') were expanded to ranges ('{min: 2, max: 2}') for schema symmetry.",
+    "Cardio prescription was pulled from the notes column, not a dedicated cardio row."
+  ]
+}
