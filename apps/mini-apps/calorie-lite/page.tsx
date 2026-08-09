@@ -23,7 +23,7 @@
  *   - Cadmium red (--color-accent) only for CTAs, accent bars, streak dot.
  *   - No hex colors — tokens only.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   EmptyState,
   useEvents,
@@ -294,6 +294,7 @@ export default function CalorieLitePage() {
           loading={entries === null}
           activeMealPlanId={preferences.active_meal_plan_id}
           onAdd={() => setView('add')}
+          onEntriesChanged={loadEntries}
         />
       )}
 
@@ -480,6 +481,7 @@ function TodayView({
   loading,
   activeMealPlanId,
   onAdd,
+  onEntriesChanged,
 }: {
   total: number;
   goal: number;
@@ -493,6 +495,7 @@ function TodayView({
   loading: boolean;
   activeMealPlanId: string | null;
   onAdd: () => void;
+  onEntriesChanged: () => void | Promise<void>;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -515,7 +518,7 @@ function TodayView({
       ) : entries.length === 0 ? (
         <EmptyToday onAdd={onAdd} />
       ) : (
-        <EntryList entries={entries} />
+        <EntryList entries={entries} onChanged={onEntriesChanged} />
       )}
 
       {/* MY MEALS panel — reusable custom meal templates. Sits below the day's
@@ -639,7 +642,13 @@ function EmptyToday({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function EntryList({ entries }: { entries: CalorieEntry[] }) {
+function EntryList({
+  entries,
+  onChanged,
+}: {
+  entries: CalorieEntry[];
+  onChanged?: () => void | Promise<void>;
+}) {
   // Newest first.
   const sorted = [...entries].sort((a, b) =>
     b.entered_at.localeCompare(a.entered_at),
@@ -654,80 +663,399 @@ function EntryList({ entries }: { entries: CalorieEntry[] }) {
         flexDirection: 'column',
       }}
     >
-      {sorted.map((e) => {
-        const macros = macroLine(e.protein_g ?? 0, e.carbs_g ?? 0, e.fat_g ?? 0);
-        return (
-          <li
-            key={e.id}
+      {sorted.map((e) => (
+        <EntryRow key={e.id} entry={e} onChanged={onChanged} />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * One entry row with tap-to-expand actions (EDIT · DELETE).
+ *
+ * Delete uses two-tap confirm to avoid accidental fat-finger deletes on
+ * mobile: first tap arms the button (`× DELETE?` in cadmium), second tap
+ * fires. Auto-disarms after 3s.
+ *
+ * Edit reveals an inline form for the mutable fields (name/kcal/macros/slot).
+ * Saves via PATCH; on success collapses back to the compact row and pings
+ * `onChanged` so the parent refetches totals + streak + insights refresh.
+ *
+ * Writes go through the framework endpoint
+ *   /api/mini-apps/calorie-lite/resources/entries/[id]
+ * (declared in apps/mini-apps/calorie-lite/resources.ts, ops.update + delete).
+ */
+function EntryRow({
+  entry,
+  onChanged,
+}: {
+  entry: CalorieEntry;
+  onChanged?: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const events = useEvents();
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const macros = macroLine(
+    entry.protein_g ?? 0,
+    entry.carbs_g ?? 0,
+    entry.fat_g ?? 0,
+  );
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const t = setTimeout(() => setConfirmingDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmingDelete]);
+
+  async function handleDelete() {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/mini-apps/calorie-lite/resources/entries/${entry.id}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) {
+        toast.error(res.status === 402 ? 'Subscription required.' : 'Delete failed.');
+        return;
+      }
+      toast.success('Entry deleted.');
+      events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
+      await onChanged?.();
+    } catch {
+      toast.error("Can't reach the server.");
+    } finally {
+      setBusy(false);
+      setConfirmingDelete(false);
+      setExpanded(false);
+    }
+  }
+
+  return (
+    <li
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-4) 0',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse entry actions' : 'Expand entry actions'}
+        style={{
+          all: 'unset',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+          width: '100%',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
+          <span
             style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              justifyContent: 'space-between',
-              gap: 'var(--space-4)',
-              padding: 'var(--space-4) 0',
-              borderBottom: '1px solid var(--color-border)',
+              color: 'var(--color-text-primary)',
+              fontSize: 'var(--text-body)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
-              <span
-                style={{
-                  color: 'var(--color-text-primary)',
-                  fontSize: 'var(--text-body)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {e.raw_input || mealLabel(e.meal)}
-              </span>
-              <span
-                className="data"
-                style={{
-                  color: 'var(--color-text-disabled)',
-                  fontSize: 'var(--text-caption)',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {toLocalTime(e.entered_at)} · {mealLabel(e.meal).toUpperCase()}
-              </span>
-            </div>
-            <div
+            {entry.raw_input || mealLabel(entry.meal)}
+          </span>
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-disabled)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+            }}
+          >
+            {toLocalTime(entry.entered_at)} · {mealLabel(entry.meal).toUpperCase()}
+          </span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 'var(--space-1)',
+          }}
+        >
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-display)',
+              fontSize: 'var(--text-body)',
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {entry.kcal.toLocaleString()}
+          </span>
+          {macros && (
+            <span
+              className="data"
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: 'var(--space-1)',
+                color: 'var(--color-text-disabled)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.04em',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span
-                className="data"
-                style={{
-                  color: 'var(--color-text-display)',
-                  fontSize: 'var(--text-body)',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {e.kcal.toLocaleString()}
-              </span>
-              {macros && (
-                <span
-                  className="data"
-                  style={{
-                    color: 'var(--color-text-disabled)',
-                    fontSize: 'var(--text-caption)',
-                    letterSpacing: '0.04em',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {macros}
-                </span>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+              {macros}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {expanded && !editing && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-2)',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={busy}
+            className="data"
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: 'var(--space-2) var(--space-3)',
+              border: '1px solid var(--color-border-visible)',
+              borderRadius: 'var(--radius-pill, 999px)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            ✎ Edit
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={busy}
+            className="data"
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: 'var(--space-2) var(--space-3)',
+              border: `1px solid ${
+                confirmingDelete ? 'var(--color-accent)' : 'var(--color-border-visible)'
+              }`,
+              borderRadius: 'var(--radius-pill, 999px)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: confirmingDelete
+                ? 'var(--color-accent)'
+                : 'var(--color-text-primary)',
+              opacity: busy ? 0.5 : 1,
+            }}
+          >
+            {confirmingDelete ? '× Confirm?' : '× Delete'}
+          </button>
+        </div>
+      )}
+
+      {editing && (
+        <EditEntryForm
+          entry={entry}
+          onCancel={() => {
+            setEditing(false);
+            setExpanded(false);
+          }}
+          onSaved={async () => {
+            setEditing(false);
+            setExpanded(false);
+            events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
+            await onChanged?.();
+          }}
+        />
+      )}
+    </li>
+  );
+}
+
+function EditEntryForm({
+  entry,
+  onCancel,
+  onSaved,
+}: {
+  entry: CalorieEntry;
+  onCancel: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState(entry.raw_input ?? '');
+  const [kcal, setKcal] = useState(String(entry.kcal));
+  const [protein, setProtein] = useState(String(entry.protein_g ?? 0));
+  const [carbs, setCarbs] = useState(String(entry.carbs_g ?? 0));
+  const [fat, setFat] = useState(String(entry.fat_g ?? 0));
+  const [meal, setMeal] = useState<Meal>(entry.meal);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSave() {
+    setBusy(true);
+    try {
+      const patch: Record<string, unknown> = {
+        raw_input: name.trim() || null,
+        kcal: Number(kcal) || 0,
+        protein_g: Number(protein) || 0,
+        carbs_g: Number(carbs) || 0,
+        fat_g: Number(fat) || 0,
+        meal_slot: meal,
+      };
+      const res = await fetch(
+        `/api/mini-apps/calorie-lite/resources/entries/${entry.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(patch),
+        },
+      );
+      if (!res.ok) {
+        toast.error(res.status === 402 ? 'Subscription required.' : 'Save failed.');
+        return;
+      }
+      toast.success('Entry updated.');
+      await onSaved();
+    } catch {
+      toast.error("Can't reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputStyle: CSSProperties = {
+    background: 'var(--color-surface-elevated, rgba(0,0,0,0.4))',
+    border: '1px solid var(--color-border-visible)',
+    borderRadius: 'var(--radius-input, 4px)',
+    padding: 'var(--space-2) var(--space-3)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-data)',
+    fontSize: 'var(--text-caption)',
+    width: '100%',
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)',
+        padding: 'var(--space-3)',
+        background: 'rgba(0,0,0,0.4)',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+      }}
+    >
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+        <span className="label" style={{ fontSize: 'var(--text-caption)' }}>NAME</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
+        {[
+          { label: 'KCAL', v: kcal, set: setKcal },
+          { label: 'P (g)', v: protein, set: setProtein },
+          { label: 'C (g)', v: carbs, set: setCarbs },
+          { label: 'F (g)', v: fat, set: setFat },
+        ].map((f) => (
+          <label key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <span className="label" style={{ fontSize: 'var(--text-caption)' }}>{f.label}</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={f.v}
+              onChange={(e) => f.set(e.target.value)}
+              style={inputStyle}
+            />
+          </label>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        {MEAL_OPTIONS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setMeal(m.id)}
+            className="data"
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: 'var(--space-2) var(--space-3)',
+              border: `1px solid ${
+                meal === m.id ? 'var(--color-accent)' : 'var(--color-border-visible)'
+              }`,
+              borderRadius: 'var(--radius-pill, 999px)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: meal === m.id ? 'var(--color-accent)' : 'var(--color-text-primary)',
+            }}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="data"
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            padding: 'var(--space-2) var(--space-4)',
+            border: '1px solid var(--color-border-visible)',
+            borderRadius: 'var(--radius-pill, 999px)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={busy}
+          className="data"
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            padding: 'var(--space-2) var(--space-4)',
+            background: 'var(--color-accent)',
+            color: 'var(--color-text-inverse, #fff)',
+            borderRadius: 'var(--radius-pill, 999px)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
   );
 }
 
