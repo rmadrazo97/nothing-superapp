@@ -526,6 +526,42 @@ export type WorkoutSession = z.infer<typeof workoutSessionSchema>;
 export type WorkoutSessionInsert = z.infer<typeof workoutSessionInsertSchema>;
 export type WorkoutSessionUpdate = z.infer<typeof workoutSessionUpdateSchema>;
 
+// ─── copilot_tool_calls (v0.4 — copilot agent audit log) ──────────────────
+// One row per tool invocation. `input` and `output` are jsonb blobs whose
+// shape varies per tool. `status` is text (not enum) so new statuses like
+// 'rate_limited' can be added without a migration.
+
+export const copilotToolCallStatusEnum = z.enum([
+  'ok',
+  'error',
+  'rate_limited',
+  'unauthorized',
+  'payment_required',
+]);
+
+export const copilotToolCallSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  tool_name: z.string().min(1).max(120),
+  input: z.unknown(),
+  output: z.unknown().nullable(),
+  status: copilotToolCallStatusEnum,
+  error_message: z.string().nullable(),
+  called_at: z.string().datetime({ offset: true }),
+});
+
+export const copilotToolCallInsertSchema = copilotToolCallSchema
+  .omit({ id: true, called_at: true })
+  .extend({
+    output: z.unknown().nullable().optional(),
+    status: copilotToolCallStatusEnum.default('ok').optional(),
+    error_message: z.string().nullable().optional(),
+  });
+
+export type CopilotToolCallStatus = z.infer<typeof copilotToolCallStatusEnum>;
+export type CopilotToolCall = z.infer<typeof copilotToolCallSchema>;
+export type CopilotToolCallInsert = z.infer<typeof copilotToolCallInsertSchema>;
+
 // ─── pomodoro_sessions ─────────────────────────────────────────────────────
 
 export const pomodoroPhaseEnum = z.enum(['work', 'short_break', 'long_break']);
