@@ -47,7 +47,10 @@ const SHEET_STYLE: CSSProperties = {
   height: '100%',
   background: 'var(--color-surface)',
   borderLeft: '1px solid var(--color-border-visible)',
-  padding: 'var(--space-6)',
+  // Safe-area padding so header + close button clear the Dynamic Island and
+  // the bottom controls clear the home indicator when running as a PWA.
+  padding:
+    'calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-6) + env(safe-area-inset-right)) calc(var(--space-6) + env(safe-area-inset-bottom)) var(--space-6)',
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',

@@ -279,7 +279,10 @@ export function OnboardingWizard({ onClose }: { onClose: () => void }) {
         alignItems: 'flex-start',
         justifyContent: 'center',
         overflowY: 'auto',
-        padding: 'var(--space-4)',
+        // Safe-area padding so the wizard clears iOS Dynamic Island + home
+        // indicator when the PWA runs standalone.
+        padding:
+          'calc(var(--space-4) + env(safe-area-inset-top)) calc(var(--space-4) + env(safe-area-inset-right)) calc(var(--space-4) + env(safe-area-inset-bottom)) calc(var(--space-4) + env(safe-area-inset-left))',
       }}
     >
       <div
