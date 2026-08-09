@@ -79,3 +79,18 @@ Angle worth posting:
 1. **"3 keyboard shortcuts, not 10"** — one power feature signals craft; ten signals a cockpit
 2. **"The prefers-reduced-motion gate"** — every animation wraps in `@media (prefers-reduced-motion: no-preference)`. Screenshot the diff for the accessibility crowd
 3. **"The entitlement pulse fix"** — pre-v0.3.1 paying users saw a brief "you're locked" flash on `/app` while entitlement resolved. Now: soft pulse until we know. Small, invisible, and exactly the kind of thing that makes a product feel considered
+
+## 2026-08-09 11:15 — public GitHub push + CI live
+
+**github.com/rmadrazo97/nothing-superapp** is now public. Full release history + v0.3.0 + v0.3.1 tags shipped.
+
+**Rotation reality check.** Went in assuming a big rotation dance across four credentials. Turned out the only real secret ever committed was the Supabase DB password (in `working/.env.credentials.stub`, commit `07e9ed8`). The service_role JWT, Kimi API key, Stripe secret, and webhook secret were only ever in `apps/web/.env.local` — always gitignored. So:
+1. Reset the Supabase DB password to a fresh 48-char base62 string
+2. `git filter-repo --path working/.env.credentials.stub --invert-paths` to scrub the file from every commit in history
+3. Re-tagged v0.3.0 + v0.3.1 (SHAs shifted after filter-repo)
+4. Pushed clean history to the public repo
+5. `gh secret set` for all 18 env vars — publishable, server-only, Stripe, Kimi
+6. GitHub Actions CI: typecheck + build + Playwright (SKIP_STRIPE=1) on every push and PR
+
+**Angle:** "The credential-scan taught me my paranoia was wrong. Actual leak surface = 1 password. Everything else was in `.gitignore` the whole time." Screenshot the before/after grep counts. Post as a "don't panic, audit first" story.
+
