@@ -10,6 +10,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Public values inline (not secrets). Supabase URL + Stripe publishable +
+# publishable Supabase key + the $1/mo price id are all designed to be seen
+# by anyone hitting the app — using secrets for them causes GitHub Actions
+# to mask them in logs (which surfaced as `Invalid supabaseUrl` when the
+# masking briefly ate a value on subprocess spawn). Inlining is cleaner.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://pqbwzcjiedllzafgczhx.supabase.co
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_EBeMXcfGsWXNti0Uv6dpSQ_mlCgdY1D
+  NEXT_PUBLIC_STRIPE_PRICE_ID: price_1U1sFlLa3bZXHjTBsLbkFk2x
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+
 jobs:
   typecheck-build:
     name: typecheck + build
@@ -27,14 +38,9 @@ jobs:
       - run: pnpm -r typecheck
       - name: build web
         env:
-          # Public + safe envs are enough to satisfy the build. Server-only
-          # secrets aren't referenced at build time.
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          # These are actually private — keep as secrets.
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_STRIPE_PRICE_ID: ${{ secrets.NEXT_PUBLIC_STRIPE_PRICE_ID }}
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         run: pnpm --filter @nothing/web build
 
   e2e:
@@ -59,21 +65,17 @@ jobs:
           # Test env — real live Supabase + Kimi are hit by these specs.
           # Stripe golden path is skipped (needs `stripe listen` + real
           # webhook secret; only run locally).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_STRIPE_PRICE_ID: ${{ secrets.NEXT_PUBLIC_STRIPE_PRICE_ID }}
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: https://pqbwzcjiedllzafgczhx.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: pqbwzcjiedllzafgczhx
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+          STRIPE_PRICE_ID: price_1U1sFlLa3bZXHjTBsLbkFk2x
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
-          KIMI_BASE_URL: ${{ secrets.KIMI_BASE_URL }}
-          KIMI_MODEL: ${{ secrets.KIMI_MODEL }}
+          KIMI_BASE_URL: https://api.moonshot.ai/v1
+          KIMI_MODEL: kimi-k2.6
         run: pnpm --filter @nothing/web exec playwright test --reporter=list
       - name: upload playwright report on failure
         if: failure()
