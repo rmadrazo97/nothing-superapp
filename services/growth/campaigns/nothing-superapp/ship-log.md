@@ -124,3 +124,28 @@ Root cause of the length=1 failures: `printf "%s" "$value" | gh secret set --bod
 
 Nothing Superapp is now a **public open-source project on GitHub with green CI**. github.com/rmadrazo97/nothing-superapp.
 
+
+## 2026-08-09 13:55 — v0.4: live at nothing-superapp.vercel.app + Google OAuth + prod fix
+
+**The app is live.** github.com/rmadrazo97/nothing-superapp deployed to https://nothing-superapp.vercel.app. Public, no login wall, PWA-installable, all mini-apps behind the $1/mo paywall.
+
+**Google OAuth end-to-end.** Created GCP project `nothing-superapp-71008`, drove the OAuth consent screen wizard + Web OAuth client through the browser, pasted client_id + secret into Supabase Auth → Google provider. Clicked "Continue with Google" on the live app, picked jmadrazo7, landed at `/app` with the "GOOD MORNING · jmadrazo7" greeting.
+
+**Prod bug caught by that first end-to-end run.** `/app` rendered "No mini-apps installed yet" — the fs-scan registry walked `apps/mini-apps/` at request time, but Vercel's serverless bundle didn't include those directories. Fixed with a static import list (each mini-app's `manifest` export imported at compile time). Bundler now traces them transitively; zero fs at runtime. Adding a mini-app now touches two files instead of one — both one-line appends.
+
+**Vercel deployment quirks worth remembering:**
+1. **Vercel git-author fraud check** — commit email `alex.madrazo@bgamestudios.com` wasn't attached to any GitHub account, so 4 consecutive deploys got auto-Blocked. Switched repo git config to `jmadrazo7@gmail.com` (verified on rmadrazo97).
+2. **Root Directory needs to be `apps/web` for pnpm monorepo** with Next.js detection. `Include files outside the root directory` = on so workspace deps resolve.
+3. **Deployment Protection defaults to on** for Hobby-tier projects — all URLs go through Vercel SSO. Disable via Settings → Deployment Protection for a public paid product.
+4. **Non-secret values shouldn't be in gh secrets** — GitHub masks them in logs and occasionally eats them across subprocess spawn. Inline SUPABASE_URL + publishable keys + Stripe price/product/account IDs in the workflow yaml.
+
+Post-deploy checklist:
+- ✅ Site URL updated in Supabase (`https://nothing-superapp.vercel.app`)
+- ✅ Redirect URLs allowlist (prod + localhost)
+- ✅ Prod Stripe webhook endpoint created (`we_1U2V6OLa3bZXHjTBxTJgiCxq`) + `STRIPE_WEBHOOK_SECRET` in Vercel env
+- ✅ Google OAuth wired end-to-end
+- ✅ Registry bundling fixed
+- ⏳ Brand Supabase auth emails (Nothing template) — next
+- ⏳ Custom domain
+- ⏳ Real subscription smoke test on live URL
+
