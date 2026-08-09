@@ -32,6 +32,13 @@ import { makeLogMealFromPlanTool } from './log-meal-from-plan';
 import { makeExtractMacrosFromTextTool } from './extract-macros-from-text';
 import { makeFindEquivalentFoodTool } from './find-equivalent-food';
 import { makeSuggestFromMenuTool } from './suggest-from-menu';
+// reminders mini-app (add-only) — semantic aliases for the framework's
+// reminders_reminders_* CRUD. The killer feature is `create_reminder` with
+// kind='agent_loop' — turns a copilot chat into a scheduled autonomous task.
+import { makeCreateReminderTool } from './create-reminder';
+import { makeListRemindersTool } from './list-reminders';
+import { makeToggleReminderTool } from './toggle-reminder';
+import { makeTriggerReminderNowTool } from './trigger-reminder-now';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
 // hand-written wins on semantic clarity ("log_water"), framework fills the
@@ -61,6 +68,11 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     extract_macros_from_text: makeExtractMacrosFromTextTool(userId, supabase),
     find_equivalent_food: makeFindEquivalentFoodTool(userId, supabase),
     suggest_from_menu: makeSuggestFromMenuTool(userId, supabase),
+    // reminders (add-only) — includes agent-loop reminders
+    create_reminder: makeCreateReminderTool(userId, supabase),
+    list_reminders: makeListRemindersTool(userId, supabase),
+    toggle_reminder: makeToggleReminderTool(userId, supabase),
+    trigger_reminder_now: makeTriggerReminderNowTool(userId, supabase),
     // framework-generated (calorie_lite_*, pomodoro_*, ...)
     ...resourceTools(userId, supabase),
   };
