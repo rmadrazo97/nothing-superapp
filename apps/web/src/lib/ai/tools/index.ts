@@ -27,6 +27,11 @@ import { makeCreateMealPlanTool } from './create-meal-plan';
 import { makeGetMealPlanTool } from './get-meal-plan';
 import { makeListMealPlansTool } from './list-meal-plans';
 import { makeLogMealFromPlanTool } from './log-meal-from-plan';
+// calorie-lite smart tools (add-only) — swap ingredients, decode menus, extract
+// macros from free text. Alphabetical block, registered together.
+import { makeExtractMacrosFromTextTool } from './extract-macros-from-text';
+import { makeFindEquivalentFoodTool } from './find-equivalent-food';
+import { makeSuggestFromMenuTool } from './suggest-from-menu';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
 // hand-written wins on semantic clarity ("log_water"), framework fills the
@@ -52,6 +57,10 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     get_meal_plan: makeGetMealPlanTool(userId, supabase),
     list_meal_plans: makeListMealPlansTool(userId, supabase),
     log_meal_from_plan: makeLogMealFromPlanTool(userId, supabase),
+    // calorie-lite smart tools (add-only) — alphabetical block
+    extract_macros_from_text: makeExtractMacrosFromTextTool(userId, supabase),
+    find_equivalent_food: makeFindEquivalentFoodTool(userId, supabase),
+    suggest_from_menu: makeSuggestFromMenuTool(userId, supabase),
     // framework-generated (calorie_lite_*, pomodoro_*, ...)
     ...resourceTools(userId, supabase),
   };
