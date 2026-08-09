@@ -20,6 +20,7 @@
  * OpenRouter or a fallback provider.
  */
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { chatModel } from '@/lib/ai/provider';
 import { copilotTools } from '@/lib/ai/tools';
@@ -73,6 +74,143 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 /**
+ * When the client sends `context: 'calorie-lite'`, we append this scoped
+ * system prompt block so the copilot prefers nutrition tools, reads the
+ * user's active meal plan before suggesting swaps, and cites the plan
+ * ingredient/option in replies.
+ *
+ * Kept as a const so a future context-aware router can enum-lookup rather
+ * than string-switch.
+ */
+const CALORIE_LITE_PROMPT_APPEND = [
+  '',
+  '--- CONTEXT: CALORIE LITE ---',
+  'You are currently ANSWERING FROM WITHIN Calorie Lite. Prioritize nutrition',
+  'tools (search_foods, log_calorie_entry, log_meal_from_plan, get_daily_summary,',
+  'find_equivalent_food, suggest_from_menu, extract_macros_from_text) and read the',
+  "user's active meal plan (get_meal_plan with active_only=true) before answering",
+  'swap/what-to-eat questions. Cite the meal plan option or ingredient explicitly',
+  'when suggesting.',
+].join('\n');
+
+/**
+ * Bounded 2KB scoped-context block — server-side reads only, no tool call.
+ * Called in-line for `context === 'calorie-lite'` so the model has today's
+ * remaining macros + active plan name at hand before its first tool call.
+ *
+ * Failure modes are all soft — a missing row / DB blip returns an empty
+ * string rather than blowing up the chat. If the block exceeds 2KB it's
+ * truncated with a "…" marker to stay under the cap the caller promised.
+ */
+async function buildCalorieLiteContextBlock(
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<string> {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    const [totalsRes, prefsRes] = await Promise.all([
+      supabase
+        .from('calorie_daily_totals')
+        .select('total_kcal, total_protein_g, total_carbs_g, total_fat_g, total_fiber_g')
+        .eq('user_id', userId)
+        .eq('day', day)
+        .maybeSingle(),
+      supabase
+        .from('preferences')
+        .select('active_meal_plan_id, daily_calorie_goal, protein_target_g, carbs_target_g, fat_target_g')
+        .eq('user_id', userId)
+        .maybeSingle(),
+    ]);
+
+    const totals = (totalsRes.data ?? {}) as Record<string, number | null>;
+    const prefs = (prefsRes.data ?? {}) as Record<string, unknown> | null;
+
+    const activePlanId = (prefs?.active_meal_plan_id as string | null) ?? null;
+    let planName: string | null = null;
+    let planTargets: {
+      calories_kcal?: number;
+      protein_g?: number;
+      carbs_g?: number;
+      fat_g?: number;
+    } | null = null;
+    if (activePlanId) {
+      const { data: planRow } = await supabase
+        .from('meal_plans')
+        .select('name, plan')
+        .eq('user_id', userId)
+        .eq('id', activePlanId)
+        .maybeSingle();
+      if (planRow) {
+        planName = (planRow.name as string) ?? null;
+        const plan = (planRow.plan ?? {}) as {
+          daily_targets?: {
+            calories_kcal?: number;
+            protein_g?: number;
+            carbs_g?: number;
+            fat_g?: number;
+          };
+        };
+        planTargets = plan.daily_targets ?? null;
+      }
+    }
+
+    const kcalGoal =
+      (planTargets?.calories_kcal as number | undefined) ??
+      (prefs?.daily_calorie_goal as number | undefined) ??
+      null;
+    const proteinGoal =
+      (planTargets?.protein_g as number | undefined) ??
+      (prefs?.protein_target_g as number | undefined) ??
+      null;
+    const carbsGoal =
+      (planTargets?.carbs_g as number | undefined) ??
+      (prefs?.carbs_target_g as number | undefined) ??
+      null;
+    const fatGoal =
+      (planTargets?.fat_g as number | undefined) ??
+      (prefs?.fat_target_g as number | undefined) ??
+      null;
+
+    const kcal = Number(totals.total_kcal ?? 0);
+    const protein = Number(totals.total_protein_g ?? 0);
+    const carbs = Number(totals.total_carbs_g ?? 0);
+    const fat = Number(totals.total_fat_g ?? 0);
+
+    const remaining = {
+      kcal: kcalGoal != null ? Math.max(0, kcalGoal - kcal) : null,
+      protein_g: proteinGoal != null ? Math.max(0, proteinGoal - protein) : null,
+      carbs_g: carbsGoal != null ? Math.max(0, carbsGoal - carbs) : null,
+      fat_g: fatGoal != null ? Math.max(0, fatGoal - fat) : null,
+    };
+
+    const compact = {
+      date: day,
+      today: {
+        kcal: Math.round(kcal),
+        protein_g: Math.round(protein),
+        carbs_g: Math.round(carbs),
+        fat_g: Math.round(fat),
+      },
+      targets: {
+        kcal: kcalGoal,
+        protein_g: proteinGoal,
+        carbs_g: carbsGoal,
+        fat_g: fatGoal,
+      },
+      remaining,
+      active_meal_plan: activePlanId
+        ? { id: activePlanId, name: planName, daily_targets: planTargets }
+        : null,
+    };
+    let json = JSON.stringify(compact);
+    if (json.length > 2000) json = `${json.slice(0, 1997)}…`;
+    return `\n--- CALORIE LITE SNAPSHOT ---\n${json}\n--- END CALORIE LITE SNAPSHOT ---`;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * True if any UI message carries a `file` part with an image mediaType.
  * Kimi K2.6 already handles images, but we still route through the vision
  * variant so operators can override with `moonshot-v1-*-vision-preview` via
@@ -124,9 +262,12 @@ export async function POST(request: Request) {
   }
 
   // 3. Parse + validate body. `useChat()` posts { messages: UIMessage[] }.
-  let body: { messages?: UIMessage[] };
+  //    Optional `context` field lets a mini-app scope the copilot ("I'm
+  //    inside calorie-lite") so the system prompt + injected snapshot can
+  //    steer tool selection.
+  let body: { messages?: UIMessage[]; context?: string };
   try {
-    body = (await request.json()) as { messages?: UIMessage[] };
+    body = (await request.json()) as { messages?: UIMessage[]; context?: string };
   } catch {
     return new Response(JSON.stringify({ error: 'invalid_json' }), {
       status: 400,
@@ -150,7 +291,13 @@ export async function POST(request: Request) {
   // 4. Assemble cross-mini-app context (still useful for one-shot Q&A that
   //    doesn't warrant a tool call). Attached to the system prompt.
   const { context } = await assembleUserContext(user.id, supabase);
-  const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---`;
+  const scope = typeof body.context === 'string' ? body.context.trim().toLowerCase() : '';
+  const isCalorieLite = scope === 'calorie-lite';
+  const scopedPromptAppend = isCalorieLite ? CALORIE_LITE_PROMPT_APPEND : '';
+  const scopedContextBlock = isCalorieLite
+    ? await buildCalorieLiteContextBlock(user.id, supabase)
+    : '';
+  const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---${scopedPromptAppend}${scopedContextBlock}`;
 
   // 5. Kick off the streamed generation. Tools + step cap keep the agent
   //    bounded; UIMessageStream shape is what `useChat()` on the client
