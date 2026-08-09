@@ -114,16 +114,136 @@ export const calorieEntrySchema = z.object({
   protein_g: z.number().int().nonnegative().default(0),
   carbs_g: z.number().int().nonnegative().default(0),
   fat_g: z.number().int().nonnegative().default(0),
+  // v3 (MFP-tier) extended nutrition
+  fiber_g: z.number().nonnegative().default(0),
+  sugar_g: z.number().nonnegative().default(0),
+  sodium_mg: z.number().nonnegative().default(0),
+  cholesterol_mg: z.number().nonnegative().default(0),
+  food_id: z.string().nullable().optional(),
+  custom_food_id: z.string().uuid().nullable().optional(),
+  serving_qty: z.number().nullable().optional(),
+  serving_unit: z.string().nullable().optional(),
 });
 
 export const calorieEntryInsertSchema = calorieEntrySchema
   .omit({ id: true, entered_at: true })
   .extend({
     raw_input: z.string().nullable().optional(),
-    protein_g: z.number().int().nonnegative().default(0).optional(),
-    carbs_g: z.number().int().nonnegative().default(0).optional(),
-    fat_g: z.number().int().nonnegative().default(0).optional(),
+    protein_g: z.number().nonnegative().default(0).optional(),
+    carbs_g: z.number().nonnegative().default(0).optional(),
+    fat_g: z.number().nonnegative().default(0).optional(),
+    fiber_g: z.number().nonnegative().default(0).optional(),
+    sugar_g: z.number().nonnegative().default(0).optional(),
+    sodium_mg: z.number().nonnegative().default(0).optional(),
+    cholesterol_mg: z.number().nonnegative().default(0).optional(),
   });
+
+// ─── v3 MFP-tier calorie schemas ───────────────────────────────────────────
+
+const nutritionFieldsSchema = z.object({
+  kcal: z.number().nonnegative(),
+  protein_g: z.number().nonnegative(),
+  carbs_g: z.number().nonnegative(),
+  fat_g: z.number().nonnegative(),
+  fiber_g: z.number().nonnegative().default(0),
+  sugar_g: z.number().nonnegative().default(0),
+  sodium_mg: z.number().nonnegative().default(0),
+  cholesterol_mg: z.number().nonnegative().default(0),
+});
+
+export const foodCategoryEnum = z.enum([
+  'protein', 'grain', 'veg', 'fruit', 'dairy', 'fat', 'sweet', 'drink',
+]);
+
+export const foodSchema = nutritionFieldsSchema.extend({
+  id: z.string(),
+  name: z.string(),
+  brand: z.string().nullable(),
+  serving_g: z.number().positive(),
+  serving_label: z.string(),
+  category: foodCategoryEnum.nullable(),
+});
+
+export const customFoodSchema = nutritionFieldsSchema.extend({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  brand: z.string().nullable(),
+  serving_g: z.number().positive(),
+  serving_label: z.string(),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+export const customFoodInsertSchema = customFoodSchema
+  .omit({ id: true, user_id: true, created_at: true })
+  .extend({
+    brand: z.string().nullable().optional(),
+    serving_label: z.string().default('100 g'),
+    fiber_g: z.number().nonnegative().default(0).optional(),
+    sugar_g: z.number().nonnegative().default(0).optional(),
+    sodium_mg: z.number().nonnegative().default(0).optional(),
+    cholesterol_mg: z.number().nonnegative().default(0).optional(),
+  });
+
+export const mealComponentSchema = z.object({
+  food_id: z.string().nullable().optional(),
+  custom_food_id: z.string().uuid().nullable().optional(),
+  name_snapshot: z.string(),
+  qty_g: z.number().positive(),
+});
+
+export const customMealSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  meal_slot: mealEnum.nullable(),
+  components: z.array(mealComponentSchema),
+  kcal: z.number().nonnegative(),
+  protein_g: z.number().nonnegative(),
+  carbs_g: z.number().nonnegative(),
+  fat_g: z.number().nonnegative(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+});
+
+export const customMealInsertSchema = customMealSchema
+  .omit({ id: true, user_id: true, created_at: true, updated_at: true })
+  .extend({
+    meal_slot: mealEnum.nullable().optional(),
+  });
+
+export const weightEntrySchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  weight_kg: z.number().min(20).max(400),
+  note: z.string().nullable(),
+  entered_at: z.string().datetime({ offset: true }),
+});
+
+export const weightEntryInsertSchema = weightEntrySchema
+  .omit({ id: true, user_id: true, entered_at: true })
+  .extend({
+    note: z.string().nullable().optional(),
+  });
+
+export const waterEntrySchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  ml: z.number().int().min(1).max(4999),
+  entered_at: z.string().datetime({ offset: true }),
+});
+
+export const waterEntryInsertSchema = waterEntrySchema
+  .omit({ id: true, user_id: true, entered_at: true });
+
+export const macroGoalPctSchema = z.object({
+  protein: z.number().min(0).max(100),
+  carbs: z.number().min(0).max(100),
+  fat: z.number().min(0).max(100),
+}).refine(
+  (v) => Math.abs(v.protein + v.carbs + v.fat - 100) < 0.5,
+  { message: 'macro percentages must sum to 100' },
+);
 
 // ─── Inferred TS types ─────────────────────────────────────────────────────
 
@@ -144,6 +264,20 @@ export type CalorieEntry = z.infer<typeof calorieEntrySchema>;
 export type CalorieEntryInsert = z.infer<typeof calorieEntryInsertSchema>;
 export type Meal = z.infer<typeof mealEnum>;
 export type Theme = z.infer<typeof themeEnum>;
+
+// v3 MFP-tier
+export type FoodCategory = z.infer<typeof foodCategoryEnum>;
+export type Food = z.infer<typeof foodSchema>;
+export type CustomFood = z.infer<typeof customFoodSchema>;
+export type CustomFoodInsert = z.infer<typeof customFoodInsertSchema>;
+export type MealComponent = z.infer<typeof mealComponentSchema>;
+export type CustomMeal = z.infer<typeof customMealSchema>;
+export type CustomMealInsert = z.infer<typeof customMealInsertSchema>;
+export type WeightEntry = z.infer<typeof weightEntrySchema>;
+export type WeightEntryInsert = z.infer<typeof weightEntryInsertSchema>;
+export type WaterEntry = z.infer<typeof waterEntrySchema>;
+export type WaterEntryInsert = z.infer<typeof waterEntryInsertSchema>;
+export type MacroGoalPct = z.infer<typeof macroGoalPctSchema>;
 
 // ─── Gym: exercises (reference data — public read for authenticated) ───────
 
