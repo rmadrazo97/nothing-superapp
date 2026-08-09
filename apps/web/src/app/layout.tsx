@@ -2,8 +2,20 @@ import type { Metadata, Viewport } from "next";
 import "./design-system.css";
 import "./globals.css";
 
+// Defensive URL parser — CI has occasionally fed us blank / mis-quoted
+// values here, which would crash `next build` at static-page generation
+// time. Fall back to localhost if the env is missing OR unparseable.
+function safeAppUrl(): URL {
+  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  try {
+    return new URL(raw && raw.length > 0 ? raw : 'http://localhost:3000');
+  } catch {
+    return new URL('http://localhost:3000');
+  }
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  metadataBase: safeAppUrl(),
   title: {
     default: 'Nothing Superapp',
     template: '%s · Nothing',
