@@ -35,3 +35,5 @@ test-results/
 
 # Supabase CLI cache
 supabase/.temp/
+.vercel
+.env*
