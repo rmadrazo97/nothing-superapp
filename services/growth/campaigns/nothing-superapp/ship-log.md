@@ -14,7 +14,7 @@ Mini-apps stopped hand-writing 400 lines of Supabase-plus-Zod-plus-fetch plumbin
 
 **Client hook.** `useResource(slug, resource)` in `@nothing/mini-apps-runtime` fetches list + exposes `{ data, isLoading, error, create, update, remove, refetch }`. Zero new deps — plain fetch + React.
 
-**Canary.** Calorie Lite declares 7 resources (entries, water, weight-entries, custom-foods, custom-meals, favorites, foods read-only). Pomodoro declares 1 (sessions). That's 21 auto-generated copilot tools before the copilot worker ships their own.
+**Canary.** Calorie Lite declares 7 resources (entries, water, weight-entries, custom-foods, custom-meals, favorites, foods read-only). Pomodoro declares 1 (sessions). That's 32 auto-generated copilot tools before the copilot worker ships their own (`calorie_lite_entries_list`, `calorie_lite_entries_create`, `calorie_lite_water_delete`, `pomodoro_sessions_list`, …).
 
 **Angle.** Adding a mini-app used to mean writing REST by hand, writing copilot tools by hand, and writing client fetch by hand — three code paths, three sets of Zod schemas, three chances to leak `user_id` from the client. Now every mini-app is a declaration. The next mini-app author writes a `resources.ts` file and gets a full data layer + agent surface without touching route handlers or tool factories. Follow-up wave: collapse the hand-written calorie-lite routes onto the framework and delete ~1200 lines of duplicate plumbing.
 
