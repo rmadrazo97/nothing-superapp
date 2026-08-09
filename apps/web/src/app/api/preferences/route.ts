@@ -53,6 +53,10 @@ const preferencesPatchSchema = z
     // additive so pre-migration deployments never see undefined columns.
     push_enabled: z.boolean().optional(),
     push_topics: z.array(pushTopicEnum).max(16).optional(),
+    // v0.5 meal plans — the PLAN tab writes this via /meal-plans/[id]/activate;
+    // included in the direct PATCH allow-list so settings + copilot can clear
+    // it too. Null = no active plan.
+    active_meal_plan_id: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -70,7 +74,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('preferences')
     .select(
-      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, active_meal_plan_id, updated_at',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -121,7 +125,7 @@ export async function PATCH(request: Request) {
       { onConflict: 'user_id' },
     )
     .select(
-      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, active_meal_plan_id, updated_at',
     )
     .single();
 

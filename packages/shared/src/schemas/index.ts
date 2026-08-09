@@ -126,6 +126,7 @@ export const preferencesInsertSchema = preferencesSchema
     onboarded_at: z.string().datetime({ offset: true }).nullable().optional(),
     push_enabled: z.boolean().optional(),
     push_topics: z.array(pushTopicEnum).optional(),
+    active_meal_plan_id: z.string().uuid().nullable().optional(),
   });
 
 // ─── push_subscriptions (v0.3.2 Web Push) ──────────────────────────────────

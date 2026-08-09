@@ -55,6 +55,9 @@ const DEFAULT_PREFERENCES: Omit<Preferences, 'user_id' | 'updated_at'> = {
   // without a second step.
   push_enabled: false,
   push_topics: ['releases'],
+  // v0.5 meal plans — user has no active plan by default; the PLAN tab shows
+  // an empty state until the user creates or activates one.
+  active_meal_plan_id: null,
 };
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -78,7 +81,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: prefsRow } = await supabase
     .from('preferences')
     .select(
-      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
+      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, active_meal_plan_id, updated_at',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -121,6 +124,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     push_topics:
       (prefsRow?.push_topics as Preferences['push_topics'] | undefined) ??
       DEFAULT_PREFERENCES.push_topics,
+    // v0.5 meal plans — nullable pointer into `meal_plans`.
+    active_meal_plan_id:
+      (prefsRow?.active_meal_plan_id as string | null | undefined) ??
+      DEFAULT_PREFERENCES.active_meal_plan_id,
     updated_at: prefsRow?.updated_at ?? new Date().toISOString(),
   };
 

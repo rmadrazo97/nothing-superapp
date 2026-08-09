@@ -28,16 +28,16 @@ import { z } from 'zod';
 
 // ─── Units ─────────────────────────────────────────────────────────────────
 
-export const massUnitEnum = z.enum(['g', 'oz']);
-export const volumeUnitEnum = z.enum(['ml', 'floz']);
-export const energyUnitEnum = z.enum(['kcal', 'kj']);
+export const mealPlanMassUnitEnum = z.enum(['g', 'oz']);
+export const mealPlanVolumeUnitEnum = z.enum(['ml', 'floz']);
+export const mealPlanEnergyUnitEnum = z.enum(['kcal', 'kj']);
 // Per-ingredient unit — 'unit' is used for countable items like eggs.
 export const ingredientUnitEnum = z.enum(['g', 'ml', 'unit']);
 
 export const mealPlanUnitsSchema = z.object({
-  mass: massUnitEnum.default('g'),
-  volume: volumeUnitEnum.default('ml'),
-  energy: energyUnitEnum.default('kcal'),
+  mass: mealPlanMassUnitEnum.default('g'),
+  volume: mealPlanVolumeUnitEnum.default('ml'),
+  energy: mealPlanEnergyUnitEnum.default('kcal'),
 });
 
 // ─── Targets ───────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export const mealPlanSourceSchema = z.object({
 
 // ─── Plan + top-level wrapper ──────────────────────────────────────────────
 
-export const planSchema = z.object({
+export const mealPlanPlanSchema = z.object({
   id: z.string().max(120).optional(),
   goal_es: z.string().max(500).optional(),
   goal_en: z.string().max(500).optional(),
@@ -220,7 +220,7 @@ export const mealPlanSchema = z.object({
   schema_version: z.literal('1.0'),
   source: mealPlanSourceSchema.optional(),
   athlete: planAthleteSchema.optional(),
-  plan: planSchema,
+  plan: mealPlanPlanSchema,
   parsing_notes: z.array(z.string().max(2000)).max(50).default([]),
 });
 
@@ -272,9 +272,9 @@ export const mealPlanAdherenceInsertSchema = z
 
 // ─── Inferred TS types ─────────────────────────────────────────────────────
 
-export type MassUnit = z.infer<typeof massUnitEnum>;
-export type MealPlanVolumeUnit = z.infer<typeof volumeUnitEnum>;
-export type EnergyUnit = z.infer<typeof energyUnitEnum>;
+export type MealPlanMassUnit = z.infer<typeof mealPlanMassUnitEnum>;
+export type MealPlanVolumeUnit = z.infer<typeof mealPlanVolumeUnitEnum>;
+export type MealPlanEnergyUnit = z.infer<typeof mealPlanEnergyUnitEnum>;
 export type IngredientUnit = z.infer<typeof ingredientUnitEnum>;
 export type MealPlanUnits = z.infer<typeof mealPlanUnitsSchema>;
 export type DailyTargets = z.infer<typeof dailyTargetsSchema>;
@@ -286,7 +286,7 @@ export type PlanMeal = z.infer<typeof planMealSchema>;
 export type PlanRules = z.infer<typeof planRulesSchema>;
 export type PlanAthlete = z.infer<typeof planAthleteSchema>;
 export type MealPlanSource = z.infer<typeof mealPlanSourceSchema>;
-export type MealPlanPlan = z.infer<typeof planSchema>;
+export type MealPlanPlan = z.infer<typeof mealPlanPlanSchema>;
 export type MealPlan = z.infer<typeof mealPlanSchema>;
 export type MealPlanInsert = z.infer<typeof mealPlanInsertSchema>;
 export type MealPlanSubstitution = z.infer<typeof mealPlanSubstitutionSchema>;
