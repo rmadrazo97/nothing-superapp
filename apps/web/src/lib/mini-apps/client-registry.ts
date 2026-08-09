@@ -64,6 +64,10 @@ const MINI_APP_COMPONENTS: Record<string, MiniAppLoader> = {
     import('@nothing-mini-apps/pomodoro/page') as Promise<{
       default: ComponentType;
     }>,
+  reminders: () =>
+    import('@nothing-mini-apps/reminders/page') as Promise<{
+      default: ComponentType;
+    }>,
 };
 
 /**
@@ -100,6 +104,10 @@ export function getMiniAppRoute(slug: string): string {
 const MINI_APP_SETTINGS: Record<string, MiniAppSettingsLoader> = {
   'calorie-lite': () =>
     import('@nothing-mini-apps/calorie-lite/settings') as Promise<{
+      default: ComponentType<MiniAppSettingsProps>;
+    }>,
+  reminders: () =>
+    import('@nothing-mini-apps/reminders/settings') as Promise<{
       default: ComponentType<MiniAppSettingsProps>;
     }>,
 };

@@ -1,0 +1,23 @@
+{
+  "name": "@nothing-mini-apps/reminders",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./manifest.ts",
+    "./page": "./page.tsx",
+    "./settings": "./settings.tsx",
+    "./resources": "./resources.ts"
+  },
+  "dependencies": {
+    "@nothing/mini-apps-runtime": "workspace:*",
+    "@nothing/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}

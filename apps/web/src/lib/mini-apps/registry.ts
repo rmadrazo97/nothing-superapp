@@ -28,12 +28,14 @@ import calorieLiteManifest from '@nothing-mini-apps/calorie-lite/manifest';
 import comingSoonManifest from '@nothing-mini-apps/coming-soon/manifest';
 import gymRoutineManifest from '@nothing-mini-apps/gym-routine/manifest';
 import pomodoroManifest from '@nothing-mini-apps/pomodoro/manifest';
+import remindersManifest from '@nothing-mini-apps/reminders/manifest';
 
 const MANIFESTS: MiniAppManifest[] = [
   calorieLiteManifest,
   comingSoonManifest,
   gymRoutineManifest,
   pomodoroManifest,
+  remindersManifest,
 ].sort((a, b) => a.slug.localeCompare(b.slug));
 
 /**

@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     '@nothing-mini-apps/coming-soon',
     '@nothing-mini-apps/gym-routine',
     '@nothing-mini-apps/pomodoro',
+    '@nothing-mini-apps/reminders',
   ],
   experimental: { typedRoutes: true },
 };
