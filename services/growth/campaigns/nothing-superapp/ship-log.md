@@ -2,6 +2,24 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — Copilot becomes an agent (Vercel AI SDK v5, 8 tools, audit log)
+
+The copilot went from read-only chat to an agent that actually acts on your data.
+
+**Route.** `apps/web/src/app/api/copilot/route.ts` swapped from a hand-rolled Moonshot SSE stream + custom `{delta}/{reasoning}/[DONE]` frames to `streamText()` + `toUIMessageStreamResponse()` from `ai@7`. Provider lives in one place (`lib/ai/provider.ts`) — Kimi K2 via Moonshot's OpenAI-compatible endpoint today, one switch case away from OpenRouter later. Agent capped at 5 steps.
+
+**Tools (8).** `search_foods` + `get_daily_summary` + `get_streak` + `get_gym_history` for reads. `log_calorie_entry` + `log_water` + `log_weight` + `start_pomodoro` for writes. Every tool has a Zod input schema, a `{ ok, summary, data }` result shape, and its own file under `lib/ai/tools/`. `user_id` is ALWAYS the session user — never trusted from tool input.
+
+**Gates.** Route entry still 30 chat calls/hour/user; write tools carry a SECOND budget of 10 writes/hour/user (`copilot-write:${uid}` key) so a runaway agent loop can't fill the DB. Every write re-verifies entitlement inside `execute()` — subscription lapsing mid-stream stops the next write cold.
+
+**Audit.** Migration 010 adds `copilot_tool_calls` (owner-only RLS, `(user_id, called_at desc)` index). Every invocation, success OR failure, inserts one row with input + output + status. Cheap accountability for "did the agent really log that?" support cases.
+
+**Client.** `CopilotChat.tsx` rewritten on `@ai-sdk/react`'s `useChat` + `DefaultChatTransport`. Old SSE parser deleted. Assistant messages are decomposed into their `parts` array — text parts keep the existing `MessageBubble` (copy button + fade-up preserved); tool parts render as a new `ToolCallCard` with a cadmium border for writes and a muted border for reads. `start_pomodoro` results render an "Open →" chip that deep-links into `/app/pomodoro?start=1&mode=focus&minutes=25`.
+
+**Angle.** Real agent, not a fancy autocomplete. Say "log a coffee 40 kcal" and it fires `log_calorie_entry` — you see the cadmium card, the row is in your DB, next time you open Calorie Lite it's there. Every action is auditable, rate-limited, entitlement-gated, and belongs to the caller by construction. Screen-record clip idea: chat "I ate two eggs, 156 kcal" → cadmium LOGGED card → switch to /app/calorie-lite → row is there. Zero UI code changed in the mini-app.
+
+**Follow-up.** `KIMI_API_KEY` already set in Vercel from v0.3 — no env changes needed. Migration 010 needs to be applied to prod Supabase (same drill as 009).
+
 ## 2026-08-09 — v0.3.2: Web Push notifications + auto-broadcast on version bump
 
 Nothing Superapp can now reach users when the tab is closed. Full stack landed in one autonomous dev-loop.
