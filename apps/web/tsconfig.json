@@ -39,7 +39,11 @@
       "@nothing-mini-apps/gym-routine/pages/session": ["../mini-apps/gym-routine/pages/session.tsx"],
       "@nothing-mini-apps/gym-routine/pages/history": ["../mini-apps/gym-routine/pages/history.tsx"],
       "@nothing-mini-apps/pomodoro/manifest": ["../mini-apps/pomodoro/manifest.ts"],
-      "@nothing-mini-apps/pomodoro/page": ["../mini-apps/pomodoro/page.tsx"]
+      "@nothing-mini-apps/pomodoro/page": ["../mini-apps/pomodoro/page.tsx"],
+      "@nothing-mini-apps/reminders/manifest": ["../mini-apps/reminders/manifest.ts"],
+      "@nothing-mini-apps/reminders/page": ["../mini-apps/reminders/page.tsx"],
+      "@nothing-mini-apps/reminders/settings": ["../mini-apps/reminders/settings.tsx"],
+      "@nothing-mini-apps/reminders/resources": ["../mini-apps/reminders/resources.ts"]
     }
   },
   "include": [
