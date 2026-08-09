@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * Settings surface (task 11).
+ * Settings surface.
  *
- * Four sections stacked in a single dot-grid card column:
+ * Five sections stacked in a single dot-grid card column:
  *   1. Profile      — email (read-only) + display_name (editable)
- *   2. Preferences  — dark_mode toggle (surface only, app is always dark)
- *                     + calorie_target used by the calorie-lite mini-app
+ *   2. Preferences  — dark_mode toggle + notifications toggle. Nutrition
+ *                     goals + body profile + unit prefs moved to the
+ *                     calorie-lite mini-app's own ⚙ settings sheet.
  *   3. Subscription — reads useEntitlement(); shows manage vs subscribe path
  *   4. Sign out     — plain <form> POST to /auth/signout (no JS needed)
+ *   5. About        — version + release date + collapsible changelog
  *
  * All colour + spacing values come from design-system CSS custom properties
  * (see design-system/styles.css). No hex codes in this file. Visual language
@@ -18,25 +20,12 @@
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useEntitlement } from '@/lib/hooks/use-entitlement';
 import { useToast } from '@/lib/toast/context';
-import { MacroGoalEditor } from '@/components/settings/MacroGoalEditor';
-import type { MacroGoalPct } from '@nothing/shared';
-
-// Defaults mirror the DB defaults on the `preferences` row (migration 005) so
-// a first-time user's form pre-fills the same values the server would.
-const DEFAULT_MACRO_GOAL: MacroGoalPct = { protein: 30, carbs: 40, fat: 30 };
-const DEFAULT_WATER_GOAL_ML = 2500;
-
-/** Round to nearest cup (250 ml) for a friendly "≈ N cups" derived label. */
-function mlToCups(ml: number): number {
-  if (!Number.isFinite(ml) || ml <= 0) return 0;
-  return Math.round((ml / 250) * 10) / 10;
-}
-
-/** kg → lb, rounded to one decimal so the "≈ N lb" hint stays legible. */
-function kgToLb(kg: number): number {
-  if (!Number.isFinite(kg) || kg <= 0) return 0;
-  return Math.round(kg * 2.20462 * 10) / 10;
-}
+import {
+  APP_VERSION,
+  APP_RELEASE_DATE,
+  CHANGELOG,
+  formatReleaseDate,
+} from '@/lib/version';
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -172,20 +161,13 @@ export default function SettingsPage() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileStatus, setProfileStatus] = useState<SaveStatus>({ kind: 'idle' });
 
-  // Preferences state
+  // Preferences state — nutrition + body-profile fields moved to the
+  // calorie-lite ⚙ sheet. What lives here is the truly-global stuff:
+  // display theme + notification toggle.
   const [darkMode, setDarkMode] = useState<boolean>(true);
-  const [calorieTarget, setCalorieTarget] = useState<number>(2000);
-  const [macroGoal, setMacroGoal] = useState<MacroGoalPct>(DEFAULT_MACRO_GOAL);
-  const [waterGoalMl, setWaterGoalMl] = useState<number>(DEFAULT_WATER_GOAL_ML);
-  // Weight goal is optional — empty string means "not set" and PATCHes as
-  // null. We keep it as a string in local state so the input can be blank.
-  const [weightGoalKg, setWeightGoalKg] = useState<string>('');
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lb'>('kg');
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [prefsStatus, setPrefsStatus] = useState<SaveStatus>({ kind: 'idle' });
-
-  const macroSum = macroGoal.protein + macroGoal.carbs + macroGoal.fat;
-  const macroIsValid = Math.abs(macroSum - 100) < 0.5;
 
   // Subscription — hook lands via task 08
   const { entitlement, subscription, isLoading: entitlementLoading } = useEntitlement();
@@ -237,41 +219,14 @@ export default function SettingsPage() {
         const body = (await res.json()) as {
           preferences: {
             theme: 'dark' | 'light';
-            daily_calorie_goal: number | null;
-            macro_goal_pct?: MacroGoalPct | null;
-            water_goal_ml?: number | null;
-            weight_goal_kg?: number | null;
-            weight_unit?: 'kg' | 'lb' | null;
+            notifications_enabled?: boolean | null;
           } | null;
         };
         if (cancelled) return;
         if (body.preferences) {
           setDarkMode(body.preferences.theme !== 'light');
-          if (typeof body.preferences.daily_calorie_goal === 'number') {
-            setCalorieTarget(body.preferences.daily_calorie_goal);
-          }
-          // Only overwrite state from the server when the field actually
-          // arrives — the GET currently doesn't select the new columns, so
-          // this stays a safe no-op when they're undefined. Once the GET is
-          // expanded (out of scope here) this picks them up automatically.
-          if (body.preferences.macro_goal_pct) {
-            const { protein, carbs, fat } = body.preferences.macro_goal_pct;
-            if (
-              typeof protein === 'number' &&
-              typeof carbs === 'number' &&
-              typeof fat === 'number'
-            ) {
-              setMacroGoal({ protein, carbs, fat });
-            }
-          }
-          if (typeof body.preferences.water_goal_ml === 'number') {
-            setWaterGoalMl(body.preferences.water_goal_ml);
-          }
-          if (typeof body.preferences.weight_goal_kg === 'number') {
-            setWeightGoalKg(String(body.preferences.weight_goal_kg));
-          }
-          if (body.preferences.weight_unit === 'kg' || body.preferences.weight_unit === 'lb') {
-            setWeightUnit(body.preferences.weight_unit);
+          if (typeof body.preferences.notifications_enabled === 'boolean') {
+            setNotificationsEnabled(body.preferences.notifications_enabled);
           }
         }
         setPrefsLoaded(true);
@@ -330,44 +285,15 @@ export default function SettingsPage() {
   const savePreferences = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      // Belt-and-suspenders — the submit button is disabled when invalid,
-      // but a determined user could still submit via Enter. Bail cleanly.
-      if (!macroIsValid) {
-        setPrefsStatus({
-          kind: 'error',
-          message: 'Macro split must sum to 100.',
-        });
-        return;
-      }
       setPrefsStatus({ kind: 'saving' });
       try {
-        // weight_goal_kg is optional — send null when the input is blank so
-        // the server clears any previously-set goal. Any non-numeric value
-        // is dropped (rather than sent as NaN) so the API sees a clean shape.
-        const trimmedWeight = weightGoalKg.trim();
-        const weightGoalNum = trimmedWeight === '' ? null : Number(trimmedWeight);
-        const weightGoalPayload =
-          weightGoalNum === null
-            ? null
-            : Number.isFinite(weightGoalNum) && weightGoalNum > 0
-              ? weightGoalNum
-              : undefined;
-
         const res = await fetch('/api/preferences', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
           body: JSON.stringify({
             theme: darkMode ? 'dark' : 'light',
-            daily_calorie_goal: Number.isFinite(calorieTarget) ? calorieTarget : 2000,
-            macro_goal_pct: macroGoal,
-            water_goal_ml: Number.isFinite(waterGoalMl) && waterGoalMl > 0
-              ? waterGoalMl
-              : DEFAULT_WATER_GOAL_ML,
-            weight_unit: weightUnit,
-            ...(weightGoalPayload !== undefined
-              ? { weight_goal_kg: weightGoalPayload }
-              : {}),
+            notifications_enabled: notificationsEnabled,
           }),
         });
         if (!res.ok) {
@@ -393,16 +319,7 @@ export default function SettingsPage() {
         });
       }
     },
-    [
-      darkMode,
-      calorieTarget,
-      macroGoal,
-      macroIsValid,
-      waterGoalMl,
-      weightGoalKg,
-      weightUnit,
-      toast,
-    ],
+    [darkMode, notificationsEnabled, toast],
   );
 
   const openPortal = useCallback(async () => {
@@ -569,111 +486,67 @@ export default function SettingsPage() {
             />
           </label>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <label htmlFor="settings-calorie-target" style={FIELD_LABEL_STYLE}>
-              Daily calorie target
-            </label>
-            <input
-              id="settings-calorie-target"
-              type="number"
-              inputMode="numeric"
-              min={500}
-              max={10000}
-              step={50}
-              value={calorieTarget}
-              onChange={(e) => {
-                const next = Number.parseInt(e.target.value, 10);
-                setCalorieTarget(Number.isFinite(next) ? next : 0);
-                if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
-              }}
-              disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
-              style={INPUT_STYLE}
-            />
-            <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
-              Used by the calorie-lite mini-app.
-            </p>
-          </div>
-
-          {/* ── Macro split (%) — MFP-tier ── */}
-          <MacroGoalEditor
-            value={macroGoal}
-            calorieTarget={calorieTarget}
-            disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
-            onChange={setMacroGoal}
-            onEdit={() => {
-              if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
+          <label
+            htmlFor="settings-notifications"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 'var(--space-4)',
+              cursor: 'pointer',
             }}
-          />
-
-          {/* ── Water goal ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <label htmlFor="settings-water-goal" style={FIELD_LABEL_STYLE}>
-              Water goal (ml)
-            </label>
+          >
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <span style={FIELD_LABEL_STYLE}>Notifications</span>
+              <span style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
+                Occasional product updates + streak reminders.
+              </span>
+            </span>
             <input
-              id="settings-water-goal"
-              type="number"
-              inputMode="numeric"
-              min={250}
-              max={10000}
-              step={250}
-              value={waterGoalMl}
+              id="settings-notifications"
+              type="checkbox"
+              checked={notificationsEnabled}
               onChange={(e) => {
-                const next = Number.parseInt(e.target.value, 10);
-                setWaterGoalMl(Number.isFinite(next) ? next : 0);
+                setNotificationsEnabled(e.target.checked);
                 if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
               }}
               disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
-              style={INPUT_STYLE}
-            />
-            <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
-              ≈ {mlToCups(waterGoalMl)} cups (250 ml each)
-            </p>
-          </div>
-
-          {/* ── Weight goal (optional) ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <label htmlFor="settings-weight-goal" style={FIELD_LABEL_STYLE}>
-              Weight goal (kg) — optional
-            </label>
-            <input
-              id="settings-weight-goal"
-              type="number"
-              inputMode="decimal"
-              min={20}
-              max={400}
-              step={0.5}
-              value={weightGoalKg}
-              placeholder="e.g. 72"
-              onChange={(e) => {
-                setWeightGoalKg(e.target.value);
-                if (prefsStatus.kind !== 'idle') setPrefsStatus({ kind: 'idle' });
+              style={{
+                width: '20px',
+                height: '20px',
+                accentColor: 'var(--color-accent)',
+                cursor: 'pointer',
               }}
-              disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
-              style={INPUT_STYLE}
             />
-            {weightUnit === 'lb' && weightGoalKg.trim() !== '' && Number(weightGoalKg) > 0 ? (
-              <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
-                ≈ {kgToLb(Number(weightGoalKg))} lb
-              </p>
-            ) : (
-              <p style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
-                Leave blank to clear. Displayed in {weightUnit}.
-              </p>
-            )}
-          </div>
+          </label>
+
+          {/*
+            Discoverability breadcrumb — nutrition goals + body profile +
+            unit prefs are owned by the calorie-lite mini-app's own settings
+            sheet now. Kept in Space Mono muted so it reads as a helper,
+            not a section header.
+          */}
+          <p
+            className="data"
+            style={{
+              ...STATUS_MSG_STYLE,
+              fontFamily: 'var(--font-label)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+              color: 'var(--color-text-disabled)',
+            }}
+          >
+            Nutrition goals moved to Calorie Lite → ⚙ settings.
+          </p>
 
           <button
             type="submit"
-            disabled={!prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid}
+            disabled={!prefsLoaded || prefsStatus.kind === 'saving'}
             style={{
               ...PRIMARY_BTN_STYLE,
-              opacity:
-                !prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid ? 0.6 : 1,
+              opacity: !prefsLoaded || prefsStatus.kind === 'saving' ? 0.6 : 1,
               cursor:
-                !prefsLoaded || prefsStatus.kind === 'saving' || !macroIsValid
-                  ? 'not-allowed'
-                  : 'pointer',
+                !prefsLoaded || prefsStatus.kind === 'saving' ? 'not-allowed' : 'pointer',
             }}
           >
             {prefsStatus.kind === 'saving' ? 'Saving…' : 'Save preferences'}
@@ -787,6 +660,154 @@ export default function SettingsPage() {
           </button>
         </form>
       </section>
+
+      {/* ── About ── */}
+      <AboutCard />
     </div>
+  );
+}
+
+// ─── About card ───────────────────────────────────────────────────────────
+
+/**
+ * Version + release-date line on top, native `<details>` disclosure below
+ * for the changelog. Native disclosure keeps this zero-JS, keyboard
+ * accessible, and print-friendly. All data comes from `lib/version.ts` —
+ * this component is a pure renderer.
+ */
+function AboutCard() {
+  return (
+    <section
+      aria-labelledby="section-about"
+      style={{
+        background: 'rgba(0, 0, 0, 0.5)',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+        padding: 'var(--space-4)',
+        marginTop: 'var(--space-6)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+        <p style={KICKER_STYLE}>Section 05</p>
+        <h2 id="section-about" style={SECTION_HEADING_STYLE}>
+          About
+        </h2>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span
+          className="data"
+          style={{
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-body-sm)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-display)',
+          }}
+        >
+          NOTHING SUPERAPP · v{APP_VERSION}
+        </span>
+        <span
+          className="data"
+          style={{
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-secondary)',
+          }}
+        >
+          RELEASED {formatReleaseDate(APP_RELEASE_DATE).toUpperCase()}
+        </span>
+      </div>
+
+      <details
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <summary
+          style={{
+            cursor: 'pointer',
+            listStyle: 'none',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-label)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-secondary)',
+            padding: 'var(--space-2) 0',
+            userSelect: 'none',
+          }}
+        >
+          ▶ Changelog ({CHANGELOG.length}{' '}
+          {CHANGELOG.length === 1 ? 'release' : 'releases'})
+        </summary>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-4)',
+            paddingTop: 'var(--space-3)',
+            borderTop: '1px solid var(--color-border)',
+          }}
+        >
+          {CHANGELOG.map((entry) => (
+            <article
+              key={entry.version}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontFamily: 'var(--font-label)',
+                  fontSize: 'var(--text-body-sm)',
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-text-display)',
+                }}
+              >
+                v{entry.version}{' '}
+                <span style={{ color: 'var(--color-text-secondary)' }}>
+                  · {formatReleaseDate(entry.date)}
+                </span>
+              </h3>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-1)',
+                  color: 'var(--color-text-primary)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-body-sm)',
+                }}
+              >
+                {entry.highlights.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </details>
+    </section>
   );
 }

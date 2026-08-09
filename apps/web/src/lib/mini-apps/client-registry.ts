@@ -31,6 +31,20 @@ import type { ComponentType } from 'react';
 
 type MiniAppLoader = () => Promise<{ default: ComponentType }>;
 
+/**
+ * Props every mini-app settings panel accepts. Kept as a single-callback
+ * contract so the shared MiniAppSettingsSheet stays dumb — it owns the
+ * open/close animation and the modal chrome; the panel decides when it's
+ * done (e.g. after a successful save).
+ */
+export type MiniAppSettingsProps = {
+  onClose: () => void;
+};
+
+type MiniAppSettingsLoader = () => Promise<{
+  default: ComponentType<MiniAppSettingsProps>;
+}>;
+
 // One entry per installed mini-app. Keep in slug-alphabetical order so PR
 // diffs stay clean.
 const MINI_APP_COMPONENTS: Record<string, MiniAppLoader> = {
@@ -71,4 +85,47 @@ export function getMiniAppComponent(slug: string): ComponentType | null {
  */
 export function getMiniAppRoute(slug: string): string {
   return `/app/${slug}`;
+}
+
+/**
+ * slug → lazy loader for a mini-app's settings panel. Only mini-apps that
+ * ship a `settings.tsx` (and declare `settings: {}` in their manifest) get
+ * an entry here. Unregistered slugs cause `getMiniAppSettingsComponent` to
+ * return null so callers can gracefully skip rendering the cog button.
+ *
+ * Kept as a separate map from MINI_APP_COMPONENTS so the settings bundle
+ * doesn't get pulled in with the mini-app's page code (users who never open
+ * settings never download the panel).
+ */
+const MINI_APP_SETTINGS: Record<string, MiniAppSettingsLoader> = {
+  'calorie-lite': () =>
+    import('@nothing-mini-apps/calorie-lite/settings') as Promise<{
+      default: ComponentType<MiniAppSettingsProps>;
+    }>,
+};
+
+/**
+ * Returns a dynamically-loaded settings component for the given mini-app
+ * slug, or null when the slug hasn't registered one. The MiniAppSettingsSheet
+ * uses this — passing null slugs is fine (they no-op).
+ */
+export function getMiniAppSettingsComponent(
+  slug: string,
+): ComponentType<MiniAppSettingsProps> | null {
+  const loader = MINI_APP_SETTINGS[slug];
+  if (!loader) return null;
+  return dynamic(loader, {
+    // ssr:false — settings panels are always opened from client-side
+    // interaction, so pre-rendering them costs bytes for nothing.
+    ssr: false,
+  });
+}
+
+/**
+ * True when the given slug has a registered settings panel. Cheap check so
+ * page components can conditionally render the cog without importing the
+ * component itself.
+ */
+export function hasMiniAppSettings(slug: string): boolean {
+  return slug in MINI_APP_SETTINGS;
 }

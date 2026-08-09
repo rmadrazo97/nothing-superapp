@@ -19,4 +19,10 @@ export default defineMiniApp({
   icon: '◐',
   route: '/app/calorie-lite',
   requiresSubscription: true,
+  // Signals to the shell that this mini-app owns a settings panel; the
+  // actual component is registered in
+  // apps/web/src/lib/mini-apps/client-registry.ts under MINI_APP_SETTINGS.
+  settings: {
+    title: 'Calorie Lite',
+  },
 });

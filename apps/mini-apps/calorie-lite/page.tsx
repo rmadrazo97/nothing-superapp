@@ -34,6 +34,8 @@ import {
 // instance used by <ToastProvider> in /app/layout.tsx, so mini-apps toast
 // straight into the shell without duplicating state.
 import { useToast } from '../../web/src/lib/toast/context';
+import { MiniAppSettingsButton } from '../../web/src/components/mini-apps/MiniAppSettingsButton';
+import { REOPEN_ONBOARDING_EVENT } from './settings.tsx';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
@@ -133,6 +135,17 @@ export default function CalorieLitePage() {
   useEffect(() => {
     if (needsOnboarding) setWizardOpen(true);
   }, [needsOnboarding]);
+
+  // Listen for the settings sheet's "redo onboarding" button. The settings
+  // panel closes itself first, then dispatches a window CustomEvent so this
+  // page can re-open the wizard without any prop-drilling across the sheet
+  // boundary. Only wire on the client.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => setWizardOpen(true);
+    window.addEventListener(REOPEN_ONBOARDING_EVENT, handler);
+    return () => window.removeEventListener(REOPEN_ONBOARDING_EVENT, handler);
+  }, []);
   // When the wizard emits `preferences_updated`, force a full page refresh
   // via router-less soft reload: the shell's server layout re-fetches
   // preferences on nav so the simplest reliable path is `location.reload()`.
@@ -360,6 +373,7 @@ function Header({
             </button>
           )}
           <StreakChip current={streak} />
+          <MiniAppSettingsButton slug="calorie-lite" title="Calorie Lite" />
         </div>
       </div>
       <div

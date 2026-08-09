@@ -26,4 +26,16 @@ export type MiniAppManifest = {
   icon: string; // SVG string or icon name
   route: string; // e.g. '/app/calorie'
   requiresSubscription?: boolean; // default true
+  /**
+   * Optional per-mini-app settings metadata. Presence of this block signals
+   * to the shell that the mini-app has a settings panel that should be
+   * discoverable via the shared cog UI (see MiniAppSettingsButton). Only
+   * metadata lives here so the manifest stays JSON-serializable — the
+   * actual React component reference is registered in the client-side
+   * `MINI_APP_SETTINGS` map in `apps/web/src/lib/mini-apps/client-registry`.
+   */
+  settings?: {
+    /** Title rendered in the settings sheet header. Defaults to `name`. */
+    title?: string;
+  };
 };
