@@ -2,6 +2,24 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — Mini-App Resource Framework (declare-once REST + copilot tools + client hooks)
+
+Mini-apps stopped hand-writing 400 lines of Supabase-plus-Zod-plus-fetch plumbing per data type. They now declare a `resources.ts` and get the whole data layer for free.
+
+**Declaration.** Each mini-app exports a `MiniAppResourceModule` — a slug + an array of `MiniAppResource`s. Each resource carries the Postgres table, the row/insert/update Zod schemas from `@nothing/shared`, an ops matrix (list/get/create/update/delete — opt-in for writes), a `filterableColumns` whitelist, and an `agent` block with the description the LLM sees.
+
+**REST (generic).** New routes at `/api/mini-apps/[slug]/resources/[resource]` + `.../[id]` back every declared resource with auth (401) + entitlement (402) + rate-limit (300 read/hr, 30 write/hr) gates. Server-owned columns (`id`, `user_id`, `created_at`, `updated_at`, `entered_at`, `started_at`, `ended_at`) are stripped from every insert/update; `user_id` is FORCED from the session. Existing hand-written routes at `/api/mini-apps/<slug>/<name>` are untouched — the two coexist until a later wave collapses the hand-written ones onto the framework.
+
+**Copilot tools (auto).** `apps/web/src/lib/ai/resource-tools.ts` walks every mini-app's resources and emits named tools (`calorie_lite_entries_list`, `calorie_lite_water_create`, `pomodoro_sessions_list`, etc.) using each resource's Zod schema as the tool input schema. Tools share the existing 10-write/hr copilot budget + entitlement re-check, so the LLM can't route around the tighter budget via REST. When the parallel copilot worker's route wires up its tools map, one line: `{ ...handTools, ...resourceTools(userId, supabase) }`.
+
+**Client hook.** `useResource(slug, resource)` in `@nothing/mini-apps-runtime` fetches list + exposes `{ data, isLoading, error, create, update, remove, refetch }`. Zero new deps — plain fetch + React.
+
+**Canary.** Calorie Lite declares 7 resources (entries, water, weight-entries, custom-foods, custom-meals, favorites, foods read-only). Pomodoro declares 1 (sessions). That's 21 auto-generated copilot tools before the copilot worker ships their own.
+
+**Angle.** Adding a mini-app used to mean writing REST by hand, writing copilot tools by hand, and writing client fetch by hand — three code paths, three sets of Zod schemas, three chances to leak `user_id` from the client. Now every mini-app is a declaration. The next mini-app author writes a `resources.ts` file and gets a full data layer + agent surface without touching route handlers or tool factories. Follow-up wave: collapse the hand-written calorie-lite routes onto the framework and delete ~1200 lines of duplicate plumbing.
+
+**Gotcha caught.** First iteration used `_resources/` for the path segment; Next.js treats underscore-prefixed folders as private and silently 404'd the routes. Renamed to `resources/` — noted in the framework README so nobody else re-learns that.
+
 ## 2026-08-09 — Copilot becomes an agent (Vercel AI SDK v5, 8 tools, audit log)
 
 The copilot went from read-only chat to an agent that actually acts on your data.

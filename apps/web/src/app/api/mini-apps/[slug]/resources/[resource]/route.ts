@@ -77,13 +77,14 @@ function toParamsRecord(url: URL): Record<string, unknown> {
 }
 
 export async function GET(request: Request, { params }: Params) {
+  // Auth first — never leak "does this slug/resource exist?" to unauthed callers.
+  const gate = await commonGate('read');
+  if ('error' in gate) return gate.error;
   const { slug, resource: name } = await params;
   const resource = getResource(slug, name);
   if (!resource) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  const gate = await commonGate('read');
-  if ('error' in gate) return gate.error;
 
   const url = new URL(request.url);
   const result = await listRows(resource, gate.supabase, gate.user.id, toParamsRecord(url));
@@ -97,13 +98,13 @@ export async function GET(request: Request, { params }: Params) {
 }
 
 export async function POST(request: Request, { params }: Params) {
+  const gate = await commonGate('write');
+  if ('error' in gate) return gate.error;
   const { slug, resource: name } = await params;
   const resource = getResource(slug, name);
   if (!resource) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  const gate = await commonGate('write');
-  if ('error' in gate) return gate.error;
 
   let raw: unknown;
   try {

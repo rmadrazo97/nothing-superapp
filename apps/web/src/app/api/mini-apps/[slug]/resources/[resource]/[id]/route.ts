@@ -56,12 +56,11 @@ async function commonGate(op: 'read' | 'write') {
 }
 
 export async function GET(_request: Request, { params }: Params) {
+  const gate = await commonGate('read');
+  if ('error' in gate) return gate.error;
   const { slug, resource: name, id } = await params;
   const resource = getResource(slug, name);
   if (!resource) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-
-  const gate = await commonGate('read');
-  if ('error' in gate) return gate.error;
 
   const result = await getRow(resource, gate.supabase, gate.user.id, id);
   if (!result.ok) {
@@ -74,12 +73,11 @@ export async function GET(_request: Request, { params }: Params) {
 }
 
 export async function PATCH(request: Request, { params }: Params) {
+  const gate = await commonGate('write');
+  if ('error' in gate) return gate.error;
   const { slug, resource: name, id } = await params;
   const resource = getResource(slug, name);
   if (!resource) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-
-  const gate = await commonGate('write');
-  if ('error' in gate) return gate.error;
 
   let raw: unknown;
   try {
@@ -99,12 +97,11 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
+  const gate = await commonGate('write');
+  if ('error' in gate) return gate.error;
   const { slug, resource: name, id } = await params;
   const resource = getResource(slug, name);
   if (!resource) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-
-  const gate = await commonGate('write');
-  if ('error' in gate) return gate.error;
 
   const result = await deleteRow(resource, gate.supabase, gate.user.id, id);
   if (!result.ok) {
