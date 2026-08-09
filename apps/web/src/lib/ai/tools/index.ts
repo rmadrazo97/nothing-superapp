@@ -18,6 +18,10 @@ import { makeLogCalorieEntryTool } from './log-calorie-entry';
 import { makeLogWaterTool } from './log-water';
 import { makeLogWeightTool } from './log-weight';
 import { makeStartPomodoroTool } from './start-pomodoro';
+// v2 gym routines — coach-grade structured multi-day plans (migration 011)
+import { makeCreateGymRoutineTool } from './create-gym-routine';
+import { makeGetGymRoutineTool } from './get-gym-routine';
+import { makeListGymRoutinesTool } from './list-gym-routines';
 
 export function copilotTools(userId: string, supabase: SupabaseClient) {
   return {
@@ -29,6 +33,10 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     log_water: makeLogWaterTool(userId, supabase),
     log_weight: makeLogWeightTool(userId, supabase),
     start_pomodoro: makeStartPomodoroTool(userId, supabase),
+    // gym v2 (add-only)
+    create_gym_routine: makeCreateGymRoutineTool(userId, supabase),
+    get_gym_routine: makeGetGymRoutineTool(userId, supabase),
+    list_gym_routines: makeListGymRoutinesTool(userId, supabase),
   };
 }
 
