@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.3.2';
+export const APP_VERSION = '0.4.0';
 export const APP_RELEASE_DATE = '2026-08-09'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,20 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.4.0',
+    date: '2026-08-09',
+    highlights: [
+      'Copilot upgraded to a real agent (Vercel AI SDK v5) with 19 hand-written tools + 32 framework-auto CRUD tools across every mini-app.',
+      'Multimodal copilot — attach food/menu photos or dictate meals; Kimi K2.6 vision handles both.',
+      'In-app copilot drawer inside Calorie Lite (◐ ASK chip) — knows your remaining macros and active plan; find_equivalent_food, suggest_from_menu, extract_macros_from_text.',
+      'Meal plans v2 — nutritionist-style options-per-meal + rules block (free_meal, hydration, vegetables, protein-swap). Real diet seeded as Diet Jam v1.',
+      'Gym routine v2 — top-set/back-off blocks, RIR ranges, supersets, unilateral, bilingual, cardio and conventions.',
+      'USDA SR Legacy foods live — 7,946 rows (was 153). Ingredient resolution + search coverage jumped 50×.',
+      'Mini-app resource framework — declare a resources.ts, get REST + agent tools + useResource() hook for free.',
+      'PWA safe-area fixes on Shell + overlays for Dynamic Island + home indicator clearance.',
+    ],
+  },
   {
     version: '0.3.2',
     date: '2026-08-09',
