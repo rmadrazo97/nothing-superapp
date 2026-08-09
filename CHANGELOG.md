@@ -2,6 +2,21 @@
 
 All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely.
 
+## [0.3.2] — 2026-08-09 — Web Push
+
+Reach users when the tab is closed.
+
+### Added
+- **Web Push infrastructure** — VAPID keypair, `web-push@3.6.7` server library (`apps/web/src/lib/push/server.ts`) with 410-Gone auto-cleanup. Service worker (`apps/web/public/sw.js`) gains `push` + `notificationclick` handlers.
+- **Migration 009** — `push_subscriptions` (unique on `endpoint`), `push_deliveries` audit trail, `push_broadcasts` with `unique(topic, version)` dedupe. Extends `preferences` with `push_enabled` + `push_topics text[]`.
+- **API endpoints** — `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`, `POST /api/admin/broadcast` (admin-email OR `X-Admin-Secret` gated).
+- **Opt-in banner** — deferred 30s past first-load, respects a 24h "not now" snooze, mounted in `/app/*` layout.
+- **Settings → Notifications** — turn on/off, per-topic checkboxes (Releases, Insights), Send test button.
+- **Release broadcaster** — `pnpm --filter @nothing/web broadcast:release` for manual sends; `.github/workflows/broadcast-on-version-bump.yml` fires automatically when `APP_VERSION` changes on main.
+
+### Blocked
+- Vercel env vars (`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `ADMIN_USER_EMAILS`, `ADMIN_BROADCAST_SECRET`) need to be pasted into the project settings — see root `BLOCKED.md`.
+
 ## [0.3.1] — 2026-08-08 — Polish
 
 Feel pass — no new features, but 6 tracks of craft.

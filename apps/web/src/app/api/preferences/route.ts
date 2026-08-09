@@ -17,6 +17,7 @@ import {
   activityLevelEnum,
   goalDirectionEnum,
   macroGoalPctSchema,
+  pushTopicEnum,
   sexEnum,
 } from '@nothing/shared';
 
@@ -48,6 +49,10 @@ const preferencesPatchSchema = z
     activity_level: activityLevelEnum.nullable().optional(),
     goal_direction: goalDirectionEnum.nullable().optional(),
     onboarded_at: z.string().datetime({ offset: true }).nullable().optional(),
+    // v0.3.2 Web Push — device-level opt-in + per-topic allow-list. Kept
+    // additive so pre-migration deployments never see undefined columns.
+    push_enabled: z.boolean().optional(),
+    push_topics: z.array(pushTopicEnum).max(16).optional(),
   })
   .strict();
 
@@ -65,7 +70,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('preferences')
     .select(
-      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -116,7 +121,7 @@ export async function PATCH(request: Request) {
       { onConflict: 'user_id' },
     )
     .select(
-      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
+      'user_id, notifications_enabled, theme, daily_calorie_goal, macro_goal_pct, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
     )
     .single();
 

@@ -26,6 +26,7 @@ import { AppErrorBoundary } from '@/components/shell/AppErrorBoundary';
 import { ToastProvider } from '@/lib/toast/context';
 import { ToastContainer } from '@/components/toast/ToastContainer';
 import { GlobalShortcuts } from '@/components/keyboard/GlobalShortcuts';
+import { PushOptInBanner } from '@/components/push/PushOptInBanner';
 import { createClient } from '@/lib/supabase/server';
 import type { Preferences } from '@nothing/shared';
 
@@ -49,6 +50,11 @@ const DEFAULT_PREFERENCES: Omit<Preferences, 'user_id' | 'updated_at'> = {
   activity_level: null,
   goal_direction: null,
   onboarded_at: null,
+  // v0.3.2 Web Push — default to off + `releases` topic pre-selected, so
+  // when a user later opts in they immediately get release notifications
+  // without a second step.
+  push_enabled: false,
+  push_topics: ['releases'],
 };
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -72,7 +78,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: prefsRow } = await supabase
     .from('preferences')
     .select(
-      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, updated_at',
+      'notifications_enabled, theme, daily_calorie_goal, water_goal_ml, weight_goal_kg, weight_unit, volume_unit, sex, age_years, height_cm, activity_level, goal_direction, onboarded_at, push_enabled, push_topics, updated_at',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -108,6 +114,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     goal_direction:
       (prefsRow?.goal_direction ?? null) as Preferences['goal_direction'],
     onboarded_at: prefsRow?.onboarded_at ?? null,
+    // v0.3.2 Web Push — device-level opt-in flag (persisted across devices)
+    // + array of topic slugs the user opted into. Both have DB defaults, so
+    // `??` only fires for brand-new users with no preferences row.
+    push_enabled: prefsRow?.push_enabled ?? DEFAULT_PREFERENCES.push_enabled,
+    push_topics:
+      (prefsRow?.push_topics as Preferences['push_topics'] | undefined) ??
+      DEFAULT_PREFERENCES.push_topics,
     updated_at: prefsRow?.updated_at ?? new Date().toISOString(),
   };
 
@@ -125,6 +138,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </Shell>
         <ToastContainer />
         <GlobalShortcuts />
+        <PushOptInBanner />
       </ToastProvider>
     </HarnessContextBridge>
   );

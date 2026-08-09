@@ -66,6 +66,11 @@ export const activityLevelEnum = z.enum([
 ]);
 export const goalDirectionEnum = z.enum(['lose', 'maintain', 'gain']);
 
+// v0.3.2 (Web Push) — allow-list of broadcast topics the user opts into.
+// Kept as a plain string enum so DB text[] round-trips cleanly. New topics
+// should be added here first so type-narrowing keeps API validation honest.
+export const pushTopicEnum = z.enum(['releases', 'insights']);
+
 export const preferencesSchema = z.object({
   user_id: z.string().uuid(),
   notifications_enabled: z.boolean().default(false),
@@ -83,6 +88,11 @@ export const preferencesSchema = z.object({
   activity_level: activityLevelEnum.nullable().default(null),
   goal_direction: goalDirectionEnum.nullable().default(null),
   onboarded_at: z.string().datetime({ offset: true }).nullable().default(null),
+  // v0.3.2 Web Push — device-level opt-in flag + topic allow-list. The
+  // browser permission is authoritative for delivery; these are how we
+  // remember the account-level intent + which broadcasts to fan out to.
+  push_enabled: z.boolean().default(false),
+  push_topics: z.array(pushTopicEnum).default(['releases']),
   updated_at: z.string().datetime({ offset: true }),
 });
 
@@ -102,7 +112,45 @@ export const preferencesInsertSchema = preferencesSchema
     activity_level: activityLevelEnum.nullable().optional(),
     goal_direction: goalDirectionEnum.nullable().optional(),
     onboarded_at: z.string().datetime({ offset: true }).nullable().optional(),
+    push_enabled: z.boolean().optional(),
+    push_topics: z.array(pushTopicEnum).optional(),
   });
+
+// ─── push_subscriptions (v0.3.2 Web Push) ──────────────────────────────────
+// The client sends the browser's `PushSubscription.toJSON()` shape, which
+// nests the crypto keys under `.keys`. We accept that shape at the API
+// boundary and flatten to columns server-side (endpoint, p256dh, auth).
+
+export const pushSubscriptionJsonSchema = z.object({
+  endpoint: z.string().url().max(2000),
+  expirationTime: z.number().nullable().optional(),
+  keys: z.object({
+    p256dh: z.string().min(1).max(500),
+    auth: z.string().min(1).max(500),
+  }),
+});
+
+export const pushSubscriptionSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  endpoint: z.string().url(),
+  p256dh: z.string(),
+  auth: z.string(),
+  user_agent: z.string().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  last_seen_at: z.string().datetime({ offset: true }),
+});
+
+export const pushSubscriptionInsertSchema = pushSubscriptionSchema
+  .omit({ id: true, created_at: true, last_seen_at: true })
+  .extend({
+    user_agent: z.string().nullable().optional(),
+  });
+
+export type PushTopic = z.infer<typeof pushTopicEnum>;
+export type PushSubscriptionJson = z.infer<typeof pushSubscriptionJsonSchema>;
+export type PushSubscriptionRow = z.infer<typeof pushSubscriptionSchema>;
+export type PushSubscriptionInsert = z.infer<typeof pushSubscriptionInsertSchema>;
 
 // ─── subscriptions ─────────────────────────────────────────────────────────
 

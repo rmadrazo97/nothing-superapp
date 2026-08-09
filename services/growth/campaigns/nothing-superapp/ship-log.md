@@ -2,6 +2,20 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — v0.3.2: Web Push notifications + auto-broadcast on version bump
+
+Nothing Superapp can now reach users when the tab is closed. Full stack landed in one autonomous dev-loop.
+
+**Infra.** Migration 009 adds three tables (`push_subscriptions` keyed on the browser's PushSubscription endpoint, `push_deliveries` audit trail, `push_broadcasts` with a `unique(topic, version)` guard so a redeploy never re-fires the same release notification). VAPID keypair generated + wired — public half baked into `apps/web/src/lib/push/vapid.ts` (safe by design), private half in env + GitHub secrets. `web-push@3.6.7` server library wrapped in `lib/push/server.ts` with 410-Gone cleanup that prunes dead subscriptions the moment the browser tells us they're stale.
+
+**Product.** Opt-in banner defers the ask 30s past first load, respects a 24h "not now" snooze, hides forever if the user is already opted in or the browser blocked notifications. Settings → Notifications gets a full sub-surface: TURN ON / OFF, per-topic checkboxes (Releases, Insights) that PATCH `preferences.push_topics` on toggle, and a SEND TEST button that pings all the user's devices via `/api/push/test`. Zero hex codes; space scale respects the skip on 5+7.
+
+**Broadcast automation.** `.github/workflows/broadcast-on-version-bump.yml` diffs `apps/web/src/lib/version.ts` on every push to main; if `APP_VERSION` moved, it waits 90s for Vercel to catch up then curls `/api/admin/broadcast` with the `X-Admin-Secret` header. Admin gate accepts either that secret OR an admin-email session, so the same endpoint serves both the workflow and a human sending an ad-hoc notification via `pnpm broadcast:release`.
+
+**Angle.** Zero-cost owned-audience push. Every release now automatically re-engages every user who ever tapped ENABLE — no third-party service, no per-message fee, no vendor lockin. The dedupe key on `(topic, version)` means the workflow is idempotent by construction: if a redeploy triggers a duplicate fire, it 409s cleanly instead of double-buzzing anyone's phone.
+
+**Blocked (documented in root `BLOCKED.md`):** Vercel CLI not installed on the build machine, so the four env vars (`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `ADMIN_USER_EMAILS`, `ADMIN_BROADCAST_SECRET`) still need to be pasted into Vercel project settings before prod-side sends work. Migration + code + GitHub secrets are all live.
+
 ## 2026-08-09 — Calorie Lite v3: MyFitnessPal-tier parity in one session
 
 Three parallel workers, one commit (`ff71fbe`), zero hex codes.

@@ -1,0 +1,73 @@
+name: broadcast-on-version-bump
+
+# Fires after every push to `main` and only actually broadcasts when
+# `apps/web/src/lib/version.ts` changed AND its `APP_VERSION` constant
+# differs from HEAD~1 → HEAD. Vercel deploys on the same push, so we
+# add a short wait before hitting the admin endpoint to give the
+# production deploy a head start.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/src/lib/version.ts'
+
+concurrency:
+  group: broadcast-on-version-bump
+  cancel-in-progress: false
+
+jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need HEAD~1 to diff APP_VERSION.
+          fetch-depth: 2
+
+      - name: detect version change
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          prev=$(git show HEAD~1:apps/web/src/lib/version.ts 2>/dev/null \
+            | grep -Eo "APP_VERSION\s*=\s*'[^']+'" \
+            | head -n1 | sed -E "s/.*'([^']+)'.*/\1/") || true
+          curr=$(grep -Eo "APP_VERSION\s*=\s*'[^']+'" apps/web/src/lib/version.ts \
+            | head -n1 | sed -E "s/.*'([^']+)'.*/\1/")
+          echo "prev=$prev"
+          echo "curr=$curr"
+          echo "prev=$prev" >> "$GITHUB_OUTPUT"
+          echo "curr=$curr" >> "$GITHUB_OUTPUT"
+          if [ "$prev" != "$curr" ] && [ -n "$curr" ]; then
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: skip if unchanged
+        if: steps.detect.outputs.changed != '1'
+        run: |
+          echo "APP_VERSION unchanged (${{ steps.detect.outputs.curr }}). Nothing to broadcast."
+
+      - name: setup node
+        if: steps.detect.outputs.changed == '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Give Vercel a minute to finish the deploy that shares this git SHA.
+      # If we broadcast before the new build is live, the notification body
+      # would still be current-changelog but pointing at the previous UX
+      # for anyone who clicks in during those first few seconds. Cheap wait.
+      - name: wait for deploy
+        if: steps.detect.outputs.changed == '1'
+        run: sleep 90
+
+      - name: broadcast release
+        if: steps.detect.outputs.changed == '1'
+        env:
+          BROADCAST_BASE_URL: https://nothing-superapp.vercel.app
+          ADMIN_BROADCAST_SECRET: ${{ secrets.ADMIN_BROADCAST_SECRET }}
+          YES: '1'
+        run: node scripts/broadcast-release.mjs

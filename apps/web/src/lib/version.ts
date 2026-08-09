@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.3.1';
+export const APP_VERSION = '0.3.2';
 export const APP_RELEASE_DATE = '2026-08-09'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.3.2',
+    date: '2026-08-09',
+    highlights: [
+      'Web Push notifications — opt-in banner, VAPID + service worker push handler, per-topic allow-list.',
+      'Release broadcaster — GitHub Action fires a Web Push to every opt-in the moment APP_VERSION bumps on main.',
+      'Settings → Notifications adds topic checkboxes (Releases, Insights) + a Send test button that hits your device.',
+    ],
+  },
   {
     version: '0.3.1',
     date: '2026-08-09',

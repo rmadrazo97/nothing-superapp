@@ -20,6 +20,8 @@
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useEntitlement } from '@/lib/hooks/use-entitlement';
 import { useToast } from '@/lib/toast/context';
+import { PushSettingsSection } from '@/components/push/PushSettingsSection';
+import type { PushTopic } from '@nothing/shared';
 import {
   APP_VERSION,
   APP_RELEASE_DATE,
@@ -168,6 +170,11 @@ export default function SettingsPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [prefsStatus, setPrefsStatus] = useState<SaveStatus>({ kind: 'idle' });
+  // Push (Web Push) — persisted alongside preferences. We render the sub-
+  // surface only after we've read the initial state so the toggle doesn't
+  // flash from OFF → ON on first paint.
+  const [pushEnabled, setPushEnabled] = useState<boolean>(false);
+  const [pushTopics, setPushTopics] = useState<PushTopic[]>(['releases']);
 
   // Subscription — hook lands via task 08
   const { entitlement, subscription, isLoading: entitlementLoading } = useEntitlement();
@@ -220,6 +227,8 @@ export default function SettingsPage() {
           preferences: {
             theme: 'dark' | 'light';
             notifications_enabled?: boolean | null;
+            push_enabled?: boolean | null;
+            push_topics?: PushTopic[] | null;
           } | null;
         };
         if (cancelled) return;
@@ -227,6 +236,12 @@ export default function SettingsPage() {
           setDarkMode(body.preferences.theme !== 'light');
           if (typeof body.preferences.notifications_enabled === 'boolean') {
             setNotificationsEnabled(body.preferences.notifications_enabled);
+          }
+          if (typeof body.preferences.push_enabled === 'boolean') {
+            setPushEnabled(body.preferences.push_enabled);
+          }
+          if (Array.isArray(body.preferences.push_topics)) {
+            setPushTopics(body.preferences.push_topics);
           }
         }
         setPrefsLoaded(true);
@@ -519,6 +534,23 @@ export default function SettingsPage() {
               }}
             />
           </label>
+
+          {/* Web Push sub-surface — appears below the plain notifications
+              toggle. Only render once prefs have loaded so the initial
+              state matches the server (avoids a false "OFF" flash). */}
+          {prefsLoaded ? (
+            <div
+              style={{
+                paddingTop: 'var(--space-4)',
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <PushSettingsSection
+                initialEnabled={pushEnabled}
+                initialTopics={pushTopics}
+              />
+            </div>
+          ) : null}
 
           {/*
             Discoverability breadcrumb — nutrition goals + body profile +
