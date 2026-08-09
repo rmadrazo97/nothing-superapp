@@ -276,21 +276,27 @@ export function Composer({
     };
   }, []);
 
+  // Icon-only chip button (image + mic). Tap target ≥44×44 for iOS.
   const iconBtnStyle = useMemo(
     () => ({
-      minHeight: 40,
-      minWidth: 40,
-      padding: '10px 12px',
+      minHeight: 44,
+      minWidth: 44,
+      width: 44,
+      height: 44,
+      display: 'inline-flex',
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      padding: 0,
       background: 'transparent',
       border: '1px solid var(--color-border-visible)',
-      borderRadius: 8,
-      color: 'var(--color-accent)',
+      borderRadius: '50%',
+      color: 'var(--color-text-secondary)',
       fontFamily: 'var(--font-label)',
-      fontSize: 'var(--text-caption)',
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase' as const,
-      cursor: 'pointer',
+      fontSize: 18,
       lineHeight: 1,
+      cursor: 'pointer',
+      transition:
+        'border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out)',
     }),
     [],
   );
@@ -366,7 +372,7 @@ export function Composer({
           display: 'flex',
           alignItems: 'flex-end',
           gap: 'var(--space-2)',
-          padding: 'var(--space-3)',
+          padding: 'var(--space-2)',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border-visible)',
           borderRadius: 'var(--radius-card)',
@@ -395,7 +401,7 @@ export function Composer({
           }
           style={iconBtnStyle}
         >
-          ◐ IMG
+          ◐
         </button>
 
         {voiceSupported && (
@@ -408,12 +414,13 @@ export function Composer({
             title={listening ? 'Listening…' : 'Dictate a message'}
             style={{
               ...iconBtnStyle,
+              color: listening ? 'var(--color-accent)' : 'var(--color-text-secondary)',
               background: listening ? 'var(--color-accent-subtle)' : 'transparent',
               borderColor: listening ? 'var(--color-accent)' : 'var(--color-border-visible)',
               animation: listening ? 'nsa-voice-pulse 1.2s ease-in-out infinite' : undefined,
             }}
           >
-            {listening ? '● REC' : '◐ MIC'}
+            {listening ? '●' : '◉'}
           </button>
         )}
 
@@ -425,13 +432,14 @@ export function Composer({
           placeholder={listening ? 'Listening…' : placeholder}
           disabled={busy}
           rows={1}
+          enterKeyHint="send"
           aria-label="Message"
           style={{
             flex: 1,
             resize: 'none',
-            minHeight: 40,
+            minHeight: 44,
             maxHeight: 140,
-            padding: '10px 12px',
+            padding: '12px 8px',
             background: 'transparent',
             border: 0,
             borderRadius: 8,
@@ -444,17 +452,37 @@ export function Composer({
           }}
         />
 
+        {/* Send: cadmium circular icon button. Disabled → muted grey. */}
         <button
           type="submit"
           disabled={!canSend}
-          className="btn btn-primary"
+          aria-label={busy ? 'Sending' : 'Send message'}
           style={{
-            minHeight: 40,
-            padding: '10px 18px',
-            fontSize: 'var(--text-body-sm)',
+            minHeight: 44,
+            minWidth: 44,
+            width: 44,
+            height: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            background: canSend ? 'var(--color-accent)' : 'transparent',
+            color: canSend ? 'var(--color-text-display)' : 'var(--color-text-disabled)',
+            border: `1px solid ${canSend ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
+            borderRadius: '50%',
+            fontFamily: 'var(--font-label)',
+            fontSize: 18,
+            lineHeight: 1,
+            cursor: canSend ? 'pointer' : 'not-allowed',
+            transition:
+              'background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out)',
           }}
         >
-          {busy ? '…' : 'Send'}
+          {busy ? (
+            <span aria-hidden className="nsa-send-spin">◐</span>
+          ) : (
+            <span aria-hidden>→</span>
+          )}
         </button>
       </form>
     </div>

@@ -114,3 +114,192 @@
   0%,   100% { box-shadow: 0 0 0 0 var(--color-accent-subtle); }
   50%        { box-shadow: 0 0 0 4px var(--color-accent-subtle); }
 }
+
+/* ── Streaming cursor ─────────────────────────────────────────────────
+   Blinking cadmium block cursor that trails the last streamed token on
+   an assistant message. The single biggest "this is a real chat app"
+   affordance — do not remove without a replacement.
+
+   Vertical-align:-2px so the block sits on the text baseline; without
+   it the cursor floats above the character caps on Space Grotesk.
+   Reduced-motion users keep the cursor but freeze the blink so the
+   position is still discoverable. */
+.nsa-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--color-accent);
+  color: transparent;
+  animation: nsa-cursor-blink 900ms steps(2, start) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nsa-cursor { animation: none; opacity: 0.7; }
+}
+@keyframes nsa-cursor-blink {
+  0%,  50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ── Message action row (assistant only) ──────────────────────────────
+   Hidden on desktop until the parent bubble is hovered; always visible
+   on coarse-pointer devices (touch) where hover is unreliable. */
+.nsa-msg-actions {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.nsa-msg-bubble:hover ~ .nsa-msg-actions,
+.nsa-msg-actions:hover,
+.nsa-msg-actions:focus-within {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse) {
+  .nsa-msg-actions { opacity: 0.8; }
+}
+
+/* ── Markdown-lite renderer output ────────────────────────────────────
+   Assistant messages render **bold**, `code`, code blocks, headings,
+   lists, quotes, and links through renderMarkdownLite. The styling
+   here stays tight — no lavish spacing — because message bubbles are
+   already visually constrained by their own padding. */
+.nsa-md > *:first-child { margin-top: 0; }
+.nsa-md > *:last-child  { margin-bottom: 0; }
+.nsa-md-p { margin: 0 0 0.5em; }
+.nsa-md-p:last-child { margin-bottom: 0; }
+.nsa-md-h { margin: 0.6em 0 0.3em; font-weight: 500; line-height: 1.3; }
+.nsa-md-h1 { font-size: var(--text-heading); }
+.nsa-md-h2 { font-size: var(--text-subheading); }
+.nsa-md-h3 { font-size: var(--text-body); font-weight: 600; }
+.nsa-md-ul, .nsa-md-ol { margin: 0 0 0.5em; padding-left: 1.4em; }
+.nsa-md-ul li, .nsa-md-ol li { margin: 0.15em 0; }
+.nsa-md-ul { list-style: disc outside; }
+.nsa-md-ol { list-style: decimal outside; }
+.nsa-md-quote {
+  margin: 0.4em 0;
+  padding: 0.2em 0.8em;
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+.nsa-md-code-inline {
+  padding: 0.05em 0.35em;
+  border-radius: var(--radius-compact);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-visible);
+  font-family: var(--font-label);
+  font-size: 0.92em;
+}
+.nsa-md-code {
+  margin: 0.5em 0;
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-visible);
+  border-radius: var(--radius-compact);
+  overflow-x: auto;
+  font-family: var(--font-label);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-primary);
+}
+.nsa-md-code code { font-family: inherit; }
+.nsa-md-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.nsa-md-hr { border: 0; border-top: 1px solid var(--color-border); margin: 0.8em 0; }
+
+/* ── Retry chip under a failed assistant bubble ─────────────────────── */
+.nsa-msg-retry:hover { background: var(--color-accent-subtle); }
+
+/* ── Empty-state prompt cards ─────────────────────────────────────────
+   4-up grid on the standalone assistant page, stacks on narrow screens.
+   Wrapper handles the grid; each card is a full-width button. */
+.nsa-prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+@media (max-width: 480px) {
+  .nsa-prompt-grid { grid-template-columns: 1fr; }
+}
+.nsa-prompt-card {
+  text-align: left;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-visible);
+  border-radius: var(--radius-card);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+  cursor: pointer;
+  min-height: 84px;
+  display: flex;
+  align-items: flex-start;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.nsa-prompt-card:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+.nsa-prompt-card:active:not(:disabled) { transform: translateY(0); }
+.nsa-prompt-card:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── ThreadDrawer ──────────────────────────────────────────────────── */
+.nsa-thread-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.nsa-thread-row:hover { background: var(--color-surface); }
+.nsa-thread-row[data-active="true"] {
+  border-left-color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+/* ── Composer send-button spinner ─────────────────────────────────── */
+.nsa-send-spin {
+  display: inline-block;
+  animation: nsa-send-spin 900ms linear infinite;
+}
+@keyframes nsa-send-spin {
+  from { transform: rotate(0); }
+  to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nsa-send-spin { animation: none; }
+}
+
+/* ── New-messages jump chip ──────────────────────────────────────────
+   Appears bottom-right when the user has scrolled up during streaming. */
+.nsa-jump-chip {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-accent);
+  color: var(--color-text-display);
+  border: 0;
+  border-radius: var(--radius-button);
+  font-family: var(--font-label);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: nsa-msg-in 180ms var(--ease-out) both;
+}

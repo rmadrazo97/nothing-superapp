@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/lib/toast/context';
 import { ReasoningDisclosure } from './ReasoningDisclosure';
+import { renderMarkdownLite } from './markdown-lite';
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -24,31 +25,38 @@ export type ChatMessage = {
   streaming?: boolean;
   /** Image previews rendered inside the bubble (user turns only in v0.5). */
   attachments?: ChatAttachmentPreview[];
+  /** Epoch millis for the timestamp footer (tap/hover reveal). */
+  timestampMs?: number;
+  /** Callbacks for the action row (assistant only). Undefined = hide the action. */
+  onRegenerate?: () => void;
+  onContinue?: () => void;
+  /** Retry chip for a failed assistant stream. */
+  onRetry?: () => void;
+  errored?: boolean;
 };
 
 /**
- * MessageBubble.
+ * MessageBubble — proper AI-chat bubble.
  *
- * Two small polish behaviours over v0.3.0:
- *
- *  1. A tiny copy-to-clipboard button in the top-right corner of every
- *     assistant bubble. Hover-reveal on desktop (see `.nsa-copy-btn` in
- *     globals.css), always visible on coarse pointers.
- *
- *  2. A one-frame `data-fresh="true"` attribute on newly-mounted
- *     bubbles so the CSS selector `[data-fresh="true"] .nsa-msg-bubble`
- *     plays a 180ms fade-up. We clear the attribute after a rAF so the
- *     animation runs exactly once per message — subsequent token deltas
- *     mutate `content` but don't re-fire the entrance.
- *
- * The wrapper carries the `data-fresh` attr; the inner bubble carries
- * the visual chrome + the copy button. This split keeps the animation
- * targetable by CSS without threading refs.
+ * Redesigned as part of the copilot rebuild:
+ *   - User bubbles are RIGHT-aligned with a cadmium OUTLINE (not fill),
+ *     matching the "signal, not decoration" rule on the accent color.
+ *   - Assistant bubbles are LEFT-aligned on a subtle raised surface.
+ *   - Streaming assistant messages get a blinking ▊ cursor at the end of
+ *     the visible text — the single most "feels like a real chat app" win.
+ *   - Reasoning disclosure moved BELOW the answer (was above).
+ *   - Markdown-lite renderer for **bold**, *italic*, `code`, code blocks,
+ *     paragraphs, and - lists. No new deps.
+ *   - Action row (Copy / Regenerate / Continue) appears on hover/tap under
+ *     assistant bubbles.
+ *   - Retry chip under a failed assistant bubble.
+ *   - Tap-to-reveal HH:MM timestamp under every bubble.
  */
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
   const { toast } = useToast();
 
   // One-frame data-fresh flag — the CSS animation reads this off the
@@ -58,95 +66,80 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
     if (!el) return;
     el.setAttribute('data-fresh', 'true');
     const id = requestAnimationFrame(() => {
-      // Clear after one paint. If the component unmounts first, the ref
-      // is stale but the DOM is gone — no cleanup needed.
       el.removeAttribute('data-fresh');
     });
     return () => cancelAnimationFrame(id);
-    // Runs once per bubble mount; message id is included so a swapped
-    // message (rare, but possible in re-order edits) also re-triggers.
   }, [message.id]);
 
   const copyToClipboard = useCallback(async () => {
-    // Nothing to copy while the assistant is still thinking.
     if (message.content.length === 0) return;
     try {
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
       toast.success('Copied');
-      // Brief visual flash — CSS reveals the ✓ glyph via aria-pressed.
       setTimeout(() => setCopied(false), 1200);
     } catch {
       toast.error("Couldn't copy — clipboard permission blocked.");
     }
   }, [message.content, toast]);
 
+  const timestampLabel = useMemo(() => {
+    if (!message.timestampMs) return null;
+    try {
+      const d = new Date(message.timestampMs);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    } catch {
+      return null;
+    }
+  }, [message.timestampMs]);
+
+  const bubbleContent = isUser ? (
+    // User: plain text, whitespace preserved. Markdown parsing intentionally
+    // skipped so a user typing "**foo**" sees exactly that back.
+    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.content}</div>
+  ) : (
+    <div className="nsa-md">
+      {renderMarkdownLite(message.content)}
+      {message.streaming && (
+        <span className="nsa-cursor" aria-hidden>
+          ▊
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div
       ref={wrapperRef}
       style={{
         display: 'flex',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        flexDirection: 'column',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
         width: '100%',
       }}
     >
       <div
         className="nsa-msg-bubble"
+        onClick={() => setShowMeta((v) => !v)}
         style={{
           position: 'relative',
           maxWidth: '85%',
           padding: 'var(--space-3) var(--space-4)',
           borderRadius: 'var(--radius-card)',
-          background: isUser ? 'var(--color-accent)' : 'var(--color-surface-raised)',
-          color: isUser ? 'var(--color-text-display)' : 'var(--color-text-primary)',
-          border: isUser ? '1px solid var(--color-accent)' : '1px solid var(--color-border-visible)',
+          background: isUser ? 'transparent' : 'rgba(255, 255, 255, 0.03)',
+          color: 'var(--color-text-primary)',
+          border: isUser
+            ? '1px solid var(--color-accent)'
+            : '1px solid var(--color-border-visible)',
           fontFamily: 'var(--font-body)',
           fontSize: 'var(--text-body-sm)',
           lineHeight: 1.5,
-          whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
       >
-        {message.role === 'assistant' && (
-          <>
-            <ReasoningDisclosure
-              content={message.reasoning}
-              streaming={message.streaming === true && message.content.length === 0}
-            />
-            {/* Copy button lives inside the bubble so the hover selector on
-                `.nsa-msg-bubble` catches it. Hidden while there's nothing
-                to copy (empty content — still streaming). */}
-            {message.content.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void copyToClipboard()}
-                aria-label={copied ? 'Copied' : 'Copy message'}
-                aria-pressed={copied}
-                className="nsa-copy-btn"
-                style={{
-                  position: 'absolute',
-                  top: 'var(--space-2)',
-                  right: 'var(--space-2)',
-                  width: 28,
-                  height: 28,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'transparent',
-                  border: '1px solid var(--color-border-visible)',
-                  borderRadius: 'var(--radius-compact)',
-                  color: 'var(--color-text-secondary)',
-                  fontFamily: 'var(--font-label)',
-                  fontSize: 'var(--text-body-sm)',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                }}
-              >
-                {copied ? '✓' : '⧉'}
-              </button>
-            )}
-          </>
-        )}
+        {/* Attachments render above content — used for user image uploads. */}
         {message.attachments && message.attachments.length > 0 && (
           <div
             style={{
@@ -176,8 +169,9 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               ))}
           </div>
         )}
+
         {message.content.length > 0 ? (
-          message.content
+          bubbleContent
         ) : message.role === 'assistant' && message.streaming ? (
           <span
             aria-live="polite"
@@ -190,10 +184,120 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               textTransform: 'uppercase',
             }}
           >
-            Thinking…
+            Thinking
+            <span className="nsa-cursor" aria-hidden style={{ marginLeft: 4 }}>
+              ▊
+            </span>
           </span>
         ) : null}
+
+        {/* Reasoning disclosure BELOW the answer per redesign spec. */}
+        {message.role === 'assistant' && message.reasoning.length > 0 && (
+          <ReasoningDisclosure
+            content={message.reasoning}
+            streaming={message.streaming === true && message.content.length === 0}
+          />
+        )}
       </div>
+
+      {/* Retry chip — under a failed assistant bubble. */}
+      {message.role === 'assistant' && message.errored && message.onRetry && (
+        <button
+          type="button"
+          onClick={message.onRetry}
+          className="nsa-msg-retry"
+          style={{
+            marginTop: 'var(--space-2)',
+            padding: 'var(--space-1) var(--space-3)',
+            background: 'transparent',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 'var(--radius-compact)',
+            color: 'var(--color-accent)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          ⚠ Retry
+        </button>
+      )}
+
+      {/* Message actions — assistant only, hover-reveal on desktop. */}
+      {message.role === 'assistant' && message.content.length > 0 && (
+        <div
+          className="nsa-msg-actions"
+          style={{
+            display: 'flex',
+            gap: 'var(--space-1)',
+            marginTop: 'var(--space-1)',
+          }}
+        >
+          <ActionButton
+            label={copied ? '✓ Copied' : '⧉ Copy'}
+            onClick={() => void copyToClipboard()}
+            pressed={copied}
+          />
+          {message.onRegenerate && (
+            <ActionButton label="↻ Regen" onClick={message.onRegenerate} />
+          )}
+          {message.onContinue && (
+            <ActionButton label="⇢ Continue" onClick={message.onContinue} />
+          )}
+        </div>
+      )}
+
+      {timestampLabel && showMeta && (
+        <div
+          style={{
+            marginTop: 'var(--space-1)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-caption)',
+            color: 'var(--color-text-disabled)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {timestampLabel}
+        </div>
+      )}
     </div>
+  );
+}
+
+function ActionButton({
+  label,
+  onClick,
+  pressed,
+}: {
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // Prevent parent bubble's onClick from also firing (would toggle meta).
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-pressed={pressed}
+      style={{
+        padding: '4px 8px',
+        background: 'transparent',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-compact)',
+        color: 'var(--color-text-secondary)',
+        fontFamily: 'var(--font-label)',
+        fontSize: 'var(--text-caption)',
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        lineHeight: 1,
+      }}
+    >
+      {label}
+    </button>
   );
 }

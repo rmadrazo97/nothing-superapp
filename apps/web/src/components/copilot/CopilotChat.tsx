@@ -9,25 +9,37 @@ import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ToolCallCard } from './ToolCallCard';
 
 /**
- * Copilot chat surface — Vercel AI SDK v5 rewrite (v0.4).
+ * Copilot chat surface — v0.6 rebuild.
  *
- * The old hand-rolled SSE parser + local message state is gone. `useChat()`
- * owns the message list, streaming, and error surfacing. We keep local `input`
- * state (v5 dropped `input`/`handleInputChange` in favour of `sendMessage`)
- * and a busy flag derived from `status`.
+ * The chat is now a proper AI chat app:
+ *   - User + assistant bubbles both render (was a bug in v0.5 — user turns
+ *     were technically rendered but with the wrong ordering; fixed the flag
+ *     that controlled the cursor so streaming shows up mid-text, not only
+ *     while empty).
+ *   - Streaming ▊ cursor at the end of the last assistant message.
+ *   - Reasoning disclosure sits BELOW the answer, not above.
+ *   - Empty state renders 4 prompt cards (grid) that pre-fill the composer.
+ *   - Auto-scroll only when the user is already at the bottom; a "↓ NEW"
+ *     chip appears bottom-right when they scrolled up during a stream.
+ *   - Regenerate + Continue actions on the last assistant message.
  *
- * Rendering: each assistant message is decomposed into its `parts` array —
- * text parts still render as MessageBubbles; `tool-*` parts render as
- * ToolCallCards (cadmium for writes, muted for reads). Reasoning parts are
- * grouped into a single ReasoningDisclosure via the existing MessageBubble
- * component so users can peek at the model's chain of thought.
+ * Thread + history wiring happens in the parent page — this component stays
+ * transport-agnostic beyond the /api/copilot endpoint.
  */
 
 const DEFAULT_SUGGESTED_PROMPTS = [
-  'Log a coffee with 40 kcal',
-  "What's my calorie streak?",
-  'How am I tracking today?',
-];
+  '◐ Log what I ate today',
+  '◐ Suggest a meal that fits my macros',
+  '◐ Analyze this photo of my plate',
+  '◐ Show me my week',
+] as const;
+
+const EMBEDDED_SUGGESTED_PROMPTS = [
+  '◐ Log what I just ate',
+  '◐ What can I still eat today?',
+  '◐ Swap this meal for something lighter',
+  '◐ How am I tracking this week?',
+] as const;
 
 const TAB_BAR_CLEARANCE = 92;
 
@@ -47,12 +59,18 @@ export interface CopilotChatProps {
    * flow with the container so it plays nicely inside a drawer.
    */
   layout?: 'standalone' | 'embedded';
+  /** Optional thread id — for now purely decorative (persistence lands in a follow-up slice). */
+  threadId?: string | null;
+  /** Fired on successful send so the parent page can update its URL / thread state. */
+  onFirstMessage?: (firstUserText: string) => void;
 }
 
 export function CopilotChat({
   context,
   suggestedPrompts,
   layout = 'standalone',
+  threadId,
+  onFirstMessage,
 }: CopilotChatProps = {}) {
   const [input, setInput] = useState('');
   const [uiError, setUiError] = useState<string | null>(null);
@@ -64,12 +82,15 @@ export function CopilotChat({
         api: '/api/copilot',
         // Forwarded on every request body — the route handler reads
         // `body.context` and appends a scoped system-prompt block.
-        body: context ? { context } : undefined,
+        body: {
+          ...(context ? { context } : {}),
+          ...(threadId ? { thread_id: threadId } : {}),
+        },
       }),
-    [context],
+    [context, threadId],
   );
 
-  const { messages, sendMessage, status, error, clearError } = useChat({
+  const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     transport,
     onError(err) {
       // Map server errors → human toast copy. `err.message` may include the
@@ -93,20 +114,49 @@ export function CopilotChat({
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  const [showJumpChip, setShowJumpChip] = useState(false);
+  // Cache of when each message was created — the AI SDK doesn't guarantee a
+  // timestamp on UIMessage. We stamp on first sight; this survives re-renders
+  // via a ref (map) so the values don't reset when React re-renders.
+  const timestampsRef = useRef<Map<string, number>>(new Map());
+
+  // Assign a timestamp to any new message we haven't seen before.
+  for (const m of messages) {
+    if (!timestampsRef.current.has(m.id)) {
+      timestampsRef.current.set(m.id, Date.now());
+    }
+  }
 
   useEffect(() => {
-    if (!stickToBottomRef.current) return;
     const el = scrollerRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    if (stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      setShowJumpChip(false);
+    } else if (busy) {
+      // New tokens arriving but user isn't at the bottom — surface the chip.
+      setShowJumpChip(true);
+    }
+  }, [messages, busy]);
 
   const handleScroll = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
-    stickToBottomRef.current = distanceFromBottom < 40;
+    const atBottom = distanceFromBottom < 40;
+    stickToBottomRef.current = atBottom;
+    if (atBottom) setShowJumpChip(false);
   }, []);
+
+  const jumpToBottom = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = true;
+    el.scrollTop = el.scrollHeight;
+    setShowJumpChip(false);
+  }, []);
+
+  const firstUserFiredRef = useRef(false);
 
   const send = useCallback(
     (rawText: string, attachments: ComposerAttachment[] = []) => {
@@ -117,6 +167,11 @@ export function CopilotChat({
       setUiError(null);
       if (error) clearError();
       stickToBottomRef.current = true;
+      setShowJumpChip(false);
+      if (!firstUserFiredRef.current && messages.length === 0 && onFirstMessage && text.length > 0) {
+        firstUserFiredRef.current = true;
+        onFirstMessage(text);
+      }
       if (attachments.length > 0) {
         // FileUIPart accepts a data URL directly — no server-side storage in
         // v1. Filename kept for the model + UI thumbnails; contents are never
@@ -133,12 +188,72 @@ export function CopilotChat({
       }
       setInput('');
     },
-    [busy, error, clearError, sendMessage],
+    [busy, error, clearError, sendMessage, messages.length, onFirstMessage],
   );
+
+  // ── Regenerate / Continue helpers ─────────────────────────────────
+  const regenerate = useCallback(() => {
+    if (busy) return;
+    // Find the last user message; drop everything after it, resend the same
+    // parts. The AI SDK will treat this as a fresh assistant turn.
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+    const trimmed = messages.slice(0, lastUserIdx);
+    const lastUser = messages[lastUserIdx];
+    setMessages(trimmed);
+    stickToBottomRef.current = true;
+    // Rehydrate the parts we know how to resend (text + file).
+    const text = lastUser.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => (p as { text: string }).text)
+      .join('');
+    const files: FileUIPart[] = lastUser.parts
+      .filter(
+        (p) =>
+          (p as { type?: string }).type === 'file' &&
+          typeof (p as { mediaType?: string }).mediaType === 'string',
+      )
+      .map((p) => {
+        const fp = p as { url: string; filename?: string; mediaType: string };
+        return { type: 'file', url: fp.url, filename: fp.filename, mediaType: fp.mediaType };
+      });
+    if (files.length > 0) {
+      void sendMessage({ text: text.length > 0 ? text : ' ', files });
+    } else {
+      void sendMessage({ text });
+    }
+  }, [busy, messages, sendMessage, setMessages]);
+
+  const continueAnswer = useCallback(() => {
+    if (busy) return;
+    void sendMessage({ text: 'Please continue.' });
+    stickToBottomRef.current = true;
+  }, [busy, sendMessage]);
+
+  const retry = regenerate;
 
   const isEmpty = messages.length === 0;
   const embedded = layout === 'embedded';
-  const prompts = suggestedPrompts ?? DEFAULT_SUGGESTED_PROMPTS;
+  const prompts =
+    suggestedPrompts ?? (embedded ? EMBEDDED_SUGGESTED_PROMPTS : DEFAULT_SUGGESTED_PROMPTS);
+
+  // Find the id of the last assistant message so we know which one gets
+  // Regenerate / Continue action buttons.
+  const lastAssistantId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return messages[i].id;
+    }
+    return null;
+  }, [messages]);
+
+  const isLatestErrored = error != null && !busy && messages.length > 0 &&
+    messages[messages.length - 1]?.role === 'assistant';
 
   return (
     <div
@@ -152,15 +267,6 @@ export function CopilotChat({
         position: 'relative',
       }}
     >
-      {!embedded && (
-        <header style={{ marginBottom: 'var(--space-4)' }}>
-          <div className="label" style={{ marginBottom: 'var(--space-1)' }}>
-            Copilot
-          </div>
-          <h1 className="display-md">Assistant</h1>
-        </header>
-      )}
-
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
@@ -181,15 +287,35 @@ export function CopilotChat({
             embedded={embedded}
           />
         ) : (
-          messages.map((m) => (
-            <RenderedMessage
-              key={m.id}
-              message={m}
-              streaming={busy && m.id === messages[messages.length - 1]?.id && m.role === 'assistant'}
-            />
-          ))
+          messages.map((m) => {
+            const isLast = m.id === messages[messages.length - 1]?.id;
+            const isLastAssistant = m.id === lastAssistantId;
+            return (
+              <RenderedMessage
+                key={m.id}
+                message={m}
+                streaming={busy && isLast && m.role === 'assistant'}
+                timestampMs={timestampsRef.current.get(m.id) ?? Date.now()}
+                onRegenerate={isLastAssistant && !busy ? regenerate : undefined}
+                onContinue={isLastAssistant && !busy ? continueAnswer : undefined}
+                onRetry={isLastAssistant && isLatestErrored ? retry : undefined}
+                errored={isLastAssistant && isLatestErrored}
+              />
+            );
+          })
         )}
       </div>
+
+      {showJumpChip && !isEmpty && (
+        <button
+          type="button"
+          onClick={jumpToBottom}
+          className="nsa-jump-chip"
+          aria-label="Jump to newest message"
+        >
+          ↓ New
+        </button>
+      )}
 
       {uiError && (
         <div
@@ -235,6 +361,8 @@ export function CopilotChat({
             background:
               'linear-gradient(to bottom, transparent, var(--color-bg) 40%)',
             paddingTop: 'var(--space-4)',
+            paddingLeft: 'env(safe-area-inset-left)',
+            paddingRight: 'env(safe-area-inset-right)',
           }}
         >
           <div
@@ -265,9 +393,19 @@ export function CopilotChat({
 function RenderedMessage({
   message,
   streaming,
+  timestampMs,
+  onRegenerate,
+  onContinue,
+  onRetry,
+  errored,
 }: {
   message: UIMessage;
   streaming: boolean;
+  timestampMs: number;
+  onRegenerate?: () => void;
+  onContinue?: () => void;
+  onRetry?: () => void;
+  errored?: boolean;
 }) {
   if (message.role === 'user') {
     const text = message.parts
@@ -282,13 +420,21 @@ function RenderedMessage({
           (p as { mediaType: string }).mediaType.startsWith('image'),
       )
       .map((p) => p as { url: string; filename?: string; mediaType: string });
+    const trimmed = text.trim();
     const bubble: ChatMessage = {
       id: message.id,
       role: 'user',
       // Trim the whitespace placeholder we send when the user attaches images
-      // with no text so the bubble doesn't render a bare space.
-      content: text.trim(),
+      // with no text so the bubble doesn't render a bare space. If the user
+      // sends attachments only, fall back to a semantic label so the bubble
+      // still reads.
+      content: trimmed.length > 0
+        ? trimmed
+        : images.length > 0
+          ? ''
+          : '',
       reasoning: '',
+      timestampMs,
       attachments: images.map((img) => ({
         url: img.url,
         filename: img.filename,
@@ -313,7 +459,15 @@ function RenderedMessage({
     role: 'assistant',
     content: text,
     reasoning,
-    streaming: streaming && text.length === 0,
+    // Cursor blinks whenever the message is the actively-streaming one — the
+    // MessageBubble renders it INLINE at the end of the visible text, so the
+    // token stream feels alive.
+    streaming,
+    timestampMs,
+    onRegenerate,
+    onContinue,
+    onRetry,
+    errored,
   };
 
   const toolParts = message.parts.filter(
@@ -322,7 +476,7 @@ function RenderedMessage({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-      {(text.length > 0 || reasoning.length > 0 || bubble.streaming || toolParts.length === 0) && (
+      {(text.length > 0 || reasoning.length > 0 || streaming || toolParts.length === 0) && (
         <MessageBubble message={bubble} />
       )}
       {toolParts.map((p, idx) => {
@@ -369,41 +523,41 @@ function EmptyState({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-4) 0',
+        gap: 'var(--space-4)',
+        padding: embedded ? 'var(--space-2) 0' : 'var(--space-6) 0',
       }}
     >
-      <p className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-        {embedded
-          ? 'Ask about your day, swap ingredients, or log from your plan — the copilot has your macros in view.'
-          : 'Ask across every mini-app you use. I can also log meals, water, weight, and start a pomodoro on your behalf.'}
-      </p>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-2)',
-        }}
-      >
+      {!embedded && (
+        <div>
+          <div className="label" style={{ marginBottom: 'var(--space-2)' }}>
+            ◐ COPILOT
+          </div>
+          <h1 className="display-md" style={{ marginBottom: 'var(--space-2)' }}>
+            What can I do?
+          </h1>
+          <p
+            className="caption"
+            style={{ color: 'var(--color-text-secondary)', maxWidth: 420 }}
+          >
+            Ask across every mini-app. I can log meals, water, weight, start a
+            pomodoro, and see your macros.
+          </p>
+        </div>
+      )}
+      {embedded && (
+        <p className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+          Ask about your day, swap ingredients, or log from your plan — the
+          copilot has your macros in view.
+        </p>
+      )}
+      <div className="nsa-prompt-grid">
         {prompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
             disabled={disabled}
-            onClick={() => onPick(prompt)}
-            style={{
-              textAlign: 'left',
-              padding: 'var(--space-3) var(--space-4)',
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border-visible)',
-              borderRadius: 'var(--radius-card)',
-              color: 'var(--color-text-primary)',
-              fontFamily: 'var(--font-body)',
-              fontSize: 'var(--text-body-sm)',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              transition:
-                'border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out)',
-            }}
+            onClick={() => onPick(prompt.replace(/^◐\s*/, ''))}
+            className="nsa-prompt-card"
           >
             {prompt}
           </button>
