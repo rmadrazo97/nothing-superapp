@@ -2,6 +2,20 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-08-09 — Calorie Lite v3: MyFitnessPal-tier parity in one session
+
+Three parallel workers, one commit (`ff71fbe`), zero hex codes.
+
+**Foundation (migration 005, already applied):** `foods` (153 curated rows across 8 categories), `custom_foods`, `custom_meals`, `weight_entries`, `water_entries`. Extended `app_calorie_entries` with fiber/sugar/sodium/cholesterol + `food_id`/`custom_food_id`/`serving_qty`/`serving_unit`. Extended `preferences` with `macro_goal_pct` (jsonb sum-to-100), `water_goal_ml`, `weight_goal_kg`, `weight_unit`, `volume_unit`.
+
+**Wave A — ADD MEAL rewrite (SEARCH · CUSTOM · QUICK LOG).** 250ms-debounced food search with category chips, tap → quantity picker (serving or grams) with live macro preview. Custom foods CRUD scoped by RLS. QUICK LOG preserved for backward compat. MEAL SLOT hoisted above tabs so it persists across all three flows.
+
+**Wave B — WATER + WEIGHT sub-mini-apps.** Water: Doto counter vs goal, cadmium progress bar, +250/+500/+750/custom (ml or oz), 7-day trend. Weight: latest weight vs goal, ▲/▼ vs last week (green toward goal / red away), inline SVG 30-day chart with dashed goal line. All unit conversion in the UI — DB stays canonical kg/ml.
+
+**Wave C — MACROS · REPORTS · CUSTOM MEALS.** Settings gets a MacroGoalEditor with live grams-from-calories + sum-to-100 gate. REPORTS tab has weekly summary vs last week, SVG bars vs target, macros-vs-goal rows (protein flips red if <80% avg), nutrition breakdown, cleanest vs heaviest day cards. Custom meals snapshot today's entries into a reusable template; +ADD replays them into today with the picked slot.
+
+**Angle:** three isolated workers hit the same page and same shared-schemas file with zero merge conflicts because the shared surfaces were locked as add-only conventions upfront (tabs in alphabetical order, PATCH allow-list extension only, no removals). The pattern that keeps parallel dev loops from becoming manual rebases. Screen-record clip idea: side-by-side of "commit ff71fbe = 3 workers" vs the diff.
+
 ## 2026-08-08 14:10 — 1,324 exercises seeded
 
 - Downloaded MIT-licensed dataset (media © Gym visual, attribution required)
