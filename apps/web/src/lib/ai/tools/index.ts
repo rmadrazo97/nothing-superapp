@@ -22,6 +22,11 @@ import { makeStartPomodoroTool } from './start-pomodoro';
 import { makeCreateGymRoutineTool } from './create-gym-routine';
 import { makeGetGymRoutineTool } from './get-gym-routine';
 import { makeListGymRoutinesTool } from './list-gym-routines';
+// meal plans v1 — nutritionist-style structured plans (migration 012)
+import { makeCreateMealPlanTool } from './create-meal-plan';
+import { makeGetMealPlanTool } from './get-meal-plan';
+import { makeListMealPlansTool } from './list-meal-plans';
+import { makeLogMealFromPlanTool } from './log-meal-from-plan';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
 // hand-written wins on semantic clarity ("log_water"), framework fills the
@@ -42,6 +47,11 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     create_gym_routine: makeCreateGymRoutineTool(userId, supabase),
     get_gym_routine: makeGetGymRoutineTool(userId, supabase),
     list_gym_routines: makeListGymRoutinesTool(userId, supabase),
+    // meal plans v1 (add-only) — nutritionist-style plans w/ options + rules
+    create_meal_plan: makeCreateMealPlanTool(userId, supabase),
+    get_meal_plan: makeGetMealPlanTool(userId, supabase),
+    list_meal_plans: makeListMealPlansTool(userId, supabase),
+    log_meal_from_plan: makeLogMealFromPlanTool(userId, supabase),
     // framework-generated (calorie_lite_*, pomodoro_*, ...)
     ...resourceTools(userId, supabase),
   };
