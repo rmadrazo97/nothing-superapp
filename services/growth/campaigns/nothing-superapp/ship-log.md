@@ -149,3 +149,32 @@ Post-deploy checklist:
 - ⏳ Custom domain
 - ⏳ Real subscription smoke test on live URL
 
+
+## 2026-08-09 14:35 — end-to-end QA on live production
+
+Walked every surface on https://nothing-superapp.vercel.app as jmadrazo7. Everything works. Two bugs caught + fixed live during the sweep, then re-verified after redeploy.
+
+**Surfaces verified on live:**
+- Login page (magic-link + Google buttons, Terms/Privacy footer)
+- Google OAuth end-to-end (account picker → consent → callback → /app)
+- Paywall (entitled state shows "You're subscribed · renews Sep 9")
+- /app grid (4 tiles: calorie-lite, more soon, gym, pomodoro + first-run hint)
+- Calorie Lite: added a real meal ("Chicken burrito bowl · 720 kcal · 48p/72c/22f") — big Doto number, macro card, streak chip flipped "NO STREAK YET" → "1 DAY STREAK"
+- Gym Routine: 1,324 exercises browsable, real Gym Visual anatomy illustrations rendering on the dark theme
+- Pomodoro: 25:00 focus screen, cadmium red Start button
+- Assistant / Copilot: Kimi K2 streaming with reasoning disclosure. Asked "How am I tracking..." and it cited the burrito bowl BY NAME + 720/48/72/22 exact numbers + honestly said preferences.daily_calorie_goal is null so it can't compare to target
+- Settings: profile save works, preferences displayed, subscription card + Manage button, Sign out
+- Legal /terms + /privacy: render clean
+
+**Bugs caught + fixed:**
+1. **Mini-app registry** — `/app` showed 0 tiles on Vercel. Root cause: fs.readdir couldn't find apps/mini-apps in serverless bundle. Fixed by switching to static import list (commit `d18d1a0`).
+2. **Profile save 500** — Save Profile in Settings threw "db_error". Root cause: no `profiles` row for Google-OAuth users (auth callback tried to insert non-existent columns). Fixed with:
+   - Migration 004 — DB trigger `on_auth_user_created` auto-creates profile rows
+   - Backfilled 2 pre-existing users
+   - Callback cleaned up (removed broken upsert)
+   - PATCH switched to upsert so missing rows self-heal
+   Commit `c72e909`. Re-tested after redeploy → "Saved." ✓ → greeting updated to "GOOD AFTERNOON · Alejandro".
+
+**Skill used: `/security-review`** returned no high-confidence findings on the reviewed surfaces. New `/email-template` skill uploaded to PromptVM (`email-template-7e71f33d`) — reusable for any brand that needs branded transactional emails.
+
+Everything a first user could hit works. Ready for real users.
