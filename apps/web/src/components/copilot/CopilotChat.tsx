@@ -23,7 +23,7 @@ import { ToolCallCard } from './ToolCallCard';
  * component so users can peek at the model's chain of thought.
  */
 
-const SUGGESTED_PROMPTS = [
+const DEFAULT_SUGGESTED_PROMPTS = [
   'Log a coffee with 40 kcal',
   "What's my calorie streak?",
   'How am I tracking today?',
@@ -31,7 +31,29 @@ const SUGGESTED_PROMPTS = [
 
 const TAB_BAR_CLEARANCE = 92;
 
-export function CopilotChat() {
+export interface CopilotChatProps {
+  /**
+   * Optional scope hint sent to `/api/copilot` as `body.context`. When set to
+   * a known scope (e.g. `'calorie-lite'`) the server prepends a scoped system
+   * prompt + injects a mini-app-specific data snapshot. Omit for the default
+   * cross-mini-app assistant.
+   */
+  context?: string;
+  /** Replace the default empty-state prompt chips. */
+  suggestedPrompts?: readonly string[];
+  /**
+   * "standalone" (default) uses the fixed-position bottom composer + tab-bar
+   * clearance that the /copilot page needs. "embedded" makes the composer
+   * flow with the container so it plays nicely inside a drawer.
+   */
+  layout?: 'standalone' | 'embedded';
+}
+
+export function CopilotChat({
+  context,
+  suggestedPrompts,
+  layout = 'standalone',
+}: CopilotChatProps = {}) {
   const [input, setInput] = useState('');
   const [uiError, setUiError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -40,8 +62,11 @@ export function CopilotChat() {
     () =>
       new DefaultChatTransport({
         api: '/api/copilot',
+        // Forwarded on every request body — the route handler reads
+        // `body.context` and appends a scoped system-prompt block.
+        body: context ? { context } : undefined,
       }),
-    [],
+    [context],
   );
 
   const { messages, sendMessage, status, error, clearError } = useChat({
@@ -112,22 +137,29 @@ export function CopilotChat() {
   );
 
   const isEmpty = messages.length === 0;
+  const embedded = layout === 'embedded';
+  const prompts = suggestedPrompts ?? DEFAULT_SUGGESTED_PROMPTS;
 
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: `calc(100vh - var(--space-6) - ${TAB_BAR_CLEARANCE}px)`,
+        minHeight: embedded
+          ? 0
+          : `calc(100vh - var(--space-6) - ${TAB_BAR_CLEARANCE}px)`,
+        flex: embedded ? 1 : undefined,
         position: 'relative',
       }}
     >
-      <header style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="label" style={{ marginBottom: 'var(--space-1)' }}>
-          Copilot
-        </div>
-        <h1 className="display-md">Assistant</h1>
-      </header>
+      {!embedded && (
+        <header style={{ marginBottom: 'var(--space-4)' }}>
+          <div className="label" style={{ marginBottom: 'var(--space-1)' }}>
+            Copilot
+          </div>
+          <h1 className="display-md">Assistant</h1>
+        </header>
+      )}
 
       <div
         ref={scrollerRef}
@@ -138,11 +170,16 @@ export function CopilotChat() {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--space-3)',
-          paddingBottom: 'var(--space-4)',
+          paddingBottom: embedded ? 'var(--space-3)' : 'var(--space-4)',
         }}
       >
         {isEmpty ? (
-          <EmptyState onPick={(prompt) => setInput(prompt)} disabled={busy} />
+          <EmptyState
+            prompts={prompts}
+            onPick={(prompt) => setInput(prompt)}
+            disabled={busy}
+            embedded={embedded}
+          />
         ) : (
           messages.map((m) => (
             <RenderedMessage
@@ -173,23 +210,11 @@ export function CopilotChat() {
         </div>
       )}
 
-      <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: TAB_BAR_CLEARANCE,
-          zIndex: 30,
-          background:
-            'linear-gradient(to bottom, transparent, var(--color-bg) 40%)',
-          paddingTop: 'var(--space-4)',
-        }}
-      >
+      {embedded ? (
         <div
           style={{
-            maxWidth: 480,
-            margin: '0 auto',
-            padding: '0 var(--space-4) var(--space-2)',
+            paddingTop: 'var(--space-3)',
+            borderTop: '1px solid var(--color-border)',
           }}
         >
           <Composer
@@ -199,7 +224,35 @@ export function CopilotChat() {
             busy={busy}
           />
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: TAB_BAR_CLEARANCE,
+            zIndex: 30,
+            background:
+              'linear-gradient(to bottom, transparent, var(--color-bg) 40%)',
+            paddingTop: 'var(--space-4)',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 480,
+              margin: '0 auto',
+              padding: '0 var(--space-4) var(--space-2)',
+            }}
+          >
+            <Composer
+              value={input}
+              onChange={setInput}
+              onSend={(attachments) => send(input, attachments)}
+              busy={busy}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -303,9 +356,13 @@ function RenderedMessage({
 function EmptyState({
   onPick,
   disabled,
+  prompts,
+  embedded,
 }: {
   onPick: (prompt: string) => void;
   disabled: boolean;
+  prompts: readonly string[];
+  embedded: boolean;
 }) {
   return (
     <div
@@ -317,8 +374,9 @@ function EmptyState({
       }}
     >
       <p className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-        Ask across every mini-app you use. I can also log meals, water, weight,
-        and start a pomodoro on your behalf.
+        {embedded
+          ? 'Ask about your day, swap ingredients, or log from your plan — the copilot has your macros in view.'
+          : 'Ask across every mini-app you use. I can also log meals, water, weight, and start a pomodoro on your behalf.'}
       </p>
       <div
         style={{
@@ -327,7 +385,7 @@ function EmptyState({
           gap: 'var(--space-2)',
         }}
       >
-        {SUGGESTED_PROMPTS.map((prompt) => (
+        {prompts.map((prompt) => (
           <button
             key={prompt}
             type="button"

@@ -35,6 +35,7 @@ import {
 // straight into the shell without duplicating state.
 import { useToast } from '../../web/src/lib/toast/context';
 import { MiniAppSettingsButton } from '../../web/src/components/mini-apps/MiniAppSettingsButton';
+import { CopilotDrawerTrigger } from '../../web/src/components/copilot/CopilotDrawerTrigger';
 import { REOPEN_ONBOARDING_EVENT } from './settings.tsx';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
@@ -73,6 +74,15 @@ const MEAL_OPTIONS: { id: Meal; label: string }[] = [
 // so the progress bar communicates "you have no target set" rather than
 // "you're doing great" — 2000 kcal is a neutral default, not a prescription.
 const DEFAULT_DAILY_GOAL_KCAL = 2000;
+
+// Chips shown inside the copilot drawer's empty state — scoped to the three
+// smart-tool superpowers the copilot has here (fit-to-macros, swap, log from
+// plan). Kept short + verby so users can tap-and-send.
+const CALORIE_LITE_COPILOT_PROMPTS = [
+  'Suggest a lunch that fits my remaining macros',
+  'I have chicken but no rice — what can I swap?',
+  'Log breakfast option 4 from my plan today',
+] as const;
 
 /** HH:MM for a timestamp — matches the Space Mono `.data` style. */
 function toLocalTime(iso: string): string {
@@ -379,6 +389,11 @@ function Header({
               ◐ Set up profile
             </button>
           )}
+          <CopilotDrawerTrigger
+            context="calorie-lite"
+            scopeLabel="Calorie Lite"
+            suggestedPrompts={CALORIE_LITE_COPILOT_PROMPTS}
+          />
           <StreakChip current={streak} />
           <MiniAppSettingsButton slug="calorie-lite" title="Calorie Lite" />
         </div>
