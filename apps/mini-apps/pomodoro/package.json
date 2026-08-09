@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./manifest": "./manifest.ts",
-    "./page": "./page.tsx"
+    "./page": "./page.tsx",
+    "./resources": "./resources.ts"
   },
   "dependencies": {
     "@nothing/mini-apps-runtime": "workspace:*",

@@ -24,3 +24,9 @@ export {
   type EmptyStateAction,
   type EmptyStateProps,
 } from './EmptyState.tsx';
+
+export {
+  useResource,
+  type UseResourceOptions,
+  type UseResourceResult,
+} from './useResource.ts';

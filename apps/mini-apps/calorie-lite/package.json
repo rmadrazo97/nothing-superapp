@@ -6,7 +6,8 @@
   "exports": {
     "./manifest": "./manifest.ts",
     "./page": "./page.tsx",
-    "./settings": "./settings.tsx"
+    "./settings": "./settings.tsx",
+    "./resources": "./resources.ts"
   },
   "dependencies": {
     "@nothing/mini-apps-runtime": "workspace:*",
