@@ -13,14 +13,14 @@ import { defineMiniApp } from '@nothing/mini-apps-runtime';
  * under /api/mini-apps/gym-routine/* (mirrors the calorie-lite pattern:
  * 402 on unentitled call as defence-in-depth).
  *
- * Icon `◈` — a Unicode geometric black diamond; sits alongside the
- * calorie-lite `◐` and pomodoro `◔` shapes without leaning on emoji.
+ * v0.5.1: launcher tile icons standardised on emoji (see project memo
+ * feedback_ns_tile_icons_use_emoji). 🏋️ = weight lifter = gym.
  */
 export default defineMiniApp({
   slug: 'gym-routine',
   name: 'Gym',
   description: 'Build routines. Log every set. Rest on the clock.',
-  icon: '◈',
+  icon: '🏋️',
   route: '/app/gym-routine',
   requiresSubscription: true,
 });

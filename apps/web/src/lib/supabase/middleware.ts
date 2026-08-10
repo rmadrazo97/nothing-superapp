@@ -30,10 +30,15 @@ const AUTH_HOME = '/app';
 const LOGIN_PATH = '/login';
 const PAYWALL_PATH = '/paywall';
 
-// Prefixes that require an authenticated session. `/paywall` is included so
-// unauthenticated visitors get bounced to /login instead of hitting a page
-// that would immediately try to POST to the auth-gated Stripe endpoint.
-const PROTECTED_PREFIXES = ['/app', '/paywall'];
+// Prefixes that require an authenticated session.
+//
+// v0.5.1: `/paywall` was removed from this list — since the marketing
+// landing lives at `/` and at `/paywall` for signed-out users (Bug #1),
+// unauthenticated visitors need to be able to view the paywall page. The
+// paywall route itself decides what to render based on the session cookie
+// (marketing copy for signed-out, Stripe CTA for signed-in). The Stripe
+// endpoint remains behind auth on the API side.
+const PROTECTED_PREFIXES = ['/app'];
 
 // Public paths that a signed-in user should be bounced off of.
 const AUTHED_ONLY_BOUNCE = ['/login'];
@@ -109,7 +114,13 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtected(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = LOGIN_PATH;
-    redirectUrl.searchParams.set('next', pathname);
+    // Preserve the full original path AND its query string so a
+    // deep-link like /app/calorie-lite?tab=reports comes back exactly
+    // as-typed after sign-in. The auth callback validates the value
+    // with `safeNext` before honouring it (open-redirect defence).
+    const originalSearch = request.nextUrl.search ?? '';
+    redirectUrl.search = '';
+    redirectUrl.searchParams.set('next', `${pathname}${originalSearch}`);
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -65,7 +65,7 @@ export default function HistoryPage() {
         <span className="label">HISTORY</span>
         <Link href="/app/gym-routine" style={{ textDecoration: 'none' }}>
           <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-            ← Back
+            ← BACK
           </span>
         </Link>
       </div>

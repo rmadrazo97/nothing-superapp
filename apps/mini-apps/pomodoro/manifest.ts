@@ -14,7 +14,9 @@ export default defineMiniApp({
   slug: 'pomodoro',
   name: 'Pomodoro',
   description: 'Focus in cycles. Log the sessions you finish.',
-  icon: '◔',
+  // v0.5.1: launcher tile icons standardised on emoji (see project memo
+  // feedback_ns_tile_icons_use_emoji). 🍅 = tomato = pomodoro.
+  icon: '🍅',
   route: '/app/pomodoro',
   requiresSubscription: true,
 });

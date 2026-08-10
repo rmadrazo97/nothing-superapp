@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { Suspense, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { safeNext } from '@/lib/safe-next';
 
 type Status =
   | { kind: 'idle' }
@@ -12,9 +14,39 @@ type Status =
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
+/**
+ * Build the auth callback URL, threading `?next=<path>` through so the
+ * post-auth handler lands the user back on the page they were trying to
+ * reach (e.g. a deep-link into /app/calorie-lite?tab=reports that the
+ * Proxy bounced). Passes through `safeNext` first to reject open-redirect
+ * attempts. Kept lean so the auth-callback route stays the single place
+ * that validates + honours the value.
+ */
+function buildCallbackUrl(nextParam: string | null): string {
+  const next = safeNext(nextParam);
+  const base = `${APP_URL}/auth/callback`;
+  // `safeNext` returns `/app` for missing/invalid input — no reason to
+  // round-trip that through the URL, it's the default on the far side too.
+  return next === '/app' ? base : `${base}?next=${encodeURIComponent(next)}`;
+}
+
+// Next 16 requires any `useSearchParams()` caller to sit under a
+// <Suspense> boundary so the shell can prerender without blocking on
+// query-string hydration. The exported LoginPage is a thin wrapper.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get('next');
+  const callbackUrl = useMemo(() => buildCallbackUrl(nextParam), [nextParam]);
 
   const sendMagicLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -23,7 +55,7 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${APP_URL}/auth/callback` },
+      options: { emailRedirectTo: callbackUrl },
     });
     if (error) {
       setStatus({ kind: 'error', message: error.message });
@@ -37,7 +69,7 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${APP_URL}/auth/callback` },
+      options: { redirectTo: callbackUrl },
     });
     if (error) {
       setStatus({ kind: 'error', message: error.message });

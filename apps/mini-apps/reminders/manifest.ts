@@ -15,7 +15,9 @@ export default defineMiniApp({
   slug: 'reminders',
   name: 'Reminders',
   description: 'Reminders and agent loops.',
-  // ⏰ renders reliably on iOS Safari 17+ (verified). Nothing-OS-adjacent.
+  // ⏰ renders reliably on iOS Safari 17+ (verified). Emoji tile icons are
+  // the locked launcher direction (see project memo:
+  // feedback_ns_tile_icons_use_emoji — do NOT unify to flat glyphs).
   icon: '⏰',
   route: '/app/reminders',
   requiresSubscription: true,

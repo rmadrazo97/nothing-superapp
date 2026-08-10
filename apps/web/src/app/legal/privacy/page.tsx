@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { APP_VERSION } from '@/lib/version';
 
 export const metadata: Metadata = { title: 'Privacy Policy' };
 
@@ -8,7 +9,7 @@ export default function PrivacyPage() {
       <header>
         <h1 className="display-md" style={{ margin: 0 }}>Privacy Policy</h1>
         <p className="caption" style={{ margin: 0, marginTop: 'var(--space-2)' }}>
-          Version 0.3 · Effective 2026-08-08
+          Version {APP_VERSION} · Effective 2026-08-10
         </p>
       </header>
 
@@ -41,8 +42,10 @@ export default function PrivacyPage() {
             notifications toggle.
           </li>
           <li>
-            <strong>Chat messages</strong> — copilot conversations are NOT
-            persisted server-side in v0.3. Each session starts fresh.
+            <strong>Chat messages</strong> — copilot conversations are
+            persisted server-side (row-level security means only your
+            session can read your threads). Delete a thread from the
+            assistant drawer to remove it permanently.
           </li>
         </ul>
 
@@ -51,7 +54,7 @@ export default function PrivacyPage() {
         </h2>
         <ul>
           <li>Cookies for advertising. We use only auth-session cookies.</li>
-          <li>Analytics fingerprints. No PostHog / Mixpanel / Google Analytics in v0.3.</li>
+          <li>Analytics fingerprints. No PostHog / Mixpanel / Google Analytics.</li>
           <li>Device identifiers beyond what your browser normally sends.</li>
           <li>Location data.</li>
         </ul>
@@ -107,7 +110,7 @@ export default function PrivacyPage() {
       </section>
 
       <p className="caption" style={{ textAlign: 'center', marginTop: 'var(--space-8)' }}>
-        This is a v0.3 placeholder. A full legal review by counsel is scheduled before v1.0.
+        This is a founder-authored policy. A full legal review by counsel is scheduled before v1.0.
       </p>
     </article>
   );

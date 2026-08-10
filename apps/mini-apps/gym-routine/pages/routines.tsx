@@ -14,7 +14,7 @@ import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
-import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
+import { cardStyle, ghostButtonStyle } from '../lib/ui.ts';
 import { toDateLabel } from '../lib/format.ts';
 
 export default function RoutinesPage() {
@@ -76,18 +76,31 @@ export default function RoutinesPage() {
         <span className="label">ROUTINES</span>
         <Link href="/app/gym-routine" style={{ textDecoration: 'none' }}>
           <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-            ← Back
+            ← BACK
           </span>
         </Link>
       </div>
 
+      {/* v0.5.1: shrunk to ghost variant with tight padding — the primary
+          cadmium fill at full padding read as a hero CTA and dominated the
+          screen, even though the empty-state also has a "+ NEW ROUTINE"
+          button. Ghost + `alignSelf: flex-start` matches the density of the
+          reminders header. */}
       <button
         type="button"
         onClick={createNew}
         disabled={busy}
-        style={{ ...primaryButtonStyle, alignSelf: 'flex-start' }}
+        style={{
+          ...ghostButtonStyle,
+          alignSelf: 'flex-start',
+          padding: 'var(--space-2) var(--space-4)',
+          minHeight: 36,
+          fontSize: 'var(--text-caption)',
+          color: 'var(--color-accent)',
+          borderColor: 'var(--color-accent)',
+        }}
       >
-        + New routine
+        + NEW ROUTINE
       </button>
 
       {error && (
@@ -104,7 +117,7 @@ export default function RoutinesPage() {
           title="No saved routines"
           body="Save exercises as routines to re-use them across sessions."
           primaryAction={{
-            label: '+ New routine',
+            label: '+ NEW ROUTINE',
             onClick: () => void createNew(),
             ariaLabel: 'Create a new routine',
           }}

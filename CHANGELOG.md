@@ -4,6 +4,34 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.1] — 2026-08-10 — Bug sweep + emoji tile icons + Fitness Pal rename + nav SVGs + REQUEST APP
+
+A polish + small-features release. No new mini-apps; a lot more feel.
+
+### Added
+- **Public marketing landing at `/`** — signed-out visitors now see product + tile list + Sign in CTA rather than the bare magic-link form. Signed-in users still bounce straight to `/app`.
+- **REQUEST AN APP** — dashed-outline strip below the launcher opens a modal for user asks. Backed by migration 019 (`app_requests` — owner-only INSERT, no SELECT policy; reads via Supabase Studio). API route `/api/app-requests` POST, rate-limited to 5/day/user via `lib/rate-limit.ts`. Confirmation state ("Thanks — noted. Alex reviews these weekly.") auto-closes after 4s.
+- **Ingredient resolver** (`apps/web/src/lib/foods/resolve-ingredient.ts`, migration 018 `food_aliases`) — three-pass Spanish→English + pg_trgm fuzzy lookup. Wired into `log-meal` so plan ingredients without a `food_id` still land with real macros. Seeds cover the Diet Jam v1 planner vocabulary.
+- **Unresolved calorie-entry affordance** — rows that landed at 0 kcal + no macros now render an "◐ NO MACROS" tag with a cadmium accent border on the left, plus an explicit hint to tap ✎ EDIT. Replaces the silent-blank-right-side that made users think the row was mid-load.
+
+### Changed
+- **Rename Calorie Lite → Fitness Pal** — manifest `name`, in-app header label, copilot scope label, and Settings sheet title. Slug + route + API paths stay `calorie-lite` so live user bookmarks + copilot memories still work.
+- **Launcher tile icons standardized on emoji** — 🍽️ Fitness Pal, 🏋️ Gym, 🍅 Pomodoro, ⏰ Reminders (already), ✨ More soon. Chrome (nav bar) stays SVG. This is a locked design direction — see `feedback_ns_tile_icons_use_emoji.md`.
+- **Nav bar SVG icons** in `apps/web/src/components/shell/TabBar.tsx` — inline 16×16 `currentColor` icons: 4-point spark for Assistant, 2×2 dot grid for Home, 3 horizontal sliders with dot knobs for Settings. Replaces the tiny cadmium underline dot.
+- **MORE SOON tile** — full-width dashed-outline strip at the bottom of the launcher grid (was a locked square in the corner). ✨ emoji.
+- **`+ NEW ROUTINE` and `+ NEW REMINDER`** — shrunk from cadmium-fill hero CTAs to compact cadmium-ghost variants (`padding: var(--space-2) var(--space-4)`, `minHeight: 36`, caption-size text). Copy uppercased.
+- **`← Back` → `← BACK`** everywhere (gym-routine routines, exercises, exercise-detail, routine-editor, history).
+- **Pomodoro + MiniAppSettings cog** — `⚙` swapped for `⚙︎` (U+FE0E variation-selector-15) so Safari renders a text glyph instead of the macOS colored gear graphic.
+- **Auth `?next=` preservation** — login page now reads `?next` from the URL and threads it through both `signInWithOtp.emailRedirectTo` and `signInWithOAuth.redirectTo`. `safeNext` allow-list defends the callback against open-redirects. Middleware already preserved `pathname + search` in the redirect to `/login`.
+- **`/paywall` public** — no longer bounces signed-out visitors to `/login`; renders the marketing view + Subscribe CTA. Auth still required for the Stripe checkout API.
+- **Privacy page** — reflects that copilot chats ARE persisted (with RLS + a delete affordance in the thread drawer), version + effective date sourced from `APP_VERSION`.
+
+### Fixed
+- **Streak chip overflow** (Bug #7) — on ≤430px viewports, LONGEST / N/30 sub-rows collapse via a11y-only clipping so the ⚙ cog stays on-screen. Cog gets `flex-shrink: 0`; streak chip is the shrinkable member.
+
+### Ship note
+- Filed at `services/growth/campaigns/nothing-superapp/ship-log/0.5.1.md` — includes the emoji-direction pivot as a lesson (worker attempted to unify to flat glyphs; user reversed).
+
 ## [0.5.0] — 2026-08-10 — Assistant + Reminders + agent loops
 
 Copilot becomes a real chat, and reminders become agent loops.

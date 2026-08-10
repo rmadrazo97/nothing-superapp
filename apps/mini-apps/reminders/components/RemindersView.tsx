@@ -115,31 +115,35 @@ export default function RemindersView({ view }: { view: View }) {
         </div>
       )}
 
+      {/* v0.5.1: shrunk from a filled cadmium hero-CTA button to a compact
+          ghost variant — the previous size dominated the tab strip. Same
+          density as the ← BACK link across mini-app subpages. */}
       <button
         type="button"
         onClick={() => setFormOpen((o) => !o)}
         style={{
-          background: 'var(--color-accent)',
-          color: 'var(--color-on-accent, #000)',
-          border: 0,
-          padding: 'var(--space-3) var(--space-4)',
+          background: 'transparent',
+          color: 'var(--color-accent)',
+          border: '1px solid var(--color-accent)',
+          padding: 'var(--space-2) var(--space-4)',
           borderRadius: 'var(--radius-button)',
           fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
+          fontSize: 'var(--text-caption)',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           cursor: 'pointer',
           alignSelf: 'flex-start',
+          minHeight: 36,
         }}
       >
-        {formOpen ? '× Close' : '+ New reminder'}
+        {formOpen ? '× CLOSE' : '+ NEW REMINDER'}
       </button>
 
       {formOpen && <NewReminderForm onSubmit={onCreate} onCancel={() => setFormOpen(false)} />}
 
       {reminders.isLoading && <Muted>Loading…</Muted>}
       {!reminders.isLoading && rows.length === 0 && (
-        <Muted>No reminders yet. Tap “+ New reminder” to start.</Muted>
+        <Muted>No reminders yet. Tap “+ NEW REMINDER” to start.</Muted>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>

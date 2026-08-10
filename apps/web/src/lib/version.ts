@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.5.1';
 export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,21 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.1',
+    date: '2026-08-10',
+    highlights: [
+      'Fitness Pal — Calorie Lite renamed to Fitness Pal now that it covers meals + macros + water + weight (slug + API paths unchanged, so live bookmarks keep working).',
+      'Launcher tile emoji — 🍽️ Fitness Pal, 🏋️ Gym, 🍅 Pomodoro, ⏰ Reminders, ✨ More soon. Emoji direction is intentional (chrome vs. product).',
+      'Nav bar SVG icons — 4-point spark for Assistant, 2×2 dot grid for Home, 3 sliders for Settings. Minimalist stroke, currentColor.',
+      'Public marketing landing at / — signed-out visitors now see product + tile list + Sign in CTA instead of the bare magic-link form.',
+      'REQUEST AN APP — dashed-outline strip below the launcher opens a modal for user asks (max 500 chars, rate-limited to 5/day/user). Alex reviews the queue weekly.',
+      'Ingredient resolver — plan ingredients in Spanish (or with typos) now resolve to real macros via a curated food_aliases table + pg_trgm fuzzy fallback. Fixes zero-kcal rows on meal-plan logs.',
+      'Unresolved calorie rows — show an "◐ NO MACROS" tag + cadmium accent instead of a blank right side; explicit invitation to tap ✎ EDIT.',
+      'Auth ?next= preservation — deep-linked URLs (e.g. /paywall?ref=promo) round-trip cleanly through sign-in via a same-origin allow-list. Open-redirect safe.',
+      'Bug fixes — streak chip no longer pushes the ⚙ cog off-screen on narrow iPhones; ← Back links are ← BACK everywhere; + NEW ROUTINE / + NEW REMINDER shrunk from hero fills to ghost variants; text-glyph gear (⚙︎) instead of the macOS colored graphic; Privacy page copy updated (chat is persisted).',
+    ],
+  },
   {
     version: '0.5.0',
     date: '2026-08-10',

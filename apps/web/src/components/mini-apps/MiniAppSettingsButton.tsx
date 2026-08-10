@@ -81,7 +81,9 @@ export function MiniAppSettingsButton({
           e.currentTarget.style.borderColor = 'var(--color-border-visible)';
         }}
       >
-        <span aria-hidden="true">⚙</span>
+        {/* U+FE0E forces text-glyph presentation so we don't render the
+            macOS/iOS colored gear graphic (v0.5.1 bug #12). */}
+        <span aria-hidden="true">{'⚙︎'}</span>
       </button>
       <MiniAppSettingsSheet
         slug={slug}

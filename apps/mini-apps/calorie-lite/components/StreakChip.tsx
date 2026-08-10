@@ -116,6 +116,7 @@ export function StreakChip({ current }: { current: number }) {
   return (
     <div
       aria-label={`Current streak: ${currentStreak} days, longest ${longest} days, ${monthCount} days this month`}
+      className="nsa-streak-chip"
       style={{
         display: 'inline-flex',
         flexDirection: 'column',
@@ -125,7 +126,11 @@ export function StreakChip({ current }: { current: number }) {
         border: `1px solid ${atBest ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
         borderRadius: 'var(--radius-card)',
         background: 'rgba(0, 0, 0, 0.5)',
-        minWidth: 88,
+        // Shrinkable so the ⚙ cog next to it always fits — the extra
+        // rows collapse via a11y-only visibility on ≤430px viewports
+        // (see .nsa-streak-longest / .nsa-streak-month in globals.css).
+        minWidth: 0,
+        maxWidth: '100%',
       }}
     >
       <div
@@ -170,7 +175,7 @@ export function StreakChip({ current }: { current: number }) {
         </span>
       </div>
       <span
-        className="data"
+        className="data nsa-streak-longest"
         style={{
           fontSize: 'var(--text-caption)',
           color: 'var(--color-text-secondary)',
@@ -182,7 +187,7 @@ export function StreakChip({ current }: { current: number }) {
         LONGEST {longest}
       </span>
       <span
-        className="data"
+        className="data nsa-streak-month"
         style={{
           fontSize: 'var(--text-caption)',
           color: 'var(--color-text-disabled)',

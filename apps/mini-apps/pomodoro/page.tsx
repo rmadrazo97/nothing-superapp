@@ -369,7 +369,9 @@ function Header({
             lineHeight: 1,
           }}
         >
-          ⚙
+          {/* U+FE0E forces text-glyph presentation on iOS/macOS so we don't
+              get the colored macOS gear-graphic in Safari (v0.5.1 bug #12). */}
+          {'⚙︎'}
         </button>
       </div>
       <div

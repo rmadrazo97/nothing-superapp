@@ -11,23 +11,31 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { safeNext } from '@/lib/safe-next';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/app';
+  // Validate `next` — must be a same-origin path under the allow-list
+  // (see lib/safe-next). Anything else → /app default. Query string on
+  // `next` is preserved so /paywall?ref=<promo> round-trips intact.
+  const next = safeNext(searchParams.get('next'));
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`);
+    const errUrl = new URL('/login', origin);
+    errUrl.searchParams.set('error', 'missing_code');
+    if (next !== '/app') errUrl.searchParams.set('next', next);
+    return NextResponse.redirect(errUrl);
   }
 
   const supabase = await createClient();
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
   if (exchangeError) {
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(exchangeError.message)}`,
-    );
+    const errUrl = new URL('/login', origin);
+    errUrl.searchParams.set('error', exchangeError.message);
+    if (next !== '/app') errUrl.searchParams.set('next', next);
+    return NextResponse.redirect(errUrl);
   }
 
   // Profile row bootstrapping used to live here as an idempotent upsert, but

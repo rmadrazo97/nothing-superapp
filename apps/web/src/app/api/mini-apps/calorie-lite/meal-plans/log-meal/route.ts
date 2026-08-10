@@ -31,6 +31,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getEntitlement, isEntitled } from '@/lib/entitlement';
+import { resolveIngredient } from '@/lib/foods/resolve-ingredient';
 import {
   mealEnum,
   mealPlanPlanSchema,
@@ -290,6 +291,21 @@ export async function POST(request: Request) {
       }
     }
 
+    // v0.5.1 — fall back to the free-text resolver (Spanish→English +
+    // pg_trgm fuzzy over `foods` + `food_aliases`). Only fires when the
+    // ingredient (a) is measured in grams and (b) still has zero kcal
+    // after the food-ref pass above. Non-gram units stay at 0 like before;
+    // the copilot's smart tools handle them post-log.
+    let resolvedFoodIdForRow: string | null = ing.food_id ?? null;
+    if (ing.unit === 'g' && nutrition.kcal === 0) {
+      const label = ingredientLabel(ing);
+      const resolved = await resolveIngredient(supabase, label).catch(() => null);
+      if (resolved) {
+        nutrition = scaleByGrams(resolved, ing.quantity);
+        resolvedFoodIdForRow = resolved.id;
+      }
+    }
+
     const label = ingredientLabel(ing);
     const qty = ingredientQtyLabel(ing);
     const unresolved = nutrition.kcal === 0 && ing.unit !== 'g';
@@ -303,7 +319,7 @@ export async function POST(request: Request) {
       meal: mealSlot,
       ...nutrition,
       raw_input: rawInput,
-      food_id: ing.food_id ?? null,
+      food_id: resolvedFoodIdForRow,
       custom_food_id: ing.custom_food_id ?? null,
       serving_qty: ing.quantity,
       serving_unit: ing.unit,

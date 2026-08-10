@@ -122,9 +122,32 @@ export function HomeGrid({ miniApps }: { miniApps: MiniAppManifest[] }) {
         // and unpaid users don't see a "you're in!" flash. Handoff in
         // one paint once useEntitlement resolves.
         const entitlementPending = needsSubscription && isLoading;
+        // v0.5.1: the coming-soon placeholder gets a full-width slot at the
+        // end of the grid — an odd number of real tiles + a wink strip
+        // reads better than a lonely square in the bottom corner.
+        const isComingSoon = app.slug === 'coming-soon';
         const classes = ['tile', 'tile-appear'];
         if (showLocked) classes.push('tile-locked');
         if (entitlementPending) classes.push('tile-entitlement-pending');
+        if (isComingSoon) classes.push('tile-coming-soon');
+        // Coming-soon is a "wink" tile: shorter (no forced square), dashed
+        // border, sparkle emoji, spans both columns.
+        const tileStyle: CSSProperties = isComingSoon
+          ? {
+              ...tileBaseStyle,
+              aspectRatio: 'auto',
+              gridColumn: '1 / -1',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              gap: 'var(--space-3)',
+              border: '1px dashed var(--color-border-visible)',
+              opacity: entitlementPending ? undefined : 1,
+            }
+          : {
+              ...tileBaseStyle,
+              opacity: showLocked ? 0.5 : entitlementPending ? undefined : 1,
+            };
         return (
           <Link
             key={app.slug}
@@ -132,8 +155,7 @@ export function HomeGrid({ miniApps }: { miniApps: MiniAppManifest[] }) {
             className={classes.join(' ')}
             // --tile-index feeds the stagger keyframe in globals.css.
             style={{
-              ...tileBaseStyle,
-              opacity: showLocked ? 0.5 : entitlementPending ? undefined : 1,
+              ...tileStyle,
               ['--tile-index' as string]: String(idx),
             }}
             aria-label={

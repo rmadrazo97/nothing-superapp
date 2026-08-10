@@ -284,6 +284,46 @@
   .nsa-send-spin { animation: none; }
 }
 
+/* ── Streak chip compact mode ────────────────────────────────────────
+   Bug #7 (v0.5.1): on narrow iPhone widths the expanded streak chip (big
+   Doto number + LONGEST N + ◐ N/30 THIS MONTH) pushed the ⚙ settings
+   cog off-screen. On <=430px viewports we collapse to just the number so
+   the cog stays visible; the extra rows still render for wider layouts
+   and remain accessible to screen-readers regardless. */
+.nsa-streak-longest,
+.nsa-streak-month {
+  display: inline;
+}
+@media (max-width: 430px) {
+  .nsa-streak-longest,
+  .nsa-streak-month {
+    /* Kept in the DOM (a11y) but visually clipped. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* ── Calorie-lite header — cog priority ──────────────────────────────
+   Cog gets flex-shrink:0 so it never gets pushed off-screen; the streak
+   chip is the shrinkable member of the row. */
+.nsa-calorie-header {
+  flex-wrap: wrap;
+}
+.nsa-calorie-header-actions {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.nsa-calorie-cog {
+  flex-shrink: 0;
+}
+
 /* ── New-messages jump chip ──────────────────────────────────────────
    Appears bottom-right when the user has scrolled up during streaming. */
 .nsa-jump-chip {

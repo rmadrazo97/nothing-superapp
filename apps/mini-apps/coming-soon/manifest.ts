@@ -14,7 +14,10 @@ export default defineMiniApp({
   slug: 'coming-soon',
   name: 'More soon',
   description: 'Additional mini-apps land here as they ship.',
-  icon: '◇',
+  // v0.5.1: launcher tile icons standardised on emoji. ✨ = sparkle =
+  // "something new is coming". Also matches the dashed-outline REQUEST APP
+  // link below the grid.
+  icon: '✨',
   route: '/app/coming-soon',
   requiresSubscription: false,
 });

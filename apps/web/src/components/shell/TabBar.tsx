@@ -1,11 +1,60 @@
 'use client';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
 
-const TABS = [
-  { id: 'assistant', label: 'ASSISTANT', href: '/app/assistant' },
-  { id: 'home',      label: 'HOME',      href: '/app' },
-  { id: 'settings',  label: 'SETTINGS',  href: '/app/settings' },
+// Nav SVG icons — minimalist stroke/fill, `currentColor` so the active/idle
+// text colour drives them without a JS re-render. 16×16 viewBox. Kept inline
+// (no icon library) so the initial nav bar bundle stays a handful of bytes.
+// NOTE: these are chrome (nav), NOT product (tiles) — tiles use emoji. Do
+// not unify the two systems.
+const AssistantIcon = () => (
+  // 4-point spark/star — thin diamond with a slim vertical + horizontal bar.
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M8 1.5 L9.2 6.8 L14.5 8 L9.2 9.2 L8 14.5 L6.8 9.2 L1.5 8 L6.8 6.8 Z"
+      stroke="currentColor"
+      strokeWidth="1.1"
+      strokeLinejoin="round"
+      fill="none"
+    />
+  </svg>
+);
+
+const HomeIcon = () => (
+  // 2×2 dot grid.
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="5" cy="5" r="1.4" fill="currentColor" />
+    <circle cx="11" cy="5" r="1.4" fill="currentColor" />
+    <circle cx="5" cy="11" r="1.4" fill="currentColor" />
+    <circle cx="11" cy="11" r="1.4" fill="currentColor" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  // 3 horizontal sliders with dot knobs. Rows at y=4, 8, 12.
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <line x1="1.5" y1="4" x2="14.5" y2="4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    <circle cx="11" cy="4" r="1.7" fill="currentColor" />
+    <line x1="1.5" y1="8" x2="14.5" y2="8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    <circle cx="5" cy="8" r="1.7" fill="currentColor" />
+    <line x1="1.5" y1="12" x2="14.5" y2="12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    <circle cx="9" cy="12" r="1.7" fill="currentColor" />
+  </svg>
+);
+
+type Tab = {
+  id: 'assistant' | 'home' | 'settings';
+  label: string;
+  href: string;
+  icon: ReactNode;
+};
+
+const TABS: readonly Tab[] = [
+  { id: 'assistant', label: 'ASSISTANT', href: '/app/assistant', icon: <AssistantIcon /> },
+  { id: 'home',      label: 'HOME',      href: '/app',           icon: <HomeIcon /> },
+  { id: 'settings',  label: 'SETTINGS',  href: '/app/settings',  icon: <SettingsIcon /> },
 ] as const;
 
 export function TabBar() {
@@ -40,7 +89,7 @@ export function TabBar() {
             return (
               <Link
                 key={tab.id}
-                href={tab.href}
+                href={tab.href as Route}
                 aria-current={active ? 'page' : undefined}
                 style={{
                   flex: 1,
@@ -59,15 +108,11 @@ export function TabBar() {
                   textTransform: 'uppercase',
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 4,
-                    background: active ? 'var(--color-accent)' : 'transparent',
-                  }}
-                />
+                {/* Icon inherits `currentColor` from the parent Link so the
+                    active/idle state doesn't need extra wiring. */}
+                <span aria-hidden="true" style={{ display: 'inline-flex', lineHeight: 0 }}>
+                  {tab.icon}
+                </span>
                 <span>{tab.label}</span>
               </Link>
             );

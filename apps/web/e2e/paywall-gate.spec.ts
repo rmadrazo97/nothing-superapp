@@ -3,7 +3,6 @@
  *
  * A signed-in-but-UNENTITLED user:
  *   - `/app/calorie-lite` → redirect to `/paywall`
- *   - `/app/coming-soon`  → redirect to `/paywall`
  *   - `/app/assistant`    → allowed (spec: chat is always reachable)
  *   - `/app/settings`     → allowed (billing lives here — must be reachable)
  *   - `/paywall`          → allowed, shows the Subscribe CTA
@@ -27,10 +26,6 @@ test('unentitled user is bounced off gated mini-apps but keeps assistant + setti
 
   // Gated: calorie-lite
   await page.goto('/app/calorie-lite', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/paywall$/);
-
-  // Gated: coming-soon (placeholder mini-app is still requiresSubscription true)
-  await page.goto('/app/coming-soon', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/paywall$/);
 
   // Gated: pomodoro (v0.2 mini-app, requiresSubscription: true)

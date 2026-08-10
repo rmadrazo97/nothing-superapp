@@ -30,13 +30,18 @@ import gymRoutineManifest from '@nothing-mini-apps/gym-routine/manifest';
 import pomodoroManifest from '@nothing-mini-apps/pomodoro/manifest';
 import remindersManifest from '@nothing-mini-apps/reminders/manifest';
 
-const MANIFESTS: MiniAppManifest[] = [
+// v0.5.1: keep the "MORE SOON" tile — the previous worker's remove was
+// reversed. Order is intentionally NOT alphabetical: real mini-apps first
+// (sorted by slug), then the coming-soon placeholder LAST so it reads as a
+// wink at the end of the grid rather than a hole in the middle.
+const REAL_MANIFESTS: MiniAppManifest[] = [
   calorieLiteManifest,
-  comingSoonManifest,
   gymRoutineManifest,
   pomodoroManifest,
   remindersManifest,
 ].sort((a, b) => a.slug.localeCompare(b.slug));
+
+const MANIFESTS: MiniAppManifest[] = [...REAL_MANIFESTS, comingSoonManifest];
 
 /**
  * Returns every installed mini-app's manifest. Callable from Server

@@ -360,6 +360,7 @@ function Header({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
       <div
+        className="nsa-calorie-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -367,8 +368,17 @@ function Header({
           gap: 'var(--space-3)',
         }}
       >
-        <span className="label">CALORIE LITE</span>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+        <span className="label">FITNESS PAL</span>
+        <div
+          className="nsa-calorie-header-actions"
+          style={{
+            display: 'flex',
+            gap: 'var(--space-2)',
+            alignItems: 'center',
+            minWidth: 0,
+            flexShrink: 1,
+          }}
+        >
           {showProfileChip && onOpenWizard && (
             <button
               type="button"
@@ -392,11 +402,15 @@ function Header({
           )}
           <CopilotDrawerTrigger
             context="calorie-lite"
-            scopeLabel="Calorie Lite"
+            scopeLabel="Fitness Pal"
             suggestedPrompts={CALORIE_LITE_COPILOT_PROMPTS}
           />
           <StreakChip current={streak} />
-          <MiniAppSettingsButton slug="calorie-lite" title="Calorie Lite" />
+          {/* Wrapped so we can pin the ⚙ cog with flex-shrink:0 — the
+              streak chip is the shrinkable member of the row (Bug #7). */}
+          <span className="nsa-calorie-cog" style={{ display: 'inline-flex', flexShrink: 0 }}>
+            <MiniAppSettingsButton slug="calorie-lite" title="Fitness Pal" />
+          </span>
         </div>
       </div>
       <div
@@ -1024,6 +1038,12 @@ function EntryRow({
     entry.carbs_g ?? 0,
     entry.fat_g ?? 0,
   );
+  // Bug #9: a row that landed with zero kcal AND zero macros almost always
+  // means the resolver couldn't match the ingredient (Spanish name, custom
+  // wording, offline plan-log). Render an explicit "NO MACROS" affordance
+  // instead of a blank right side, so users see the invitation to tap ✎
+  // EDIT and correct it rather than assuming the row is mid-load.
+  const isUnresolved = (entry.kcal ?? 0) === 0 && !macros;
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -1066,6 +1086,12 @@ function EntryRow({
         gap: 'var(--space-2)',
         padding: 'var(--space-4) 0',
         borderBottom: '1px solid var(--color-border)',
+        // Unresolved rows get a subtle cadmium tint on the left so users
+        // notice the invitation to edit.
+        borderLeft: isUnresolved
+          ? '2px solid var(--color-accent)'
+          : '2px solid transparent',
+        paddingLeft: 'var(--space-2)',
       }}
     >
       <button
@@ -1117,15 +1143,22 @@ function EntryRow({
           <span
             className="data"
             style={{
-              color: 'var(--color-text-display)',
+              color: isUnresolved
+                ? 'var(--color-text-disabled)'
+                : 'var(--color-text-display)',
               fontSize: 'var(--text-body)',
               fontWeight: 700,
               whiteSpace: 'nowrap',
             }}
+            aria-label={
+              isUnresolved
+                ? 'Not resolved — tap edit to add macros'
+                : undefined
+            }
           >
-            {entry.kcal.toLocaleString()}
+            {isUnresolved ? '— KCAL' : entry.kcal.toLocaleString()}
           </span>
-          {macros && (
+          {macros ? (
             <span
               className="data"
               style={{
@@ -1137,7 +1170,21 @@ function EntryRow({
             >
               {macros}
             </span>
-          )}
+          ) : isUnresolved ? (
+            <span
+              className="data"
+              title="Not resolved — tap ✎ EDIT to add macros"
+              style={{
+                color: 'var(--color-accent)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.06em',
+                whiteSpace: 'nowrap',
+                textTransform: 'uppercase',
+              }}
+            >
+              ◐ NO MACROS
+            </span>
+          ) : null}
         </div>
       </button>
 

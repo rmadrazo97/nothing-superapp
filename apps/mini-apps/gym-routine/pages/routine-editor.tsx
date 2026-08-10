@@ -297,7 +297,7 @@ export default function RoutineEditorPage({
           <span className="label">ROUTINE · V2</span>
           <Link href="/app/gym-routine/routines" style={{ textDecoration: 'none' }}>
             <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-              ← Back
+              ← BACK
             </span>
           </Link>
         </div>
@@ -360,7 +360,7 @@ export default function RoutineEditorPage({
         <span className="label">ROUTINE</span>
         <Link href="/app/gym-routine/routines" style={{ textDecoration: 'none' }}>
           <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-            ← Back
+            ← BACK
           </span>
         </Link>
       </div>

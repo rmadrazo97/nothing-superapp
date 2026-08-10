@@ -13,6 +13,13 @@
  */
 import { test, expect } from '@playwright/test';
 
+// /paywall no longer redirects signed-out users to /login — since v0.5.1 it
+// renders the public marketing landing (with a bigger price CTA). Sign-in
+// starts from the landing's SIGN IN button. So /paywall is intentionally
+// omitted from this list.
+//
+// `/app/coming-soon` DOES still redirect — it's a placeholder mini-app under
+// the /app umbrella so the auth gate applies.
 const APP_ROUTES = [
   '/app',
   '/app/assistant',
@@ -23,7 +30,6 @@ const APP_ROUTES = [
   '/app/gym-routine',
   '/app/gym-routine/exercises',
   '/app/gym-routine/routines',
-  '/paywall', // paywall is also PROTECTED (must be signed in to see it)
 ];
 
 for (const route of APP_ROUTES) {
