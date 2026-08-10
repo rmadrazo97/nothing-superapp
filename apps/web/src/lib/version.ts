@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.1';
+export const APP_VERSION = '0.5.2';
 export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,23 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.2',
+    date: '2026-08-10',
+    highlights: [
+      'Assistant race fixed — first-message no longer aborts its own stream. Removed the key-based remount in AssistantClient + added a self-created-thread guard; the 1-in-5 orphan "New chat" pattern is dead.',
+      'Assistant polish — markdown tables killed via system-prompt rule (renderer defers to v0.5.3); redundant cadmium + in the header removed so it stops colliding with composer Send.',
+      'In-sub-app settings framework — <MiniAppSettingsPanel> + <SettingsSection/Field/Select/Toggle/Button> + useMiniAppSettings hook + migration 020 (mini_app_settings jsonb per user × slug). Backed by /api/mini-app-settings/[slug].',
+      'Fitness Pal + Reminders settings refactored onto the framework (Fitness Pal 823 → 554 LoC, 33% shorter; Reminders 178 → 139).',
+      'Gym settings — new UNITS section: WEIGHT (LBS/KG) + LENGTH (IN/CM) pills. First-flip couples KG↔CM and LBS↔IN; independent after that.',
+      'Gym in-session HOW TO — every exercise card gets a ⓘ pill that opens a bottom-sheet with the drawn animation + steps + muscle tags. Same detail component now backs the standalone /exercises/[id] route too.',
+      'Gym BW placeholder killed — body-weight exercises hide the weight input and show a compact "Body weight" pill; weighted exercises show LBS or KG (from your gym settings) instead of the confusing BW.',
+      'Body composition tracker — new MEASUREMENTS tab in Gym: weekly Glutes / Waist / Chest / Thighs / Biceps / Weight log. Integer mm + g canonical storage (no float drift when you flip units). Migration 021 + auto-generated copilot tools via the resource framework.',
+      'Fitness Pal PLAN tab redesign — LIST view shows every plan (SET ACTIVE · EDIT · DUPLICATE · DELETE on swipe with 5s undo); DETAIL view moved DELETE into the ⋯ menu and killed the giant red RE-LOG buttons in favour of a compact chip + "Logged · tap to re-log" ghost; CREATE/EDIT is a single-scroll form with macro-split presets (Balanced / High-P / Keto / Custom) + meal→option→ingredient repeaters using the existing food search. Plans are now user-authorable end-to-end without touching the assistant.',
+      'SwipeableRow shell — one <SwipeableRow> component (swipe-left OR long-press, ⋯ affordance, keyboard-menu fallback) plus a UndoSnackbar provider. Wired on the assistant thread drawer, meal-plan cards, and measurement entries; more rollouts to come.',
+      'Shared <BottomSheet> — touch-drag close (~80px threshold), scrim dismiss, Escape — now used by the gym HOW TO sheet and the measurements entry form.',
+    ],
+  },
   {
     version: '0.5.1',
     date: '2026-08-10',

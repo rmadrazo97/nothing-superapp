@@ -4,6 +4,37 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.2] — 2026-08-10 — Sub-app settings framework + gym HOW-TO + body-comp tracker + PLAN redesign + assistant race fix
+
+Framework wave. Two new reusable component surfaces (`<MiniAppSettingsPanel>` + `<SwipeableRow>`), one new tracked metric (body composition), one meaningful redesign (Fitness Pal PLAN), and one critical assistant bug fixed at the root.
+
+### Added
+- **In-sub-app settings framework** at `apps/web/src/components/mini-app-settings/` — `<MiniAppSettingsPanel>`, `<SettingsSection>`, `<SettingsField>`, `<SettingsSelect>`, `<SettingsToggle>`, `<SettingsButton>`, and a `useMiniAppSettings<T>(slug, defaults)` hook. Backing table `mini_app_settings(user_id, slug, settings jsonb)` via migration 020, owner-only RLS, API at `/api/mini-app-settings/[slug]`. Debounced-optimistic writes. Fitness Pal (823 → 554 LoC, 33% shorter) and Reminders (178 → 139) refactored onto it as proof.
+- **Gym settings** — new SECTION 01 · UNITS with WEIGHT (LBS/KG) + LENGTH (IN/CM) pill selectors. First-flip couples KG↔CM and LBS↔IN; independent after that.
+- **Gym in-session HOW TO** — every exercise card on the active session gets a small `ⓘ` pill that opens a bottom-sheet with the drawn animation + step-by-step instructions + muscle tags. Shared `<ExerciseDetail>` render now backs both the sheet AND the standalone `/exercises/[id]` route.
+- **Body composition tracker** — new `MEASUREMENTS` tab in Gym. Weekly log for Glutes / Waist (at navel) / Chest / Thighs / Biceps / Weight (English translation of the Spanish spreadsheet from the user). Migration 021, canonical integer storage (mm + g) so unit-flip round-trips are lossless. Table view (latest 4 weeks + SHOW ALL) + BottomSheet entry form. Copilot gets auto-generated `gym_routine_body_metrics_{list,get,create,update,delete}` tools via the mini-app resource framework.
+- **Fitness Pal PLAN redesign** — LIST view (`+ NEW PLAN` chip, swipeable plan cards, ACTIVE/ARCHIVED pills, sort active-first), DETAIL view (redesigned header, action row `SET ACTIVE · EDIT · DUPLICATE · ⋯`), CREATE/EDIT form (single scroll, plan name, target kcal + inline TDEE helper, macro-split presets Balanced / High-P / Keto / Custom, meal→option→ingredient repeaters using the existing food search, freeform rules textarea). Users can now build plans end-to-end without touching the assistant.
+- **`<SwipeableRow>` component** at `apps/web/src/components/shell/` — swipe-left OR long-press → reveal `EDIT` / `DELETE` actions with `⋯` affordance at 40% opacity. Destructive actions route through a shared `<UndoSnackbar>` provider (5s window). Keyboard fallback via a visually-hidden but focus-visible menu button. Wired to the assistant thread drawer, meal-plan cards, and measurement entries; more rollouts to come in v0.5.3.
+- **`<UndoSnackbar>` provider** — portal-rendered snackbar stack with shrinking progress bar; imperative `useUndoSnackbar()` API.
+- **Shared `<BottomSheet>`** at `apps/web/src/components/shell/BottomSheet.tsx` — touch-drag close (~80px threshold), dim scrim, Escape/backdrop dismiss. Now used by the gym HOW TO sheet and the measurements entry form.
+
+### Fixed
+- **Assistant first-message race (CRITICAL)** — sending the first message in a threadless session was aborting its own SSE stream. Root cause was `<CopilotChat key={threadId ?? 'new'}>` in `AssistantClient.tsx`: when `ensureThreadForFirstMessage` set `threadId` from `null` → `uuid`, the `key` flip caused React to unmount + remount `CopilotChat`, aborting the in-flight `useChat` transport and hydrating an empty thread over the user's just-sent bubble. Fix removes the `key` prop entirely and adds a `selfCreatedThreadsRef` guard so the hydrate effect skips ids the client itself just created (would otherwise refetch an empty row over the live stream). SDK inspection confirmed passing `id` to `useChat` would have the same problem — the internal `Chat` instance is recreated on `id` change. Fail-rate observed as ~1:5 in the deep-test session; now 0.
+- **Markdown tables render as raw pipes** — appended a rule to the copilot system prompt telling the model to use paragraphs / bullets instead. `markdown-lite.tsx` intentionally excludes tables; renderer support deferred to v0.5.3.
+- **Composer send button collided with header `+ NEW CHAT`** — removed the header duplicate entirely. The drawer's `+ NEW CHAT` remains the sole entry point.
+- **`BW` placeholder confusion** — every exercise's weight input showed `BW` regardless of equipment type. Now body-weight exercises hide the weight input entirely and show a compact "Body weight" pill next to the exercise name; weighted exercises show `LBS` or `KG` as placeholder (from gym settings).
+
+### Docs
+- Assistant deep-test report — `services/growth/campaigns/nothing-superapp/reports/assistant-deep-test-v0.5.1.md` (test matrix, latency findings, 6 bug diagnoses with file:line refs, prioritized punch-list).
+- v0.5.2 ship note — `services/growth/campaigns/nothing-superapp/ship-log/0.5.2.md`.
+
+### Deferred to v0.5.3
+- Markdown table renderer in `markdown-lite.tsx` (system-prompt rule is the interim mitigation).
+- Tool-card rehydration verification post-deploy — code paths reconcile on inspection but a pre-v0.5 row shape may still be in the wild. Filed as #94.
+- Orphan-thread periodic cleanup cron. One-shot cleanup SQL in #94.
+- `pnpm --filter web lint` restoration after Next 15 dropped `next lint`. Filed as #92.
+- Copilot mini-app-context injection for gym body-metrics (auto tools ship the write path; ambient "last 4 weeks" snapshot deferred).
+
 ## [0.5.1] — 2026-08-10 — Bug sweep + emoji tile icons + Fitness Pal rename + nav SVGs + REQUEST APP
 
 A polish + small-features release. No new mini-apps; a lot more feel.
