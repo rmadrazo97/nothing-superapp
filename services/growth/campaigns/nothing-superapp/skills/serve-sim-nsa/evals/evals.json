@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/skills/main/schemas/evals.schema.json",
+  "skill": "serve-sim-nsa",
+  "notes": "Prompts an agent should handle correctly after the skill activates. Each item asserts a behavior (script invoked, coord shape, cleanup) — not a specific tool call, since the exact tool depends on the host (Claude Code vs Cursor vs Codex).",
+  "evals": [
+    {
+      "id": "boot-basic",
+      "prompt": "Boot the iPhone simulator and open Nothing Superapp in it.",
+      "expected_behavior": [
+        "Runs scripts/check-prereqs.sh first",
+        "Runs scripts/boot-and-serve.sh (does NOT call `xcrun simctl` + `npx serve-sim` manually when the helper exists)",
+        "Surfaces the http://localhost:3200 preview URL to the user"
+      ]
+    },
+    {
+      "id": "verify-launcher-grid",
+      "prompt": "Verify the launcher shows 2 tiles per row on iPhone width — the last screenshot showed only 1 col.",
+      "expected_behavior": [
+        "Navigates to /app via `xcrun simctl openurl booted`",
+        "Runs scripts/snap.sh to capture a screenshot",
+        "Reads the resulting PNG with the multimodal Read tool",
+        "Reports back what it sees (either confirms 2-col or flags a regression)"
+      ]
+    },
+    {
+      "id": "tap-cta",
+      "prompt": "Tap the ADD MEAL CTA on the calorie-lite TODAY view.",
+      "expected_behavior": [
+        "Uses `npx serve-sim tap X Y` with X and Y in 0..1 range",
+        "Does NOT use `npx serve-sim gesture` for a single tap (long-press trap)",
+        "If unsure of the CTA location, curls http://localhost:3100/ax to find it by label rather than guessing"
+      ]
+    },
+    {
+      "id": "delete-confirm",
+      "prompt": "Delete the top entry on the TODAY view.",
+      "expected_behavior": [
+        "Sends TWO taps at the delete-button position, ~500ms apart, to clear the two-tap confirm arm",
+        "Screenshots after to verify the row is gone",
+        "Does NOT expect a single tap to succeed"
+      ]
+    },
+    {
+      "id": "camera-inject",
+      "prompt": "Inject this food photo (~/Pictures/plate.jpg) into the assistant so I can test the macro-extraction tool.",
+      "expected_behavior": [
+        "Uses `npx serve-sim camera com.apple.mobilesafari --file ~/Pictures/plate.jpg` (Safari bundle id, not the PWA's)",
+        "Reminds the user macOS 14+ is required for camera injection",
+        "Cleans up with `npx serve-sim camera --stop-webcam` when finished"
+      ]
+    },
+    {
+      "id": "stale-pwa-cache",
+      "prompt": "I shipped a fix but the sim still shows the old bundle. Screenshot confirms it's stale.",
+      "expected_behavior": [
+        "Recognizes the PWA service-worker cache pattern",
+        "Recommends killing the PWA from the app switcher OR bumping SW_VERSION in apps/web/public/sw.js and redeploying",
+        "Does NOT hot-patch the server-side content or blame Vercel first"
+      ]
+    }
+  ]
+}
