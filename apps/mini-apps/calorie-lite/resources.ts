@@ -25,8 +25,8 @@ import {
   foodFavoriteInsertSchema,
   foodFavoriteSchema,
   foodSchema,
-  waterEntryInsertSchema,
-  waterEntrySchema,
+  // waterEntry* imports retired in v0.5.3 (#96) — WATER tab removed.
+  // Table + schema kept in @nothing/shared for any external migration/backfill.
   weightEntryInsertSchema,
   weightEntrySchema,
   type MiniAppResourceModule,
@@ -57,23 +57,12 @@ const module: MiniAppResourceModule = {
         emitEvent: 'calorie_entry_added',
       },
     },
-    {
-      name: 'water',
-      table: 'water_entries',
-      rowSchema: waterEntrySchema,
-      insertSchema: waterEntryInsertSchema,
-      orderBy: { column: 'entered_at', ascending: false },
-      ops: { list: true, get: true, create: true, delete: true },
-      agent: {
-        describe:
-          'Water intake entries. Each row is one drink in millilitres (1-4999ml per entry).',
-        describeOps: {
-          create:
-            'Log a water entry. Common defaults: glass=250ml, bottle=500ml, large bottle=750ml.',
-        },
-        emitEvent: 'calorie_entry_added',
-      },
-    },
+    // v0.5.3 (#96): water resource unregistered — WATER tab removed from
+    // Fitness Pal, and the framework CRUD tools it generated
+    // (calorie_lite_water_*) were unused. The `water_entries` DB table stays
+    // (get_daily_summary + past history reads still work); if a future mini-app
+    // wants water tracking, re-add a resource entry here or scaffold a new
+    // mini-app.
     {
       name: 'weight-entries',
       table: 'weight_entries',

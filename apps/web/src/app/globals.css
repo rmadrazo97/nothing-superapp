@@ -115,6 +115,26 @@
   50%        { box-shadow: 0 0 0 4px var(--color-accent-subtle); }
 }
 
+/* ── Pixel loader ──────────────────────────────────────────────────────
+   5×5 grid of independently-twinkling cells used by <PixelLoader/> across
+   every "thinking / hydrating / tool-running" surface. Each cell reads
+   this single keyframe with a shuffled delay in JS — no per-cell CSS
+   variables — so the compiled CSS stays tiny (one rule) even though the
+   grid has 25 animated children.
+
+   Reduced-motion users: freeze at mid-brightness so the loader is still
+   discoverable but doesn't strobe. */
+@keyframes nsa-pixel-twinkle {
+  0%,  100% { opacity: 0.15; }
+  50%       { opacity: 1;    }
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="status"][aria-live="polite"] [aria-hidden] > span {
+    animation: none !important;
+    opacity: 0.55 !important;
+  }
+}
+
 /* ── Streaming cursor ─────────────────────────────────────────────────
    Blinking cadmium block cursor that trails the last streamed token on
    an assistant message. The single biggest "this is a real chat app"
@@ -282,6 +302,39 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .nsa-send-spin { animation: none; }
+}
+
+/* ── ASSISTANT nav-tab orbit ─────────────────────────────────────────
+   v0.5.3 (#96): the ASSISTANT bottom-nav tab is now the sole entry point
+   to the copilot from a mini-app. When the current route has feedable
+   context (getMiniAppContext → non-null), we render a 2px cadmium dot
+   that orbits the spark icon's centre at a ~4s cadence to hint "the
+   assistant knows about this page — tap it to ask".
+
+   Implementation:
+     - The dot is a <circle> inside the <svg>, so it inherits the 16×16
+       viewBox math (centre = 8,8; the dot rests at x=15, y=8 → radius 7).
+     - The parent <g class="nsa-assistant-orbit"> spins around (8,8) —
+       simpler than translating the circle in a keyframe because SVG
+       `transform-origin` on a group works uniformly across engines when
+       the transform-box is defined.
+     - Fallback (`prefers-reduced-motion: reduce`): drop the spin so the
+       dot sits statically due-east of centre. Still communicates
+       "context available" without motion. */
+.nsa-assistant-orbit {
+  transform-origin: 8px 8px;
+  transform-box: fill-box;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nsa-assistant-orbit {
+    animation: nsa-assistant-orbit 4s linear infinite;
+    transform-origin: 8px 8px;
+    transform-box: fill-box;
+  }
+}
+@keyframes nsa-assistant-orbit {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* ── Streak chip compact mode ────────────────────────────────────────

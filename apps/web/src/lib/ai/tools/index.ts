@@ -15,7 +15,8 @@ import { makeGetDailySummaryTool } from './get-daily-summary';
 import { makeGetStreakTool } from './get-streak';
 import { makeGetGymHistoryTool } from './get-gym-history';
 import { makeLogCalorieEntryTool } from './log-calorie-entry';
-import { makeLogWaterTool } from './log-water';
+// log_water removed in v0.5.3 (#96) — WATER tab retired from Fitness Pal;
+// water_entries table + get_daily_summary reads stay in place.
 import { makeLogWeightTool } from './log-weight';
 import { makeStartPomodoroTool } from './start-pomodoro';
 // v2 gym routines — coach-grade structured multi-day plans (migration 011)
@@ -41,8 +42,8 @@ import { makeToggleReminderTool } from './toggle-reminder';
 import { makeTriggerReminderNowTool } from './trigger-reminder-now';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
-// hand-written wins on semantic clarity ("log_water"), framework fills the
-// long tail ("calorie_lite_custom_foods_update").
+// hand-written wins on semantic clarity ("log_calorie_entry"), framework fills
+// the long tail ("calorie_lite_custom_foods_update").
 import { resourceTools } from '@/lib/ai/resource-tools';
 
 export function copilotTools(userId: string, supabase: SupabaseClient) {
@@ -52,7 +53,7 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     get_streak: makeGetStreakTool(userId, supabase),
     get_gym_history: makeGetGymHistoryTool(userId, supabase),
     log_calorie_entry: makeLogCalorieEntryTool(userId, supabase),
-    log_water: makeLogWaterTool(userId, supabase),
+    // log_water removed in v0.5.3 (#96) — see import block above.
     log_weight: makeLogWeightTool(userId, supabase),
     start_pomodoro: makeStartPomodoroTool(userId, supabase),
     // gym v2 (add-only)

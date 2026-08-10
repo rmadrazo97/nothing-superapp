@@ -35,16 +35,18 @@ import {
 // straight into the shell without duplicating state.
 import { useToast } from '../../web/src/lib/toast/context';
 import { MiniAppSettingsButton } from '../../web/src/components/mini-apps/MiniAppSettingsButton';
-import { CopilotDrawerTrigger } from '../../web/src/components/copilot/CopilotDrawerTrigger';
+// v0.5.3 (#96): the per-mini-app "◐ ASK" chip was removed. The ASSISTANT
+// bottom-nav tab is now the sole copilot entry point and shows an orbiting
+// dot when this route has feedable context (see TabBar + mini-apps/context.ts).
 import { REOPEN_ONBOARDING_EVENT } from './settings.tsx';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
-import { StreakChip } from './components/StreakChip.tsx';
 import { Sparkline, type SparklineDay } from './components/Sparkline.tsx';
 import { FoodSearch } from './components/FoodSearch.tsx';
 import { CustomFoodList } from './components/CustomFoodList.tsx';
-import { WaterView } from './components/WaterView.tsx';
+// v0.5.3 (#96): WaterView + WATER tab retired — see resources.ts for the
+// full rationale. water_entries DB table stays.
 import { WeightView } from './components/WeightView.tsx';
 import { ReportsView } from './components/ReportsView.tsx';
 import { CustomMealsPanel } from './components/CustomMealsPanel.tsx';
@@ -52,16 +54,18 @@ import { TodayInsights } from './components/TodayInsights.tsx';
 import { OnboardingWizard } from './components/OnboardingWizard.tsx';
 import { MealPlanView } from './components/MealPlanView.tsx';
 import { FromPlanDropdown } from './components/FromPlanDropdown.tsx';
+import { FromPlanTab } from './components/FromPlanTab.tsx';
 import {
   computeStreak,
   dailyTotals,
   toLocalDateKey,
 } from './lib/aggregate.ts';
 
-// Alphabetical-after-locked-first ordering: today → add → water → weight →
-// reports → history. Wave C owns `reports`; workers A/B own `add`, `water`,
-// `weight` respectively.
-type View = 'today' | 'add' | 'water' | 'weight' | 'plan' | 'reports' | 'history';
+// v0.5.3 (#96): `water` removed. Order: today → add → weight → plan →
+// reports → history. WATER tab retired — the DB table remains, the tab does
+// not (the copilot handled ≥90% of logging anyway; no meal-plan review needed
+// the tab).
+type View = 'today' | 'add' | 'weight' | 'plan' | 'reports' | 'history';
 
 const MEAL_OPTIONS: { id: Meal; label: string }[] = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -75,14 +79,9 @@ const MEAL_OPTIONS: { id: Meal; label: string }[] = [
 // "you're doing great" — 2000 kcal is a neutral default, not a prescription.
 const DEFAULT_DAILY_GOAL_KCAL = 2000;
 
-// Chips shown inside the copilot drawer's empty state — scoped to the three
-// smart-tool superpowers the copilot has here (fit-to-macros, swap, log from
-// plan). Kept short + verby so users can tap-and-send.
-const CALORIE_LITE_COPILOT_PROMPTS = [
-  'Suggest a lunch that fits my remaining macros',
-  'I have chicken but no rice — what can I swap?',
-  'Log breakfast option 4 from my plan today',
-] as const;
+// v0.5.3 (#96): CALORIE_LITE_COPILOT_PROMPTS retired with the ◐ ASK chip.
+// The scoped prompts now live behind the ASSISTANT tab (via ?scope=calorie-lite)
+// — Worker P1 owns the assistant-side prompt seeding.
 
 /** HH:MM for a timestamp — matches the Space Mono `.data` style. */
 function toLocalTime(iso: string): string {
@@ -258,7 +257,7 @@ export default function CalorieLitePage() {
       <Header
         view={view}
         onChangeView={setView}
-        streak={streak.current}
+        streakCurrent={streak.current}
         showProfileChip={
           view === 'today' && preferences.age_years == null && !wizardOpen
         }
@@ -301,7 +300,9 @@ export default function CalorieLitePage() {
       {view === 'add' && (
         <AddView
           userId={user.id}
+          activeMealPlanId={preferences.active_meal_plan_id}
           onCancel={() => setView('today')}
+          onOpenPlanTab={() => setView('plan')}
           onSaved={async () => {
             events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
             await loadEntries();
@@ -309,8 +310,6 @@ export default function CalorieLitePage() {
           }}
         />
       )}
-
-      {view === 'water' && <WaterView />}
 
       {view === 'weight' && <WeightView />}
 
@@ -342,16 +341,36 @@ export default function CalorieLitePage() {
 
 // ─── Header + tabs ──────────────────────────────────────────────────────────
 
+/**
+ * Header — v0.5.3 (#96) chrome slim-down.
+ *
+ * Removed:
+ *   - CopilotDrawerTrigger "◐ ASK" chip → ASSISTANT bottom-nav tab is now
+ *     the sole copilot entry point (with orbiting-dot animation when this
+ *     route has feedable context).
+ *   - Big StreakChip Doto card in the top-right → single-line eyebrow under
+ *     the FITNESS PAL label ("STREAK · 2D · 2/30 THIS MONTH").
+ *
+ * Kept:
+ *   - FITNESS PAL label + ⚙ cog on the top row.
+ *   - Tab row (WATER removed → TODAY / WEIGHT / PLAN / REPORTS / HISTORY).
+ *
+ * The eyebrow reads the authoritative "days_logged_this_month" from
+ * `/api/mini-apps/calorie-lite/streak` (kept in the tiny StreakEyebrow
+ * subcomponent below — same fetch StreakChip used to do, just without the
+ * big card chrome).
+ */
 function Header({
   view,
   onChangeView,
-  streak,
+  streakCurrent,
   showProfileChip = false,
   onOpenWizard,
 }: {
   view: View;
   onChangeView: (v: View) => void;
-  streak: number;
+  /** Client-computed current streak — seed while /streak fetch is in flight. */
+  streakCurrent: number;
   /** True when the user hasn't filled in their body profile yet. */
   showProfileChip?: boolean;
   /** Called when the user taps the profile chip. */
@@ -368,7 +387,10 @@ function Header({
           gap: 'var(--space-3)',
         }}
       >
-        <span className="label">FITNESS PAL</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <span className="label">FITNESS PAL</span>
+          <StreakEyebrow currentFallback={streakCurrent} />
+        </div>
         <div
           className="nsa-calorie-header-actions"
           style={{
@@ -376,7 +398,7 @@ function Header({
             gap: 'var(--space-2)',
             alignItems: 'center',
             minWidth: 0,
-            flexShrink: 1,
+            flexShrink: 0,
           }}
         >
           {showProfileChip && onOpenWizard && (
@@ -400,14 +422,6 @@ function Header({
               ◐ Set up profile
             </button>
           )}
-          <CopilotDrawerTrigger
-            context="calorie-lite"
-            scopeLabel="Fitness Pal"
-            suggestedPrompts={CALORIE_LITE_COPILOT_PROMPTS}
-          />
-          <StreakChip current={streak} />
-          {/* Wrapped so we can pin the ⚙ cog with flex-shrink:0 — the
-              streak chip is the shrinkable member of the row (Bug #7). */}
           <span className="nsa-calorie-cog" style={{ display: 'inline-flex', flexShrink: 0 }}>
             <MiniAppSettingsButton slug="calorie-lite" title="Fitness Pal" />
           </span>
@@ -425,9 +439,6 @@ function Header({
         <TabButton active={view === 'today'} onClick={() => onChangeView('today')}>
           Today
         </TabButton>
-        <TabButton active={view === 'water'} onClick={() => onChangeView('water')}>
-          Water
-        </TabButton>
         <TabButton active={view === 'weight'} onClick={() => onChangeView('weight')}>
           Weight
         </TabButton>
@@ -442,6 +453,90 @@ function Header({
         </TabButton>
       </div>
     </div>
+  );
+}
+
+/**
+ * StreakEyebrow — single-line replacement for the v0.5.2 StreakChip card.
+ *
+ * Format: `STREAK · 2D · 2/30 THIS MONTH` (Space Mono/label, secondary
+ * colour, cadmium dot prefix when the streak is active). Fetches the same
+ * `/streak` endpoint the old card did so the "days_logged_this_month"
+ * counter stays authoritative. Failure is silent — falls back to the
+ * client-computed current streak with a `0/30 THIS MONTH` placeholder.
+ */
+function StreakEyebrow({ currentFallback }: { currentFallback: number }) {
+  const events = useEvents();
+  const [current, setCurrent] = useState<number>(currentFallback);
+  const [monthCount, setMonthCount] = useState<number>(0);
+
+  const loadStreak = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mini-apps/calorie-lite/streak', {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) return;
+      const body = (await res.json()) as {
+        current_streak_days: number;
+        days_logged_this_month: number;
+      };
+      setCurrent(body.current_streak_days);
+      setMonthCount(body.days_logged_this_month);
+    } catch {
+      // Non-fatal — the client fallback holds.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStreak();
+  }, [loadStreak]);
+
+  useEffect(() => {
+    const off = events.subscribe(EVENT_KINDS.calorie_entry_added, () => {
+      void loadStreak();
+    });
+    return off;
+  }, [events, loadStreak]);
+
+  // Re-seed if the parent's computed streak shifts (e.g. entries reload).
+  useEffect(() => {
+    setCurrent((prev) => (prev === 0 && currentFallback > 0 ? currentFallback : prev));
+  }, [currentFallback]);
+
+  const active = current > 0;
+  return (
+    <span
+      className="data"
+      aria-label={`Streak ${current} days, ${monthCount} of 30 this month`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        color: 'var(--color-text-secondary)',
+        fontSize: 'var(--text-caption)',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          display: 'inline-block',
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: active ? 'var(--color-accent)' : 'transparent',
+          border: active
+            ? '1px solid var(--color-accent)'
+            : '1px solid var(--color-text-disabled)',
+          flexShrink: 0,
+        }}
+      />
+      STREAK · {current}D · {monthCount}/30 THIS MONTH
+    </span>
   );
 }
 
@@ -1432,24 +1527,35 @@ function mealLabel(m: Meal): string {
 
 // ─── Add view — v3 MFP-tier tabbed flow ─────────────────────────────────────
 //
-// The Add view now hosts three subviews:
-//   SEARCH    — search the shared foods catalog (153 seeded) + user customs
+// v0.5.3 (#97): now hosts FOUR subviews:
+//   SEARCH    — search the shared foods catalog (~500+ seeded) + user customs
 //   CUSTOM    — manage user's own custom foods, log from them
 //   QUICK LOG — the v2 free-text form (kept for muscle-memory users)
+//   FROM PLAN — options from the current meal-slot in the user's active plan
 //
 // The meal-slot selector stays on ALL tabs so switching tabs doesn't lose
-// the user's chosen meal context. Errors from any tab are hoisted here so
-// the same inline banner + toast plumbing lights them up.
+// the user's chosen meal context — and FROM PLAN reactively re-filters as
+// the user flips slots. Errors from any tab are hoisted here so the same
+// inline banner + toast plumbing lights them up.
+//
+// Overflow guards (v0.5.3 #97): the outer card + every tab body carries
+// max-width:100% + overflow-x:hidden so a wide food name or long option
+// dish label can't push the card past the shell's 480px column.
 
-type AddSubView = 'search' | 'custom' | 'quicklog';
+type AddSubView = 'search' | 'custom' | 'quicklog' | 'fromplan';
 
 function AddView({
   userId,
+  activeMealPlanId,
   onCancel,
+  onOpenPlanTab,
   onSaved,
 }: {
   userId: string;
+  activeMealPlanId: string | null;
   onCancel: () => void;
+  /** Called when a FROM PLAN empty state wants to jump to the PLAN tab. */
+  onOpenPlanTab: () => void;
   onSaved: () => Promise<void> | void;
 }) {
   const { toast } = useToast();
@@ -1482,6 +1588,12 @@ function AddView({
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--space-4)',
+        // v0.5.3 (#97) — hard overflow guard. The 480px shell column is the
+        // ceiling; a wide food-name or option label must never push the card
+        // past it. `min-width: 0` lets nested flex/grid children shrink.
+        maxWidth: '100%',
+        minWidth: 0,
+        overflowX: 'hidden',
       }}
     >
       <span className="label">ADD MEAL</span>
@@ -1493,6 +1605,10 @@ function AddView({
           display: 'flex',
           gap: 'var(--space-2)',
           borderBottom: '1px solid var(--color-border)',
+          // Tab row can scroll horizontally so 4 tabs fit on a narrow phone
+          // without wrapping (which would double the header height).
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
         }}
       >
         <SubTabButton active={subview === 'search'} onClick={() => setSubview('search')}>
@@ -1503,6 +1619,9 @@ function AddView({
         </SubTabButton>
         <SubTabButton active={subview === 'quicklog'} onClick={() => setSubview('quicklog')}>
           Quick log
+        </SubTabButton>
+        <SubTabButton active={subview === 'fromplan'} onClick={() => setSubview('fromplan')}>
+          From plan
         </SubTabButton>
       </div>
 
@@ -1570,6 +1689,16 @@ function AddView({
           onSaved={onSaved}
           onError={handleError}
           onSubscriptionRequired={handleSubscriptionRequired}
+        />
+      )}
+      {subview === 'fromplan' && (
+        <FromPlanTab
+          meal={meal}
+          activeMealPlanId={activeMealPlanId}
+          onSaved={onSaved}
+          onError={handleError}
+          onSubscriptionRequired={handleSubscriptionRequired}
+          onOpenPlanTab={onOpenPlanTab}
         />
       )}
 
