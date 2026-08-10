@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.2';
+export const APP_VERSION = '0.5.3';
 export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,29 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.3',
+    date: '2026-08-10',
+    highlights: [
+      'Assistant — first message no longer aborts its own stream. Real root cause was DefaultChatTransport rebuilding on every threadId change (useMemo dep); useChat swaps its internal Chat when the transport ref changes = same as a key remount. Fix: stable transport, dynamic thread_id + timezone travel via prepareSendMessagesRequest reading a ref. 0 orphan "New chat" rows across cold-load reproductions.',
+      'Assistant timezone — client now sends the browser\'s IANA tz on every /api/copilot request; server injects "USER TIMEZONE + local wall-clock" into the system prompt. "Remind me in 10 min" now schedules 10 min from YOUR clock, not UTC. TIMEZONE field added to Settings > Profile; persisted to profiles.timezone (migration 024).',
+      'Assistant tool idempotency — write tools now dedupe within a 30s window per (user, tool, input). Migration 025 adds a partial unique index on tool_audit_log(user_id, idempotency_key). Wired into create_reminder + log_calorie_entry (the two observed prod duplication hot paths); other write tools land in a follow-up.',
+      'Composer icons — swapped the abstract ◐ / ○ glyphs for real 16×16 SVG camera + microphone icons.',
+      'Chat width + PixelLoader — messages column widened to fill the shell (user bubbles right / assistant left, per-bubble max-width). Generic spinner replaced with a 5×5 pixel-grid twinkle animation across THINKING / LOADING CHAT / tool-in-progress. Respects prefers-reduced-motion.',
+      'Fitness Pal PLAN — full redesign via the frontend-design skill. Meal plan as a prescription slip, not a dashboard: RX kicker + Doto numerals in a segmented MacroTape ticker (KCAL · P · C · F receipt-printer aesthetic) + numbered TimelineRail meal stations with 6px green LED for "logged today". DELETE removed from the DETAIL header entirely (destroys only via LIST swipe). CREATE form got worksheet chrome + stamp-bar macro presets with live tape preview.',
+      'Fitness Pal chrome — killed the ◐ ASK chip (ASSISTANT bottom-nav tab is the only entry point now); killed the WATER tab (kept the DB table, removed the tab + log_water tool); big streak card compacted to a single-line eyebrow (STREAK · 2D · N/30 THIS MONTH). Header ~60% shorter.',
+      'ASSISTANT nav-tab context animation — a 2px cadmium dot orbits the spark icon when the current view has feedable context (any mini-app). Static dot fallback under prefers-reduced-motion. Tap navigates to /app/assistant?scope=<slug> with automatic context injection.',
+      'ADD MEAL overflow fix — the card + food rows no longer bleed past the phone frame at long food names.',
+      'Food search ranking — sorted by canonical-food boost + prefix/word-initial scoring + demotion of noise (Babyfood *, Alcoholic w/ brand, Agutuk *, *, strained/junior, *, frozen unprepared, Fast foods/<chain>). Migration 023 + 251-entry canonical seed at packages/shared/canonical-foods.json. Searching "sweet potato" now leads with the canonical row, not babyfood variants.',
+      'ADD MEAL → new FROM PLAN tab — pick today\'s meal-slot options from your active plan and log the whole thing in one tap. Empty state points to PLAN if you don\'t have an active plan.',
+      'Reminders → Reminders and Tasks — renamed to reflect that it holds both notifications (fire at time X) and autonomous copilot tasks (assistant runs on a schedule to do work + push the result). Info banner explains "TWO KINDS · ONE LIST"; dismissible + persisted.',
+      'Reminders layout — content now respects the shell column (no huge blank right side); + NEW REMINDER shrunk to a compact ghost chip matching + ADD MEAL sizing.',
+      'Gym routine cards tap-to-START — the whole card body is the primary action now; taps start a new session from that routine (or resumes if a live session is tied to it). Top-right START → / RESUME → chip announces intent; live cards get accent border + LIVE · IN PROGRESS · Resume →. EDIT / DELETE moved to swipe (DELETE → undo snackbar).',
+      'Settings changelog — progressive disclosure: first expand shows only the latest release; a second ▶ SHOW OLDER (N RELEASES) toggle reveals the rest inside a max-height scrollable box (no more page-takeover).',
+      'Lint restored — Next 16 removed next lint AND doesn\'t bundle any ESLint config; ESLint 9 flat config + typescript-eslint installed at the root, apps/web lint script rewired, legacy inline eslint-disable comments neutralised via an inert-plugin Proxy. pnpm --filter @nothing/web lint runs clean.',
+      'Supabase SMTP unblock — scripts/supabase-smtp-configure.sh + playbook at services/growth/campaigns/nothing-superapp/reports/supabase-smtp-unblock.md let Alex apply Resend SMTP via the Management API (bypasses the dashboard bug that has been silently 400ing on save since before v0.5.0).',
+    ],
+  },
   {
     version: '0.5.2',
     date: '2026-08-10',

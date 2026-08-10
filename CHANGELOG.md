@@ -4,6 +4,56 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.3] — 2026-08-10 — Assistant real fix + timezone + idempotency + PLAN redesign v2 + Fitness Pal chrome + food search ranking + FROM PLAN + reminders rename + gym tap-to-START
+
+A polish + reliability wave built by 3 parallel workers (P1 assistant / P2 Fitness Pal / P3 reminders+gym+small) after 3 more parallel workers earlier in the day (Wave A + B + D3 PLAN redesign via `/frontend-design`). Consolidates 8 commits into one release. Zero merge conflicts across workers thanks to explicit disjoint-file-zone briefs.
+
+### Fixed
+- **Assistant first-message race (the real root cause)** — earlier `key={threadId}` fix in v0.5.2 removed the outer remount but `CopilotChat.tsx` was still rebuilding `DefaultChatTransport` on every `threadId` change via `useMemo(..., [context, threadId])`. The AI SDK's `useChat` swaps its internal Chat instance when the transport ref changes = same net effect as a key remount, aborts the in-flight SSE mid-first-message. Fix: transport is now stable; dynamic `thread_id` + `timezone` travel via `prepareSendMessagesRequest` reading a `threadIdRef` at request time. Verified against `HttpChatTransportInitOptions`. 0 orphan "New chat" rows across cold-load reproductions.
+- **Assistant scheduled in UTC** — "remind me in 10 min" was scheduling at UTC instead of local time because the model had no reliable input for user tz. Client now sends `Intl.DateTimeFormat().resolvedOptions().timeZone` on every `/api/copilot` request; server injects the "USER TIMEZONE + current local wall-clock" into the system prompt.
+- **Assistant double-created reminders/meals** — write tools now dedupe within a 30-second window per `(user, tool, input)` hash. Migration 025 adds a partial unique index on `tool_audit_log(user_id, idempotency_key)`. Wired into `create_reminder` + `log_calorie_entry` (observed prod hot paths).
+- **ADD MEAL horizontal overflow** — card + food rows no longer bleed past the phone frame at long USDA food names. `max-width: 100%` + `overflow-wrap: anywhere` cascading through the ADD MEAL container.
+- **Food-search noise-to-signal** — searching "sweet potato" was leading with `Babyfood, corn and sweet potatoes, strained` (position 1) and the actual `Sweet potato, baked` at position 12. Migration 023 adds `rank_penalty` + `is_canonical` to `foods` + a curated 251-entry `packages/shared/canonical-foods.json` seed; search ORDER-BY now `(similarity × boost) DESC, rank_penalty ASC, name ASC` with prefix 3× / word-initial 2× / baseline 1× boosts. Baseline demotions applied via SQL for a clean fresh install.
+- **Reminders narrow column + oversized `+ NEW REMINDER`** — content now respects the shell column, CTA shrunk to a compact ghost chip matching `+ ADD MEAL`.
+- **Gym routine card had no primary action** — cards showed EDIT + DELETE only, no way to START. Whole card body is now the tap target → starts a new session (or resumes if a live session is tied to that routine, matching the gym home banner pattern). `START →` / `RESUME →` chip announces intent. EDIT + DELETE moved into `<SwipeableRow>` with `<UndoSnackbar>` for DELETE.
+- **Settings changelog dumped 8 releases** — progressive disclosure: first tap shows only the latest release, then `▶ SHOW OLDER (N RELEASES)` reveals the rest inside a bounded `maxHeight: clamp(240px, 40dvh, 480px)` scroll box.
+- **`pnpm --filter web lint` restored** — Next 16 removed `next lint` AND doesn't bundle any ESLint config. ESLint 9 flat config + typescript-eslint installed at the root; apps/web lint script rewired; legacy inline `eslint-disable-next-line @next/next/*` / `react-hooks/*` comments neutralised via an inert-plugin Proxy so they don't break the invocation.
+
+### Added
+- **Fitness Pal PLAN redesign v2** (via the `/frontend-design` skill) — meal plan as a **prescription slip** instead of a dashboard.
+  - Signature: **MacroTape** ticker — 4-cell segmented strip (`KCAL · P · C · F`) with `clamp()`-scaled Doto numerals reading as receipt-printer output. Also renders inline inside the CREATE form so preset choice is immediately legible.
+  - Type: Doto for numerals only (macro tape + meal-station numbers in the left gutter); Space Mono for every instrument label (`RX · 2026-08-08`, `[← PLANS / 03 IN LIBRARY]`); Space Grotesk for humane content (plan/meal/ingredient names).
+  - Layout: numbered left-gutter **TimelineRail** replaces stacked meal cards — meals as sequential stations, hairline between siblings, no per-meal card border.
+  - LEDs: 6px green LED dot next to a meal name = logged today (also next to active plan in LIST). Replaces the chunky `LOGGED` pill.
+  - CREATE form: worksheet chrome with mono kickers (`NEW PRESCRIPTION · STEP 01`), hairline SectionRule separators, stamp-bar macro presets (2px radius filled ember-red when active).
+  - DELETE removed from DETAIL header entirely — destructive lives only on LIST swipe.
+  - Design plan committed to `services/growth/campaigns/nothing-superapp/design/plan-view-v0.5.3.md`.
+- **In-sub-app timezone setting** — TIMEZONE field added to Settings → Profile. Auto-detected from the browser on first save; user-overridable IANA select. Persisted to `profiles.timezone` (migration 024).
+- **ASSISTANT nav-tab context animation** — a 2px cadmium dot orbits the spark icon at a 4s period when the current view has feedable context (any mini-app). Static cadmium dot fallback under `prefers-reduced-motion`. Tap navigates to `/app/assistant?scope=<slug>` with automatic context injection.
+- **Context route map** at `apps/web/src/lib/mini-apps/context.ts` — hardcoded 4-entry map (calorie-lite / gym-routine / pomodoro / reminders). Extract to per-mini-app `context.ts` files if it grows.
+- **ADD MEAL FROM PLAN tab** — fourth tab (after SEARCH / CUSTOM / QUICK LOG). Lists today's meal-slot options from the user's active plan; tap logs the whole option via the existing `log-meal` API. Empty state points to PLAN if no active plan.
+- **`<PixelLoader>` component** — 5×5 grid of pixel cells with a twinkling static animation (independent 1.4s opacity keyframes with shuffled per-cell delays). Replaces the generic spinner across THINKING pill + LOADING CHAT hydrate + tool-in-progress cards. `sm` / `md` / `lg` sizes. Respects `prefers-reduced-motion` → static 4-cell pattern.
+- **Real camera + microphone SVG icons** on the composer chips — 16×16, `stroke="currentColor"`, 1.5px stroke. Replaces the abstract `◐` / `○` glyphs.
+- **Composer message column widened** — user bubbles align right (max-width 78%), assistant bubbles align left (max-width 92%), fill the shell instead of huddling in a narrow column.
+- **Reminders renamed to "Reminders and Tasks"** — reflects the two kinds (NOTIFY = push at time; AGENT_LOOP = autonomous copilot job on a schedule). Slug unchanged.
+- **Reminders info banner** — dashed-outline "TWO KINDS · ONE LIST" explainer above the CTA; dismissible + persisted via `useMiniAppSettings('reminders', {infoBannerDismissed: bool})`.
+- **`create_reminder` tool description** updated so the model routes correctly between `notify` and `agent_loop` kinds.
+- **`supabase-smtp-configure.sh`** — Management-API workaround for the persistent Supabase dashboard SMTP-save bug (task #69). Applies Resend SMTP via `PATCH /v1/projects/{ref}/config/auth`. Playbook at `services/growth/campaigns/nothing-superapp/reports/supabase-smtp-unblock.md`.
+- **Root ESLint 9 flat config** — `eslint.config.mjs` at the workspace root, `@eslint/js` + `typescript-eslint` deps installed, `apps/web` lint script rewired.
+
+### Removed
+- **WATER tab in Fitness Pal** — removed from the tab row (`TODAY · WEIGHT · PLAN · REPORTS · HISTORY` now), `WaterView.tsx` deleted, `water` resource unregistered (framework CRUD tools `calorie_lite_water_*` gone), `log_water` copilot tool + registration deleted. **Kept** the `water_entries` DB table + `get_daily_summary`'s water read so re-adding wouldn't cost historical data.
+- **`◐ ASK` chip in Fitness Pal header** — the ASSISTANT bottom-nav tab (with its new context-orbit animation) is the sole copilot entry point.
+- **Big streak card in Fitness Pal** — compacted to a single-line eyebrow (`STREAK · 2D · N/30 THIS MONTH`) under the label. Header dropped ~60% in height.
+
+### Deferred to v0.5.4
+- **#102 generative UI** — pixel-panel component library (`<PixelTicker>` / `<PixelBarChart>` / `<PixelLineChart>` / `<PixelArc>` / `<PixelDataTable>` / etc.) + assistant `render_*` tools that emit structured data instead of markdown. Fires now that `<PixelLoader>` established the pixel-dot idiom. Headliner of v0.5.4.
+- **#108 idempotency guard extension** — apply the `_audit.ts` helper to the remaining 8 write tools (`log_weight`, `start_pomodoro`, `create_meal_plan`, `create_gym_routine`, etc.). Migration 025's index already covers them; only the 3-line helper call per tool.
+- **Markdown table renderer** in `markdown-lite.tsx` — currently prompt-suppressed. Generative UI (#102) will supersede this entirely.
+- **Orphan-thread periodic cleanup cron** (#94) — race condition is fixed at the root in v0.5.3 so new orphans shouldn't accumulate; one-shot SQL still needed for prior sessions.
+- **Tool-card rehydration verification** (#94) — deferred; needs live turn against v0.5.3 data.
+- **`<SwipeableRow>` rollout to remaining callsites** — reminders list rows (already refactored in P3's wave), meal plan cards (D3 covered), gym session set rows (still uses inline delete).
+
 ## [0.5.2] — 2026-08-10 — Sub-app settings framework + gym HOW-TO + body-comp tracker + PLAN redesign + assistant race fix
 
 Framework wave. Two new reusable component surfaces (`<MiniAppSettingsPanel>` + `<SwipeableRow>`), one new tracked metric (body composition), one meaningful redesign (Fitness Pal PLAN), and one critical assistant bug fixed at the root.
