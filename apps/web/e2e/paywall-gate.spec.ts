@@ -49,13 +49,16 @@ test('unentitled user is bounced off gated mini-apps but keeps assistant + setti
   await expect(page).toHaveURL(/\/app\/assistant$/);
   await expect(page.getByRole('heading', { name: /assistant/i })).toBeVisible();
 
-  // Exempt: settings
-  await page.goto('/app/settings', { waitUntil: 'domcontentloaded' });
+  // Exempt: settings — network-idle so the /api/profile fetch that populates
+  // the email field has completed before we assert on it (domcontentloaded
+  // fires too early and races the XHR).
+  await page.goto('/app/settings', { waitUntil: 'networkidle' });
   await expect(page).toHaveURL(/\/app\/settings$/);
   await expect(page.getByRole('heading', { name: /^settings$/i })).toBeVisible();
   // The email of the just-created test user should be visible in the readonly
-  // profile field.
-  await expect(page.getByLabel(/email/i)).toHaveValue(user.email);
+  // profile field. Widen the timeout to cover slow /api/profile responses
+  // in CI (Supabase cold-connect can push it past the default 5s).
+  await expect(page.getByLabel(/email/i)).toHaveValue(user.email, { timeout: 15000 });
 
   // /paywall itself renders the Subscribe CTA.
   await page.goto('/paywall', { waitUntil: 'domcontentloaded' });
