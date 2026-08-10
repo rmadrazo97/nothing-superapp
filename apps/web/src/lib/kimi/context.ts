@@ -121,7 +121,7 @@ export async function assembleUserContext(
   let events = (eventsRes.data ?? []) as Event[];
   let workouts = (workoutsRes.data ?? []) as WorkoutSession[];
   let routines = (routinesRes.data ?? []) as WorkoutRoutine[];
-  let pomodoros = (pomodorosRes.data ?? []) as PomodoroSession[];
+  const pomodoros = (pomodorosRes.data ?? []) as PomodoroSession[];
 
   // Roll pomodoros into a compact summary — the raw list is high-volume /
   // low-signal for the LLM. Keep only the last 3 individual sessions and a
