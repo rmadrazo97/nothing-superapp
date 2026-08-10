@@ -4,6 +4,33 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.4] — 2026-08-10 — Generative UI: the assistant renders instruments, not paragraphs
+
+Headline: the copilot no longer answers quantitative questions with markdown tables and bullet lists. It calls `render_*` tools that emit structured payloads, and the client hydrates them into a pixel-panel component library sharing one unified grid + one signature element. The loading state (`<PixelLoader>`, v0.5.3) IS the design language of the answer — the pixel-dot idiom now runs from "the model is thinking" all the way through to "here is your weight trend."
+
+### Added
+- **`apps/web/src/components/pixel-ui/` — 8-component library.** Every component built on the same atoms: 3px cell + 1px gap grid, cadmium ember-red accent, Doto for numerals, Space Mono for labels. The signature element that ties the family together is a **2×2 cadmium LED cluster in the top-right of every `<PixelCard>`** — the one bit of decorative overhead that reads as "this is an instrument, not a card." Components:
+  - `<PixelCard>` — the shared chassis (hairline border, near-black canvas, LED cluster, label kicker + hero slot).
+  - `<PixelTicker>` — big numeric readout with delta chip (WEIGHT · 78.4 kg · ▼ 0.3).
+  - `<PixelBarChart>` — vertical bars built from stacked 3px cells; supports single series + grouped (PUSH · PULL · LEGS by week).
+  - `<PixelLineChart>` — plotted-dot line over a hairline pixel-grid backdrop.
+  - `<PixelProgressDots>` — segmented dot bar for progress-toward-goal (KCAL LEFT · TODAY · 22/30 OF 2200).
+  - `<PixelArc>` — half-arc gauge with hero numeral in the well (POMODORO · CYCLE 3/4 · 18 min).
+  - `<PixelDataTable>` — mono grid with per-column alignment + zebra-free hairline rows (OPTIONS · LUNCH by kcal/P/C/F).
+  - `<PixelMetricGrid>` — 2×2 tile of tickers for weekly rollups (KCAL · PROTEIN · CARBS · FAT with deltas).
+- **7 `render_*` assistant tools** at `apps/web/src/lib/ai/tools/render-*.ts`. Zero-side-effect — each takes typed input, returns `{version: 1, kind: '<name>', data: <input-shape>}`. Model prompts through the shared registration path, client hydrates through the component library.
+- **Generative UI system-prompt block** in `apps/web/src/app/api/copilot/route.ts` — steers the model to prefer `render_*` over prose for anything quantitative. Explicit examples: "how many kcal left today" → `render_progress_dots`; "show my weight trend" → `render_line_chart`; "compare volume last 4 weeks by muscle group" → grouped `render_bar_chart`; "which lunch option should I pick" → `render_data_table`.
+- **`renderPixelPayload()` switch in `CopilotChat.tsx`** — inspects `part.output.kind` on tool-part parts and dispatches to the matching component. Preserves the `<ToolCallCard>` fallback for the `input-*` state and for tools with side effects (`create_reminder` still shows the confirmation card).
+- **`/dev/pixel-ui` design proof-sheet** — every render_* payload rendered against representative sample data on one page so the family reads as one instrument suite, not eight disconnected widgets. Not gated (harmless: no reads, no writes). Reference at `services/growth/campaigns/nothing-superapp/design/pixel-ui-v0.5.4.md`.
+
+### Design principle locked
+- **The loading state and the answer share the same idiom.** `PixelLoader` (5×5 twinkling grid, shipped v0.5.3) established the pixel-dot vocabulary; `PixelUI` extends that vocabulary into every component the assistant can render. Users see one continuous visual language from "thinking" → "rendering" → "here's your data." This is the direction the assistant surfaces will grow — future v0.6.x tools (log-and-render combos, streaming charts, comparative panels) will inherit the same atoms.
+
+### Deferred to v0.5.5+
+- **Extend idempotency guard to remaining 8 write tools** (`log_weight`, `start_pomodoro`, `create_meal_plan`, `create_gym_routine`, `edit_meal_plan`, `edit_gym_routine`, `log_meal_from_plan`, `log_body_metrics`) — helper (`_audit.ts`) shipped v0.5.3, wiring to `create_reminder` + `log_calorie_entry` proved the pattern. (task #108)
+- **Tool-card rehydration verification against v0.5.3+ live data** + orphan-thread one-shot cleanup + periodic cron. (task #94)
+- **Live-chat E2E of the render pipeline** — Phase 2 worker verified components render against sample data at `/dev/pixel-ui` but couldn't drive a signed-in Safari on the simulator against a localhost tunnel. Prod verification pending next sim session.
+
 ## [0.5.3] — 2026-08-10 — Assistant real fix + timezone + idempotency + PLAN redesign v2 + Fitness Pal chrome + food search ranking + FROM PLAN + reminders rename + gym tap-to-START
 
 A polish + reliability wave built by 3 parallel workers (P1 assistant / P2 Fitness Pal / P3 reminders+gym+small) after 3 more parallel workers earlier in the day (Wave A + B + D3 PLAN redesign via `/frontend-design`). Consolidates 8 commits into one release. Zero merge conflicts across workers thanks to explicit disjoint-file-zone briefs.

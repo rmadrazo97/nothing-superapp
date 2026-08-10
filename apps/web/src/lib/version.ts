@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.3';
+export const APP_VERSION = '0.5.4';
 export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,16 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.4',
+    date: '2026-08-10',
+    highlights: [
+      'Generative UI — the assistant now renders answers as instrument panels instead of prose. New pixel-panel component library (8 components: PixelCard, PixelTicker, PixelBarChart, PixelLineChart, PixelProgressDots, PixelArc, PixelDataTable, PixelMetricGrid) sharing a 3px cell + 1px gap grid + a signature 2×2 cadmium LED cluster in the top-right of every panel. Same pixel-dot idiom as PixelLoader — the loading state now IS the design language of the answer.',
+      'Assistant render_* tools — 7 new zero-side-effect tools (render_stat_ticker / render_bar_chart / render_line_chart / render_progress_dots / render_arc_graph / render_data_table / render_metric_grid). System prompt updated with a "Generative UI" block steering the model to prefer these over markdown for anything quantitative: "how many kcal left today", "show my weight trend", "compare last 4 weeks by muscle group" now come back as panels, not paragraphs.',
+      'CopilotChat render pipeline — `renderPixelPayload()` switch wired into the tool-part render loop; ToolCallCard fallback preserved for tools with side effects (create_reminder etc). Every render_* output travels as {version:1, kind:<name>, data:<shape>} so future versions can bump without breaking hydration.',
+      'Design proof-sheet at /dev/pixel-ui — every render_* payload rendered against representative sample data so the family reads as one instrument suite. Reference: services/growth/campaigns/nothing-superapp/design/pixel-ui-v0.5.4.md.',
+    ],
+  },
   {
     version: '0.5.3',
     date: '2026-08-10',
