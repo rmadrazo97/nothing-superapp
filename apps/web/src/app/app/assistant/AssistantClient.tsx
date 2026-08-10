@@ -186,12 +186,18 @@ export function AssistantClient() {
       >
         {hamburger}
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <span
+          <h1
             className="label"
-            style={{ color: 'var(--color-text-secondary)' }}
+            style={{
+              color: 'var(--color-text-secondary)',
+              margin: 0,
+              fontWeight: 'inherit',
+              fontSize: 'inherit',
+              lineHeight: 'inherit',
+            }}
           >
-            ◐ COPILOT
-          </span>
+            ◐ COPILOT · ASSISTANT
+          </h1>
         </div>
         {/*
           v0.5.2 — Removed the header "+" (new chat) button. It duplicated
