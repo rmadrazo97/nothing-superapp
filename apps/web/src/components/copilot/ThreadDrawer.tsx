@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/lib/toast/context';
+import { SwipeableRow, type SwipeAction } from '@/components/shell/SwipeableRow';
 import type { CopilotThread } from '@nothing/shared';
 
 export interface ThreadDrawerProps {
@@ -46,8 +47,6 @@ export function ThreadDrawer({
   const [creating, setCreating] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  // Row id awaiting a second confirm-tap to delete. Auto-clears after 3s.
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Fetch the list every time the drawer opens (cheap + always fresh).
@@ -90,13 +89,6 @@ export function ThreadDrawer({
     };
   }, [open, onClose]);
 
-  // Auto-clear the pending confirm-delete after 3 seconds.
-  useEffect(() => {
-    if (!confirmDeleteId) return;
-    const t = setTimeout(() => setConfirmDeleteId(null), 3000);
-    return () => clearTimeout(t);
-  }, [confirmDeleteId]);
-
   const createThread = useCallback(async () => {
     if (creating) return;
     setCreating(true);
@@ -122,7 +114,6 @@ export function ThreadDrawer({
   const beginRename = useCallback((thread: CopilotThread) => {
     setRenameId(thread.id);
     setRenameValue(thread.title);
-    setConfirmDeleteId(null);
   }, []);
 
   const commitRename = useCallback(async () => {
@@ -154,12 +145,10 @@ export function ThreadDrawer({
 
   const deleteThread = useCallback(
     async (id: string) => {
-      if (confirmDeleteId !== id) {
-        // First tap arms the confirm; second tap fires the delete.
-        setConfirmDeleteId(id);
-        return;
-      }
-      setConfirmDeleteId(null);
+      // Called from the SwipeableRow destructive-action commit path (i.e.
+      // 5 s after the user tapped DELETE and did not tap UNDO). The row
+      // has already been visually "pending" during those 5 s; here we
+      // just fire the real API + remove from local state.
       try {
         const res = await fetch(`/api/copilot/threads/${id}`, {
           method: 'DELETE',
@@ -172,7 +161,7 @@ export function ThreadDrawer({
         toast.error("Couldn't delete chat.");
       }
     },
-    [confirmDeleteId, activeThreadId, onDeleted, toast],
+    [activeThreadId, onDeleted, toast],
   );
 
   if (!open) return null;
@@ -335,7 +324,6 @@ export function ThreadDrawer({
                     onRenameCommit={() => void commitRename()}
                     onRenameCancel={() => setRenameId(null)}
                     onRenameStart={() => beginRename(t)}
-                    confirmingDelete={confirmDeleteId === t.id}
                     onDelete={() => void deleteThread(t.id)}
                     onSelect={() => {
                       onSelect(t.id);
@@ -368,7 +356,6 @@ function ThreadRow({
   onRenameCommit,
   onRenameCancel,
   onRenameStart,
-  confirmingDelete,
   onDelete,
   onSelect,
 }: {
@@ -380,12 +367,9 @@ function ThreadRow({
   onRenameCommit: () => void;
   onRenameCancel: () => void;
   onRenameStart: () => void;
-  confirmingDelete: boolean;
   onDelete: () => void;
   onSelect: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   const timestamp = formatRelative(thread.last_message_at);
 
   if (renaming) {
@@ -439,128 +423,61 @@ function ThreadRow({
     );
   }
 
+  const actions: SwipeAction[] = [
+    { label: 'Rename', kind: 'primary', onSelect: onRenameStart },
+    {
+      label: 'Delete',
+      kind: 'destructive',
+      onSelect: onDelete,
+      undoLabel: 'Chat deleted',
+    },
+  ];
+
   return (
-    <div
-      className="nsa-thread-row"
-      data-active={active ? 'true' : 'false'}
-      style={{ position: 'relative' }}
-    >
-      <button
-        type="button"
-        onClick={onSelect}
-        style={{
-          background: 'transparent',
-          border: 0,
-          padding: 0,
-          textAlign: 'left',
-          color: 'var(--color-text-primary)',
-          fontFamily: 'var(--font-body)',
-          fontSize: 'var(--text-body-sm)',
-          fontWeight: active ? 500 : 400,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          cursor: 'pointer',
-          paddingRight: 32,
-        }}
+    <SwipeableRow actions={actions} ariaLabel={thread.title || 'Untitled thread'}>
+      <div
+        className="nsa-thread-row"
+        data-active={active ? 'true' : 'false'}
+        style={{ position: 'relative' }}
       >
-        {thread.title || 'Untitled'}
-      </button>
-      <span
-        style={{
-          fontFamily: 'var(--font-label)',
-          fontSize: 10,
-          letterSpacing: '0.04em',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        {timestamp}
-      </span>
-      <button
-        type="button"
-        aria-label="Thread actions"
-        onClick={(e) => {
-          e.stopPropagation();
-          setMenuOpen((v) => !v);
-        }}
-        style={{
-          position: 'absolute',
-          top: 'var(--space-2)',
-          right: 'var(--space-2)',
-          width: 24,
-          height: 24,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'transparent',
-          border: 0,
-          color: 'var(--color-text-secondary)',
-          cursor: 'pointer',
-          fontSize: 14,
-          lineHeight: 1,
-        }}
-      >
-        ⋯
-      </button>
-      {menuOpen && (
-        <div
+        <button
+          type="button"
+          onClick={onSelect}
           style={{
-            position: 'absolute',
-            top: 32,
-            right: 'var(--space-2)',
-            zIndex: 5,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--color-surface-raised)',
-            border: '1px solid var(--color-border-visible)',
-            borderRadius: 'var(--radius-compact)',
+            background: 'transparent',
+            border: 0,
+            padding: 0,
+            textAlign: 'left',
+            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-body-sm)',
+            fontWeight: active ? 500 : 400,
             overflow: 'hidden',
-            minWidth: 140,
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            // Reserve room on the right for the ⋯ affordance rendered by
+            // SwipeableRow (14px glyph at --space-3 offset ≈ 24px total).
+            paddingRight: 28,
+            width: '100%',
           }}
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen(false);
-              onRenameStart();
-            }}
-            style={menuBtnStyle}
-          >
-            Rename
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-              if (confirmingDelete) setMenuOpen(false);
-            }}
-            style={{
-              ...menuBtnStyle,
-              color: 'var(--color-accent)',
-            }}
-          >
-            {confirmingDelete ? '× Confirm?' : '× Delete'}
-          </button>
-        </div>
-      )}
-    </div>
+          {thread.title || 'Untitled'}
+        </button>
+        <span
+          style={{
+            fontFamily: 'var(--font-label)',
+            fontSize: 10,
+            letterSpacing: '0.04em',
+            color: 'var(--color-text-secondary)',
+          }}
+        >
+          {timestamp}
+        </span>
+      </div>
+    </SwipeableRow>
   );
 }
-
-const menuBtnStyle = {
-  padding: 'var(--space-2) var(--space-3)',
-  background: 'transparent',
-  border: 0,
-  textAlign: 'left' as const,
-  fontFamily: 'var(--font-label)',
-  fontSize: 'var(--text-caption)',
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase' as const,
-  color: 'var(--color-text-primary)',
-  cursor: 'pointer',
-};
 
 function formatRelative(iso: string): string {
   try {
