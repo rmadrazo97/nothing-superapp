@@ -1,12 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from 'ai';
 import { useToast } from '@/lib/toast/context';
 import { Composer, type ComposerAttachment } from './Composer';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ToolCallCard } from './ToolCallCard';
+import {
+  PixelCard,
+  PixelTicker,
+  PixelBarChart,
+  PixelLineChart,
+  PixelProgressDots,
+  PixelArc,
+  PixelDataTable,
+  PixelMetricGrid,
+  coerceRenderPayload,
+} from '@/components/pixel-ui';
 
 /**
  * Browser IANA timezone — cached at first read. Safe on SSR (returns null),
@@ -591,6 +602,33 @@ function RenderedMessage({
         const stableKey = anyPart.toolCallId
           ? `${message.id}-toolcall-${anyPart.toolCallId}`
           : `${message.id}-tool-${idx}`;
+        // Generative UI branch — the render_* tools return one-shot render
+        // payloads the client mounts as pixel-panel components. While the
+        // tool is still streaming (state 'input-*') fall back to the
+        // ToolCallCard so the user sees a "running" placeholder. Once the
+        // output lands, mount the correct pixel-ui component. See
+        // components/pixel-ui/ + design/pixel-ui-v0.5.4.md.
+        if (toolName.startsWith('render_')) {
+          const state = anyPart.state ?? 'input-available';
+          const isDone = state === 'output-available';
+          if (isDone) {
+            const rendered = renderPixelPayload(anyPart.output, stableKey);
+            if (rendered) return rendered;
+          }
+          // Fallback: while still running (or if the payload was malformed
+          // and coerce returned null), keep the ToolCallCard treatment so
+          // the user isn't staring at a blank space.
+          return (
+            <ToolCallCard
+              key={stableKey}
+              toolName={toolName}
+              state={state}
+              input={anyPart.input}
+              output={anyPart.output}
+              errorText={anyPart.errorText ?? null}
+            />
+          );
+        }
         return (
           <ToolCallCard
             key={stableKey}
@@ -604,6 +642,66 @@ function RenderedMessage({
       })}
     </div>
   );
+}
+
+/**
+ * Route a render_* tool's output to the matching pixel-ui component,
+ * wrapped in a `<PixelCard>`. Returns null if the payload doesn't
+ * validate — the caller falls back to `<ToolCallCard>` in that case.
+ *
+ * The switch is exhaustive over the discriminated union; adding a new
+ * `render_*` tool means (1) extending schemas.ts's union, (2) writing
+ * the component, (3) adding a case here.
+ */
+function renderPixelPayload(output: unknown, key: string): ReactElement | null {
+  const data = coerceRenderPayload(output);
+  if (!data) return null;
+  switch (data.kind) {
+    case 'stat_ticker':
+      return (
+        <PixelCard key={key}>
+          <PixelTicker {...data} />
+        </PixelCard>
+      );
+    case 'bar_chart':
+      return (
+        <PixelCard key={key}>
+          <PixelBarChart {...data} />
+        </PixelCard>
+      );
+    case 'line_chart':
+      return (
+        <PixelCard key={key}>
+          <PixelLineChart {...data} />
+        </PixelCard>
+      );
+    case 'progress_dots':
+      return (
+        <PixelCard key={key}>
+          <PixelProgressDots {...data} />
+        </PixelCard>
+      );
+    case 'arc_graph':
+      return (
+        <PixelCard key={key}>
+          <PixelArc {...data} />
+        </PixelCard>
+      );
+    case 'data_table':
+      return (
+        <PixelCard key={key}>
+          <PixelDataTable {...data} />
+        </PixelCard>
+      );
+    case 'metric_grid':
+      return (
+        <PixelCard key={key}>
+          <PixelMetricGrid {...data} />
+        </PixelCard>
+      );
+    default:
+      return null;
+  }
 }
 
 function EmptyState({

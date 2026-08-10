@@ -45,6 +45,17 @@ import { makeTriggerReminderNowTool } from './trigger-reminder-now';
 // hand-written wins on semantic clarity ("log_calorie_entry"), framework fills
 // the long tail ("calorie_lite_custom_foods_update").
 import { resourceTools } from '@/lib/ai/resource-tools';
+// Generative UI tools (v0.5.4) — one-shot pass-through tools that return a
+// render payload the client mounts as a pixel-panel component. No DB writes,
+// no rate limit budgets — they exist purely to move structured payloads from
+// the model into the render pipeline. See components/pixel-ui/ for renderers.
+import { makeRenderStatTickerTool } from './render-stat-ticker';
+import { makeRenderBarChartTool } from './render-bar-chart';
+import { makeRenderLineChartTool } from './render-line-chart';
+import { makeRenderProgressDotsTool } from './render-progress-dots';
+import { makeRenderArcGraphTool } from './render-arc-graph';
+import { makeRenderDataTableTool } from './render-data-table';
+import { makeRenderMetricGridTool } from './render-metric-grid';
 
 export function copilotTools(userId: string, supabase: SupabaseClient) {
   return {
@@ -74,6 +85,17 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     list_reminders: makeListRemindersTool(userId, supabase),
     toggle_reminder: makeToggleReminderTool(userId, supabase),
     trigger_reminder_now: makeTriggerReminderNowTool(userId, supabase),
+    // generative UI (v0.5.4) — render_* tools return payloads the client
+    // mounts as pixel-panel components. No userId/supabase args — pure
+    // pass-through. Registered as a discrete block so future workers can
+    // grep for `render_` to find the whole surface.
+    render_stat_ticker: makeRenderStatTickerTool(),
+    render_bar_chart: makeRenderBarChartTool(),
+    render_line_chart: makeRenderLineChartTool(),
+    render_progress_dots: makeRenderProgressDotsTool(),
+    render_arc_graph: makeRenderArcGraphTool(),
+    render_data_table: makeRenderDataTableTool(),
+    render_metric_grid: makeRenderMetricGridTool(),
     // framework-generated (calorie_lite_*, pomodoro_*, ...)
     ...resourceTools(userId, supabase),
   };
