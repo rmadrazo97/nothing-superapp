@@ -6,13 +6,15 @@
   "exports": {
     "./manifest": "./manifest.ts",
     "./page": "./page.tsx",
+    "./resources": "./resources.ts",
     "./settings": "./settings.tsx",
     "./pages/exercises": "./pages/exercises.tsx",
     "./pages/exercise-detail": "./pages/exercise-detail.tsx",
     "./pages/routines": "./pages/routines.tsx",
     "./pages/routine-editor": "./pages/routine-editor.tsx",
     "./pages/session": "./pages/session.tsx",
-    "./pages/history": "./pages/history.tsx"
+    "./pages/history": "./pages/history.tsx",
+    "./measurements/page": "./measurements/page.tsx"
   },
   "dependencies": {
     "@nothing/mini-apps-runtime": "workspace:*",

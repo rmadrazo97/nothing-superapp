@@ -252,3 +252,136 @@ export function isRoutineV2(row: unknown): boolean {
   const p = r.plan as { days?: unknown };
   return Array.isArray(p.days) && p.days.length > 0;
 }
+
+// ─── body_metrics (migration 021 — task #90) ───────────────────────────────
+//
+// Weekly weight + tape-measure log for the Gym mini-app's MEASUREMENTS
+// section. Storage is canonical INTEGER units (mm for length, g for mass) so
+// unit conversion happens at the display boundary without float drift.
+//
+// The insert schema is the LLM-facing surface AND the client-facing surface
+// — both send the same shape. Column ranges mirror the DB CHECKs so a
+// broken payload never reaches Postgres.
+
+// ISO week key: "2026-W01" through "2026-W53". Regex enforces the shape so
+// the copilot can't invent "week of March 3" strings; keeps `iso_week` a
+// stable bucket key across the app.
+const isoWeekRegex = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
+
+export const bodyMetricSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  iso_week: z
+    .string()
+    .regex(isoWeekRegex, 'iso_week must match YYYY-Www (ISO 8601 week).'),
+  measured_at: z.string().datetime({ offset: true }),
+  glutes_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  waist_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  chest_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  thighs_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  biceps_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  weight_g: z.number().int().min(20_000).max(500_000).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+// Insert / update payload. `id`, `user_id`, `created_at` are server-owned
+// and stripped by the resource framework. `measured_at` we allow as an
+// override (default is now()) so the LLM can back-date a weigh-in if the
+// user says "log last Sunday's numbers".
+export const bodyMetricInsertSchema = z.object({
+  iso_week: z
+    .string()
+    .regex(isoWeekRegex, 'iso_week must match YYYY-Www (ISO 8601 week).'),
+  measured_at: z.string().datetime({ offset: true }).optional(),
+  glutes_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  waist_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  chest_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  thighs_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  biceps_mm: z.number().int().min(100).max(3000).nullable().optional(),
+  weight_g: z.number().int().min(20_000).max(500_000).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+export const bodyMetricUpdateSchema = bodyMetricInsertSchema.partial();
+
+export type BodyMetric = z.infer<typeof bodyMetricSchema>;
+export type BodyMetricInsert = z.infer<typeof bodyMetricInsertSchema>;
+export type BodyMetricUpdate = z.infer<typeof bodyMetricUpdateSchema>;
+
+// ─── Unit conversion helpers ───────────────────────────────────────────────
+// Storage is INTEGER mm + g. Display is user preference (in / cm, lbs / kg).
+// All helpers round to nearest int on the storage side; display side keeps
+// one decimal for measurements (0.1 in ≈ 2.5 mm, meaningful) and one for
+// weight (0.1 lb / 0.1 kg — matches most bathroom scales).
+
+/** inches → mm, rounded to nearest int. Null passes through. */
+export function inToMm(inches: number | null | undefined): number | null {
+  if (inches == null || Number.isNaN(inches)) return null;
+  return Math.round(inches * 25.4);
+}
+
+/** cm → mm, rounded to nearest int. Null passes through. */
+export function cmToMm(cm: number | null | undefined): number | null {
+  if (cm == null || Number.isNaN(cm)) return null;
+  return Math.round(cm * 10);
+}
+
+/** mm → inches, one decimal. Null passes through. */
+export function mmToIn(mm: number | null | undefined): number | null {
+  if (mm == null) return null;
+  return Math.round((mm / 25.4) * 10) / 10;
+}
+
+/** mm → cm, one decimal. Null passes through. */
+export function mmToCm(mm: number | null | undefined): number | null {
+  if (mm == null) return null;
+  return Math.round((mm / 10) * 10) / 10;
+}
+
+/** lbs → g, rounded. Null passes through. */
+export function lbsToG(lbs: number | null | undefined): number | null {
+  if (lbs == null || Number.isNaN(lbs)) return null;
+  return Math.round(lbs * 453.59237);
+}
+
+/** kg → g, rounded. Null passes through. */
+export function kgToG(kg: number | null | undefined): number | null {
+  if (kg == null || Number.isNaN(kg)) return null;
+  return Math.round(kg * 1000);
+}
+
+/** g → lbs, one decimal. */
+export function gToLbs(g: number | null | undefined): number | null {
+  if (g == null) return null;
+  return Math.round((g / 453.59237) * 10) / 10;
+}
+
+/** g → kg, one decimal. */
+export function gToKg(g: number | null | undefined): number | null {
+  if (g == null) return null;
+  return Math.round((g / 1000) * 10) / 10;
+}
+
+/**
+ * Current ISO week key, e.g. "2026-W32". Matches the DB `iso_week` column
+ * and the `bodyMetricInsertSchema.iso_week` regex. Pure — no dayjs / moment.
+ *
+ * Algorithm mirrors `apps/mini-apps/gym-routine/lib/format.ts::isoWeekKey`
+ * (which takes an ISO date string). Duplicated in shared so the copilot
+ * tools + server can compute the default week without pulling in a mini-app
+ * package.
+ */
+export function currentIsoWeek(now: Date = new Date()): string {
+  const target = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+  const dayNum = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(
+    ((target.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
+  );
+  return `${target.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+

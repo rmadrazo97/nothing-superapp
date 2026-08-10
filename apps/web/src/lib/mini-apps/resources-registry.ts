@@ -14,11 +14,13 @@
 import type { MiniAppResource, MiniAppResourceModule } from '@nothing/shared';
 
 import calorieLiteResources from '@nothing-mini-apps/calorie-lite/resources';
+import gymRoutineResources from '@nothing-mini-apps/gym-routine/resources';
 import pomodoroResources from '@nothing-mini-apps/pomodoro/resources';
 import remindersResources from '@nothing-mini-apps/reminders/resources';
 
 const MODULES: MiniAppResourceModule[] = [
   calorieLiteResources,
+  gymRoutineResources,
   pomodoroResources,
   remindersResources,
 ].sort((a, b) => a.slug.localeCompare(b.slug));
