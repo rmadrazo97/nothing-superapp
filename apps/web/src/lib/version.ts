@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.4.0';
-export const APP_RELEASE_DATE = '2026-08-09'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.5.0';
+export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,20 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.0',
+    date: '2026-08-10',
+    highlights: [
+      'Assistant rebuilt — persistent chat threads, streaming ▊ cursor, markdown-lite renderer, Copy · Regen · Continue actions, right-aligned cadmium user bubbles, empty-state prompt cards.',
+      'ThreadDrawer with rename + delete + cadmium active-row highlight; ?t=<uuid> URL binding for deep-linkable chats.',
+      'Reminders mini-app + agent loops — Nothing Superapp\'s answer to Claude loops. A reminder can be a simple NOTIFY or an autonomous copilot prompt on a schedule. 6 templates ship (weekly meal review, gym adherence check, grocery list from active plan, etc). Cron runs from GitHub Actions every 5 min.',
+      'Meal-plan entries collapse — plan-logged ingredients group under one card on TODAY, expand for per-ingredient edit/delete, delete whole meal in two taps.',
+      'Calorie entries — inline edit + delete on every row.',
+      'Meal plans + gym routines — delete affordance with two-tap confirm.',
+      'Launcher — 2-tile-per-row grid on every viewport (was collapsing to 1 col on narrow iPhones).',
+      'PWA polish — pinch-zoom + double-tap zoom disabled; feels native on iOS home-screen installs.',
+    ],
+  },
   {
     version: '0.4.0',
     date: '2026-08-09',

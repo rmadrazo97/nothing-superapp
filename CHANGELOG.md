@@ -2,6 +2,61 @@
 
 All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely.
 
+The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
+
+## [0.5.0] — 2026-08-10 — Assistant + Reminders + agent loops
+
+Copilot becomes a real chat, and reminders become agent loops.
+
+### Added
+- **Assistant rebuild** — persistent chat threads (`copilot_threads` + `copilot_messages`, migration 015, owner-only RLS), streaming `▊` cursor, markdown-lite renderer (bold/italic/lists/code, zero new deps), Copy · Regenerate · Continue actions on hover, retry chip on stream failure, right-aligned cadmium user bubbles, left-aligned dark assistant bubbles, empty-state prompt cards.
+- **ThreadDrawer** (`apps/web/src/components/copilot/ThreadDrawer.tsx`) — slide-in from left, `+ NEW CHAT`, per-row rename + delete (two-tap confirm), cadmium left-border on active thread.
+- **URL binding** — `?t=<uuid>` deep-linkable, browser-back friendly, key-by-thread-id remount.
+- **Route body extension** — `POST /api/copilot` now accepts optional `thread_id` + `context: 'calorie-lite'`. `onFinish` persists both turns (text + tool-invocation + reasoning parts) via the shared assistant-content normalizer. Auto-title from first user message truncated to 60 chars.
+- **Reminders mini-app** (`apps/mini-apps/reminders/`, migration 017) — new launcher tile with UPCOMING · ALL · HISTORY tabs. Reminder `kind` is either `notify` (push at time) or `agent_loop` (autonomous copilot prompt on a schedule). Six schedule shapes: `once`, `daily`, `weekly`, `monthly`, `cron`. Timezone-aware. `next_fire_at` denormalized for cheap due-scans.
+- **Agent-loop runtime** (`apps/web/src/lib/ai/agent-loops.ts`) — service-role Supabase client + `runAgentLoop(reminder)` using `streamText` with `maxSteps = 5` and the full copilot tool surface, RLS-scoped via explicit `user_id` filters. Result saved to `reminder_runs.agent_summary`, push fired via existing infra.
+- **Tick endpoint** (`POST /api/reminders/tick`) — Bearer `CRON_SECRET` gated. Fetches due reminders, processes each via `notify` or `agent_loop`, updates `last_fired_at + next_fire_at`. Also `POST /api/reminders/trigger` for session-authed "▶ Run now".
+- **GitHub Actions cron** (`.github/workflows/reminders-tick.yml`) — every 5 min. Vercel Hobby caps crons at daily; GHA has no such limit. Same tick endpoint, same `CRON_SECRET` bearer.
+- **Six canned templates** — 3 notify (drink water, log lunch, weekly weigh-in) + 3 agent loops (weekly meal review, gym adherence, grocery list from active plan).
+- **Copilot tools** — `create_reminder`, `list_reminders`, `toggle_reminder`, `trigger_reminder_now` (+ framework auto-CRUD via the resources declaration).
+- **Meal-plan entry grouping** (migration 016) — `app_calorie_entries.meal_group_id` (nullable uuid) + `meal_group_label`. `log_meal_from_plan` stamps every ingredient row with the same group id. TODAY view renders one `MealGroupCard` per group: header with total kcal + macros + × Delete group (two-tap, batch DELETE per row + emit event). Expand → per-ingredient rows with existing edit/delete. `sessionStorage` persists collapsed state per group.
+- **Calorie entry inline edit + delete** — tap any TODAY row to reveal `✎ Edit` (form for name/kcal/P·C·F/meal slot, PATCH via framework endpoint) + `× Delete` (two-tap confirm, 3s auto-disarm). Uses `/api/mini-apps/calorie-lite/resources/entries/[id]` under the hood.
+- **Meal-plan delete + gym-routine delete** — two-tap confirm chips on plan header (when active) + on each row in the chooser. Deleting the active plan cascades to `preferences.active_meal_plan_id = null` via the FK, then reloads.
+
+### Changed
+- **Launcher grid** — `HomeGrid` locked to `repeat(2, minmax(0, 1fr))` on every viewport. Was `auto-fill, minmax(140px, 1fr)` which collapsed to 1 col on narrow iPhones once safe-area ate horizontal space.
+- **Viewport meta** — `maximumScale: 1, userScalable: false, interactiveWidget: 'resizes-content'`. Inline script blocks Safari's `gesturestart` family + double-tap-zoom (300ms `touchend` guard). `touch-action: pan-x pan-y` on `<body>`. Feels native on iOS home-screen installs.
+- **Service worker bumped** to `v0.4.0` then `v0.5.0` so installed PWAs pick up the new bundle without a full app kill.
+
+### Fixed
+- User messages weren't rendering in the standalone assistant page (only tool-call cards + reasoning showed). Fixed as part of the assistant rebuild.
+- Reasoning parts now render BELOW the answer disclosure, not above it.
+
+### Infra notes
+- Vercel git-push auto-deploy is flaky on this project — after landing user-visible slices we run `cd apps/web && npx vercel@latest --prod --yes --scope rmadrazo97s-projects` from the repo root (there's also a stale `apps/web/.vercel/project.json` risk — always deploy from repo root).
+- Migration slots 015 (copilot_threads), 016 (meal_group_id), 017 (reminders + reminder_runs) all applied to prod via `psql` (env `SUPABASE_PROJECT_ID` + `SUPABASE_DB_PASSWORD` in `apps/web/.env.local`).
+- `CRON_SECRET` set in Vercel prod env AND GitHub Actions secrets — both required for the tick workflow to fire successfully.
+
+## [0.4.0] — 2026-08-09 — Real agent + multimodal + meal plans + gym v2 + USDA + framework
+
+The day the copilot became an agent and the food DB grew 50×.
+
+### Added
+- **Copilot → Vercel AI SDK v5** — swapped hand-rolled Moonshot SSE for `streamText()` + `toUIMessageStreamResponse()`. `@ai-sdk/react` `useChat` on the client, `@ai-sdk/openai-compatible` on the server pointed at Moonshot's OpenAI-shaped endpoint. Kimi K2.6 stays default; provider config lives in one place for a future OpenRouter swap.
+- **19 hand-written tools** across nutrition (log_calorie_entry, log_water, log_weight, search_foods, get_daily_summary, get_streak, get_gym_history, start_pomodoro) + gym v2 (create_gym_routine, get_gym_routine, list_gym_routines) + meal plans (create_meal_plan, get_meal_plan, list_meal_plans, log_meal_from_plan) + smart nutrition (find_equivalent_food, suggest_from_menu, extract_macros_from_text). Every write auth+entitlement+rate-limited (10 writes/hr per user) and audited to `copilot_tool_calls` (migration 010).
+- **Mini-app resource framework** — declare `resources.ts` per mini-app; framework auto-generates REST at `/api/mini-apps/<slug>/resources/<name>` (list/get/create/update/delete), 32 copilot tools (`<slug>_<resource>_<op>`), and a `useResource()` runtime hook. Coexists with hand-written routes. Canaries: calorie-lite + pomodoro.
+- **In-app copilot drawer** — bottom-sheet drawer accessible via `◐ ASK` chip in calorie-lite header. Route accepts `context: 'calorie-lite'` → injects <2KB CALORIE LITE SNAPSHOT (today's macros, remaining, active plan) into system prompt.
+- **Multimodal composer** — image attachments (jpeg/png/webp, ≤5MB, up to 3) + voice input via `webkitSpeechRecognition`. Provider routes to `KIMI_VISION_MODEL` when messages carry image parts (default `moonshot-v1-8k-vision-preview`; unset falls back to `KIMI_MODEL`).
+- **Meal plans v2** (migration 012) — nutritionist-style structured plans with `plan.meals[].options[]`, per-meal macro targets, ingredients with `free`/`generic` flags, `plan.rules` block (weighing, free_meal, hydration, vegetables, option_interchangeability, protein_source_swap). `meal_plan_adherence` tracking table. Real Diet Jam v1 seeded as fixture under owner account.
+- **Gym routine v2** (migration 011) — top-set/back-off blocks, RIR ranges (`{min,max}`), rep ranges, supersets with components, unilateral + `reps_per_side`, bilingual (`name_es`/`name_en`), alternatives, cardio prescriptions, coach conventions (`sets_notation`, `rir_definition`, etc). `workout_sessions` gained `plan_day` + `plan_exercise_id` + `block_role`.
+- **USDA SR Legacy ingestion** (migration 014) — `foods` grew from 153 curated → 7,946 rows. `foods_name_trgm_idx` (pg_trgm GIN) for fast ILIKE. `usda_fdc_id` + `source` columns added; curated rows never overwritten (`WHERE foods.source <> 'curated'` guard on the UPSERT).
+- **In-app settings cog per mini-app** — reusable pattern: mini-app declares `settings: { title }` in its manifest, exports a `settings.tsx`. `MiniAppSettingsSheet` right-side drawer lazily loads it via `next/dynamic({ ssr: false })`. Calorie-lite's nutrition prefs (macros/water/weight/body profile) moved OUT of main Settings into the cog.
+- **ABOUT card in main Settings** — version + release date + native `<details>` changelog disclosure, sourced from `apps/web/src/lib/version.ts` `CHANGELOG`.
+- **PWA safe-area** — Shell top padding + horizontal padding include `env(safe-area-inset-*)`. OnboardingWizard + MiniAppSettingsSheet get full-inset padding.
+
+### Changed
+- `preferences` extended: `macro_goal_pct`, `water_goal_ml`, `weight_goal_kg`, `weight_unit`, `volume_unit`, `sex`, `age_years`, `height_cm`, `activity_level`, `goal_direction`, `onboarded_at`, `active_meal_plan_id`.
+
 ## [0.3.2] — 2026-08-09 — Web Push
 
 Reach users when the tab is closed.
