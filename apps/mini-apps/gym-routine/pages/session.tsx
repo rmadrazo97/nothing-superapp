@@ -17,10 +17,10 @@
  * even without a network round-trip. The server GET /sessions/live is the
  * cross-device source of truth.
  */
-import { use, useCallback, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { SessionEntry, WorkoutSession } from '@nothing/shared';
+import type { Exercise, SessionEntry, WorkoutSession } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
@@ -28,6 +28,13 @@ import { useToast } from '../../../web/src/lib/toast/context';
 import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
 import { durationLabel, totalSetsCompleted, totalVolumeKg } from '../lib/format.ts';
 import RestTimer from '../components/RestTimer.tsx';
+import ExerciseInfoSheet from '../components/ExerciseInfoSheet.tsx';
+import { useMiniAppSettings } from '../../../web/src/components/mini-app-settings';
+import {
+  GYM_SETTINGS_DEFAULTS,
+  isBodyWeightEquipment,
+  type GymSettings,
+} from '../lib/settings.ts';
 
 const DEFAULT_REST_SEC = 90;
 
@@ -47,7 +54,23 @@ export default function SessionPage({
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const [restDurationSec, setRestDurationSec] = useState(DEFAULT_REST_SEC);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  // Map of exercise_id → its catalog row (holds `equipment`, used to
+  // decide whether the weight column is "body weight" or a real
+  // number field). Hydrated lazily as entries load.
+  const [exerciseMeta, setExerciseMeta] = useState<Record<string, Exercise>>({});
+  // Bottom-sheet state for the ⓘ HOW-TO drawer.
+  const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Per-mini-app settings — weight/length units. Debounced-optimistic.
+  const { settings: gymSettings } = useMiniAppSettings<GymSettings>(
+    'gym-routine',
+    GYM_SETTINGS_DEFAULTS,
+  );
+  const weightUnitLabel = useMemo(
+    () => (gymSettings.weightUnit === 'kg' ? 'KG' : 'LBS'),
+    [gymSettings.weightUnit],
+  );
 
   const load = useCallback(async () => {
     setError(null);
@@ -70,6 +93,37 @@ export default function SessionPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Hydrate exercise catalog rows for every entry we haven't seen yet.
+  // One-shot per id — the exercise catalog is public/immutable so we
+  // never invalidate. Failures are silent; the row just doesn't get an
+  // "is body weight" hint (falls back to showing the weight field with
+  // the current unit label).
+  useEffect(() => {
+    const missing = entries
+      .map((e) => e.exercise_id)
+      .filter((id) => id && !exerciseMeta[id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.allSettled(
+        missing.map((id) => api.getExercise(id)),
+      );
+      if (cancelled) return;
+      setExerciseMeta((prev) => {
+        const next = { ...prev };
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            next[missing[i]] = r.value.exercise;
+          }
+        });
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, exerciseMeta]);
 
   const persistEntries = useCallback(
     async (next: SessionEntry[]) => {
@@ -232,6 +286,13 @@ export default function SessionPage({
           {entries.map((entry, exIdx) => {
             const doneCount = entry.sets.filter((s) => s.completed_at).length;
             const active = isLive && doneCount < entry.sets.length;
+            const meta = exerciseMeta[entry.exercise_id];
+            const isBW = meta ? isBodyWeightEquipment(meta.equipment) : false;
+            // Grid columns collapse when we hide the weight input for BW
+            // exercises — reps takes the full inner span.
+            const gridCols = isBW
+              ? '36px 1fr auto'
+              : '36px 1fr 1fr auto';
             return (
               <li key={`${entry.exercise_id}-${exIdx}`}>
                 <div
@@ -243,10 +304,78 @@ export default function SessionPage({
                     gap: 'var(--space-3)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ color: 'var(--color-text-display)', fontSize: 'var(--text-body)' }}>
-                      {entry.name}
-                    </span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: 'var(--color-text-display)',
+                          fontSize: 'var(--text-body)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {entry.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setInfoExerciseId(entry.exercise_id)}
+                        aria-label={`How to do ${entry.name}`}
+                        title="How to"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--color-border-visible)',
+                          color: 'var(--color-text-secondary)',
+                          borderRadius: '999px',
+                          width: 20,
+                          height: 20,
+                          minWidth: 20,
+                          padding: 0,
+                          fontSize: 12,
+                          lineHeight: 1,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {'ⓘ'}
+                      </button>
+                      {isBW && (
+                        <span
+                          style={{
+                            border: '1px solid var(--color-border-visible)',
+                            color: 'var(--color-text-secondary)',
+                            padding: '0 var(--space-2)',
+                            borderRadius: 'var(--radius-button)',
+                            fontFamily: 'var(--font-label)',
+                            fontSize: 'var(--text-label)',
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            lineHeight: '20px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Body weight
+                        </span>
+                      )}
+                    </div>
                     <span
                       className="data"
                       style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
@@ -263,7 +392,7 @@ export default function SessionPage({
                           key={setIdx}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '36px 1fr 1fr auto',
+                            gridTemplateColumns: gridCols,
                             gap: 'var(--space-2)',
                             alignItems: 'center',
                           }}
@@ -293,28 +422,30 @@ export default function SessionPage({
                             }}
                             aria-label={`Reps for set ${setIdx + 1}`}
                           />
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            max={1000}
-                            step={0.5}
-                            value={set.weight_kg ?? ''}
-                            placeholder="BW"
-                            disabled={!isLive}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              updateSetField(exIdx, setIdx, { weight_kg: v === '' ? null : Number(v) });
-                            }}
-                            onBlur={() => void commitField()}
-                            style={{
-                              ...inputStyle,
-                              padding: 'var(--space-2)',
-                              minHeight: 44,
-                              opacity: done ? 0.7 : 1,
-                            }}
-                            aria-label={`Weight for set ${setIdx + 1}`}
-                          />
+                          {!isBW && (
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              max={1000}
+                              step={0.5}
+                              value={set.weight_kg ?? ''}
+                              placeholder={weightUnitLabel}
+                              disabled={!isLive}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateSetField(exIdx, setIdx, { weight_kg: v === '' ? null : Number(v) });
+                              }}
+                              onBlur={() => void commitField()}
+                              style={{
+                                ...inputStyle,
+                                padding: 'var(--space-2)',
+                                minHeight: 44,
+                                opacity: done ? 0.7 : 1,
+                              }}
+                              aria-label={`Weight (${weightUnitLabel}) for set ${setIdx + 1}`}
+                            />
+                          )}
                           <button
                             type="button"
                             onClick={() => void toggleSetComplete(exIdx, setIdx)}
@@ -397,6 +528,12 @@ export default function SessionPage({
           )}
         </div>
       )}
+
+      <ExerciseInfoSheet
+        exerciseId={infoExerciseId}
+        open={infoExerciseId != null}
+        onClose={() => setInfoExerciseId(null)}
+      />
     </div>
   );
 }

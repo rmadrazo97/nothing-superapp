@@ -6,6 +6,7 @@
   "exports": {
     "./manifest": "./manifest.ts",
     "./page": "./page.tsx",
+    "./settings": "./settings.tsx",
     "./pages/exercises": "./pages/exercises.tsx",
     "./pages/exercise-detail": "./pages/exercise-detail.tsx",
     "./pages/routines": "./pages/routines.tsx",

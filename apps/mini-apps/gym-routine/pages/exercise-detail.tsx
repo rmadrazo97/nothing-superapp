@@ -16,8 +16,8 @@ import type { Exercise, WorkoutRoutine } from '@nothing/shared';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
-import { cardStyle, chipStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
-import AttributionFooter from '../components/AttributionFooter.tsx';
+import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
+import ExerciseDetail from '../components/ExerciseDetail.tsx';
 
 export default function ExerciseDetailPage({
   params,
@@ -203,38 +203,8 @@ export default function ExerciseDetailPage({
         </Link>
       </div>
 
-      <h1 className="display-md" style={{ margin: 0 }}>{exercise.name}</h1>
-
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        <span style={chipStyle(false)}>{exercise.body_part}</span>
-        <span style={chipStyle(false)}>{exercise.target}</span>
-        <span style={chipStyle(false)}>{exercise.equipment}</span>
-      </div>
-
-      <div
-        style={{
-          aspectRatio: '1 / 1',
-          width: '100%',
-          maxWidth: 480,
-          alignSelf: 'center',
-          background: 'var(--color-neutral-100)',
-          border: '1px solid var(--color-border-visible)',
-          borderRadius: 'var(--radius-card)',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={exercise.gif_url}
-          alt={`${exercise.name} demonstration`}
-          loading="lazy"
-          decoding="async"
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-        />
-      </div>
+      {/* Shared render — same component the in-session HOW-TO bottom-sheet uses. */}
+      <ExerciseDetail exercise={exercise} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
         <button
@@ -339,44 +309,6 @@ export default function ExerciseDetailPage({
         </section>
       )}
 
-      <section
-        aria-label="Instructions"
-        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
-      >
-        <span className="label">HOW TO</span>
-        {exercise.instruction_steps.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>No instructions available.</p>
-        ) : (
-          <ol
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-3)',
-              paddingLeft: 'var(--space-6)',
-              margin: 0,
-            }}
-          >
-            {exercise.instruction_steps.map((step, i) => (
-              <li key={i} style={{ color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
-                {step}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      {exercise.secondary_muscles.length > 0 && (
-        <section aria-label="Secondary muscles" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <span className="label">ALSO WORKS</span>
-          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-            {exercise.secondary_muscles.map((m) => (
-              <span key={m} style={chipStyle(false)}>{m}</span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <AttributionFooter />
     </div>
   );
 }

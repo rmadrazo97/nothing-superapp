@@ -23,4 +23,9 @@ export default defineMiniApp({
   icon: '🏋️',
   route: '/app/gym-routine',
   requiresSubscription: true,
+  // v0.5.2 — per-mini-app settings panel (WEIGHT + LENGTH units). Wired
+  // through the shared MiniAppSettingsSheet via client-registry.ts.
+  settings: {
+    title: 'Gym',
+  },
 });

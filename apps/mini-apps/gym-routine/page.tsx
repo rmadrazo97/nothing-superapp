@@ -23,6 +23,7 @@ import { EmptyState, useEvents } from '@nothing/mini-apps-runtime';
 // Relative reach into the host app — same module instance as the shell's
 // <ToastProvider>, so toasts show up in the visible container.
 import { useToast } from '../../web/src/lib/toast/context';
+import { MiniAppSettingsButton } from '../../web/src/components/mini-apps/MiniAppSettingsButton';
 import type { WorkoutRoutine, WorkoutSession } from '@nothing/shared';
 import * as api from './lib/api.ts';
 import { ApiError, toastForError } from './lib/api.ts';
@@ -109,11 +110,21 @@ export default function GymHomePage() {
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <span className="label">GYM · ROUTINE</span>
-        <h1 className="display-lg" style={{ margin: 0 }}>
-          GYM
-        </h1>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 'var(--space-4)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <span className="label">GYM · ROUTINE</span>
+          <h1 className="display-lg" style={{ margin: 0 }}>
+            GYM
+          </h1>
+        </div>
+        <MiniAppSettingsButton slug="gym-routine" title="Gym" />
       </div>
 
       {error && (
