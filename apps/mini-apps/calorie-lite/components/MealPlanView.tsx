@@ -1,23 +1,33 @@
 'use client';
 
 /**
- * MealPlanView — the PLAN tab.
+ * MealPlanView — the PLAN tab (v0.5.2 redesign).
  *
- * States:
- *   loading  — spinner-lite
- *   empty    — dashed "no active plan" card with SEE EXAMPLE toggle that
- *              inlines the reference fixture as a read-only preview so users
- *              understand the shape before their nutritionist ships them one.
- *   active   — rules card + one PlanMealCard per meal + adherence for today.
+ * User feedback (2026-08-10): "this UI is horrible. I cannot see other plans /
+ * edit / add other plans, only one active that was only created by the
+ * assistant." — so this rewrite is LIST-first, adds a full CREATE/EDIT form,
+ * and moves the DELETE affordance out of the header down into a menu with
+ * an undo snackbar.
+ *
+ * Views (local state, no routing needed):
+ *   list    — default landing; shows every plan with active-first sort
+ *   detail  — one plan, redesigned; SET ACTIVE / EDIT / DUPLICATE / ⋯
+ *   form    — create or edit; assembles a MealPlanInsert payload
  *
  * Data flow:
- *   1. On mount, fetch preferences.active_meal_plan_id.
- *   2. If null, fetch list of all plans — if any exist, show a "pick which
- *      plan to activate" chooser; otherwise the true empty state.
- *   3. If active plan resolved, fetch it in full + today's adherence rows.
- *   4. Log a meal via <PlanMealCard>. On success, re-fetch adherence so the
- *      "LOGGED OPCIÓN N" chip lights up + entries event fires so TODAY
- *      refreshes.
+ *   - `preferences.active_meal_plan_id` (passed from the layout) tells us
+ *     which plan is currently active
+ *   - GET /api/mini-apps/calorie-lite/meal-plans → list of plans
+ *   - GET /api/mini-apps/calorie-lite/meal-plans/[id] → detail + rules + meals
+ *   - POST /api/mini-apps/calorie-lite/meal-plans → create
+ *   - PATCH /api/mini-apps/calorie-lite/meal-plans/[id] → edit
+ *   - DELETE /api/mini-apps/calorie-lite/meal-plans/[id] → destructive (undo)
+ *   - POST /api/mini-apps/calorie-lite/meal-plans/[id]/activate → set active
+ *   - DELETE /api/mini-apps/calorie-lite/meal-plans/[id]/activate → clear active
+ *
+ * All destructive actions route through the shell's <UndoSnackbar> via
+ * <SwipeableRow> — the DELETE that used to sit at the header level is now
+ * a swipe-left action + a ⋯ menu item in detail view.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useEvents, EmptyState } from '@nothing/mini-apps-runtime';
@@ -25,16 +35,28 @@ import { EVENT_KINDS } from '@nothing/shared';
 import type { MealPlan, MealPlanAdherence, PlanMeal } from '@nothing/shared';
 import { PlanRulesCard } from './PlanRulesCard.tsx';
 import { PlanMealCard } from './PlanMealCard.tsx';
+import { PlanForm } from './PlanForm.tsx';
+import { SwipeableRow } from '../../../web/src/components/shell/SwipeableRow';
+import { useUndoSnackbar } from '../../../web/src/components/shell/UndoSnackbar';
 import { useToast } from '../../../web/src/lib/toast/context';
-import referenceFixture from '../fixtures/diet-jam-v1.json';
+
+// ─── Local types ────────────────────────────────────────────────────────────
 
 interface MealPlanRow {
   id: string;
   name: string;
   plan: MealPlan['plan'];
   is_template: boolean;
+  created_at: string;
   updated_at: string;
 }
+
+type Mode =
+  | { view: 'list' }
+  | { view: 'detail'; planId: string }
+  | { view: 'form'; kind: 'create' }
+  | { view: 'form'; kind: 'edit'; planId: string }
+  | { view: 'form'; kind: 'duplicate'; sourcePlanId: string };
 
 /** Local YYYY-MM-DD (matches server default). */
 function todayKey(): string {
@@ -45,21 +67,36 @@ function todayKey(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** "2 days ago" / "just now" — small, readable relative time. */
+function relative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const secs = Math.max(0, Math.round((now - then) / 1000));
+  if (secs < 60) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.round(months / 12);
+  return `${years}y ago`;
+}
+
+// ─── Root component ─────────────────────────────────────────────────────────
+
 export function MealPlanView({
   activeMealPlanId,
 }: {
   activeMealPlanId: string | null;
 }) {
-  const events = useEvents();
-  const { toast } = useToast();
-
-  const [allPlans, setAllPlans] = useState<MealPlanRow[] | null>(null);
-  const [activePlan, setActivePlan] = useState<MealPlanRow | null>(null);
-  const [adherence, setAdherence] = useState<MealPlanAdherence[] | null>(null);
+  const [mode, setMode] = useState<Mode>({ view: 'list' });
+  const [plans, setPlans] = useState<MealPlanRow[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [activating, setActivating] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const { toast } = useToast();
 
   const loadAll = useCallback(async () => {
     setLoadErr(null);
@@ -68,43 +105,15 @@ export function MealPlanView({
         credentials: 'same-origin',
       });
       if (!res.ok) {
-        setAllPlans([]);
+        setPlans([]);
         setLoadErr('Could not load plans.');
         return;
       }
       const body = (await res.json()) as { meal_plans: MealPlanRow[] };
-      setAllPlans(body.meal_plans);
+      setPlans(body.meal_plans);
     } catch {
-      setAllPlans([]);
+      setPlans([]);
       setLoadErr('Network error.');
-    }
-  }, []);
-
-  const loadActive = useCallback(async (id: string) => {
-    try {
-      const [planRes, adhRes] = await Promise.all([
-        fetch(`/api/mini-apps/calorie-lite/meal-plans/${id}`, {
-          credentials: 'same-origin',
-        }),
-        fetch(
-          `/api/mini-apps/calorie-lite/meal-plans/adherence?date=${todayKey()}`,
-          { credentials: 'same-origin' },
-        ),
-      ]);
-      if (!planRes.ok) {
-        setActivePlan(null);
-        return;
-      }
-      const planBody = (await planRes.json()) as { meal_plan: MealPlanRow };
-      setActivePlan(planBody.meal_plan);
-      if (adhRes.ok) {
-        const adhBody = (await adhRes.json()) as { adherence: MealPlanAdherence[] };
-        setAdherence(adhBody.adherence);
-      } else {
-        setAdherence([]);
-      }
-    } catch {
-      setActivePlan(null);
     }
   }, []);
 
@@ -112,209 +121,183 @@ export function MealPlanView({
     void loadAll();
   }, [loadAll]);
 
-  useEffect(() => {
-    if (activeMealPlanId) {
-      void loadActive(activeMealPlanId);
-    } else {
-      setActivePlan(null);
-      setAdherence([]);
-    }
-  }, [activeMealPlanId, loadActive]);
+  // ─── Route by mode ────────────────────────────────────────────────────────
 
-  async function activate(id: string) {
-    setActivating(id);
-    try {
-      const res = await fetch(
-        `/api/mini-apps/calorie-lite/meal-plans/${id}/activate`,
-        { method: 'POST', credentials: 'same-origin' },
-      );
-      if (!res.ok) {
-        toast.error('Could not activate plan.');
-        return;
-      }
-      toast.info('Plan activated. Reloading…');
-      // Preferences drive activeMealPlanId in the layout, so reload to
-      // rehydrate the server-rendered layout preferences.
-      if (typeof window !== 'undefined') window.location.reload();
-    } finally {
-      setActivating(null);
-    }
-  }
+  if (mode.view === 'form') {
+    // Look up the source row for edit / duplicate.
+    const seedPlan =
+      mode.kind === 'edit'
+        ? plans?.find((p) => p.id === mode.planId) ?? null
+        : mode.kind === 'duplicate'
+          ? plans?.find((p) => p.id === mode.sourcePlanId) ?? null
+          : null;
 
-  // Delete flow — two-tap confirm. FK `preferences.active_meal_plan_id ...
-  // on delete set null` means deleting the currently-active plan cleanly
-  // unwires activation. The optimistic UI just reloads to rehydrate.
-  async function remove(id: string) {
-    if (pendingDelete !== id) {
-      setPendingDelete(id);
-      return;
-    }
-    setDeleting(id);
-    try {
-      const res = await fetch(`/api/mini-apps/calorie-lite/meal-plans/${id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-      });
-      if (!res.ok) {
-        toast.error('Could not delete plan.');
-        return;
-      }
-      toast.success('Plan deleted.');
-      setPendingDelete(null);
-      // If we deleted the active plan, reload so the layout re-reads the
-      // now-null active_meal_plan_id from preferences.
-      if (id === activeMealPlanId) {
-        if (typeof window !== 'undefined') window.location.reload();
-        return;
-      }
-      await loadAll();
-    } catch {
-      toast.error('Network error.');
-    } finally {
-      setDeleting(null);
-    }
-  }
-
-  // Auto-disarm confirm after 3s.
-  useEffect(() => {
-    if (!pendingDelete) return;
-    const t = setTimeout(() => setPendingDelete(null), 3000);
-    return () => clearTimeout(t);
-  }, [pendingDelete]);
-
-  // ─── Empty state — no active plan ────────────────────────────────────────
-  if (!activeMealPlanId) {
-    if (allPlans === null) {
-      return <p className="caption">Loading…</p>;
-    }
     return (
-      <EmptyPlanState
-        loadErr={loadErr}
-        allPlans={allPlans}
-        activating={activating}
-        pendingDelete={pendingDelete}
-        deleting={deleting}
-        onActivate={activate}
-        onDelete={remove}
+      <PlanForm
+        initial={
+          mode.kind === 'edit' && seedPlan
+            ? { id: seedPlan.id, name: seedPlan.name, plan: seedPlan.plan }
+            : mode.kind === 'duplicate' && seedPlan
+              ? {
+                  // Duplicate = pre-filled form but CREATE semantics — id is
+                  // undefined so PlanForm's isEdit gate stays false.
+                  name: `${seedPlan.name} (Copy)`,
+                  plan: seedPlan.plan,
+                }
+              : undefined
+        }
+        onCancel={() => setMode(seedPlan?.id ? { view: 'detail', planId: seedPlan.id } : { view: 'list' })}
+        onSaved={async (savedId) => {
+          toast.success(mode.kind === 'edit' ? 'Plan saved.' : 'Plan created.');
+          await loadAll();
+          setMode({ view: 'detail', planId: savedId });
+        }}
+        onError={(m) => toast.error(m)}
       />
     );
   }
 
-  if (!activePlan) {
-    return <p className="caption">Loading plan…</p>;
+  if (mode.view === 'detail') {
+    return (
+      <PlanDetailView
+        planId={mode.planId}
+        activeMealPlanId={activeMealPlanId}
+        onBack={() => setMode({ view: 'list' })}
+        onEdit={(id) => setMode({ view: 'form', kind: 'edit', planId: id })}
+        onDuplicate={(id) =>
+          setMode({ view: 'form', kind: 'duplicate', sourcePlanId: id })
+        }
+        onDeleted={async () => {
+          await loadAll();
+          setMode({ view: 'list' });
+        }}
+        onActivated={async () => {
+          // Preferences drive the active pointer; reload the shell so the
+          // TODAY tab + FromPlanDropdown pick up the change.
+          if (typeof window !== 'undefined') window.location.reload();
+        }}
+      />
+    );
   }
 
-  const meals = activePlan.plan.meals ?? [];
-  const adhByMeal = new Map<string, MealPlanAdherence>();
-  for (const a of adherence ?? []) adhByMeal.set(a.meal_id, a);
-
+  // ─── LIST view (default) ──────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: 'var(--space-3)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span className="label label-strong">
-            PLAN · {activePlan.name.toUpperCase()}
-          </span>
-          <button
-            type="button"
-            onClick={() => void remove(activePlan.id)}
-            disabled={deleting === activePlan.id}
-            className="data"
-            aria-label={pendingDelete === activePlan.id ? 'Confirm delete plan' : 'Delete plan'}
-            style={{
-              all: 'unset',
-              cursor: deleting === activePlan.id ? 'not-allowed' : 'pointer',
-              padding: 'var(--space-1) var(--space-2)',
-              border: `1px solid ${pendingDelete === activePlan.id ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
-              borderRadius: 'var(--radius-pill, 999px)',
-              color: pendingDelete === activePlan.id ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              opacity: deleting === activePlan.id ? 0.5 : 1,
-            }}
-          >
-            {deleting === activePlan.id
-              ? '…'
-              : pendingDelete === activePlan.id
-                ? '× Confirm?'
-                : '× Delete'}
-          </button>
-        </div>
-        {activePlan.plan.daily_targets && (
-          <span
-            className="data"
-            style={{
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.06em',
-            }}
-          >
-            {activePlan.plan.daily_targets.calories_kcal} KCAL · P{activePlan.plan.daily_targets.protein_g} C{activePlan.plan.daily_targets.carbs_g} F{activePlan.plan.daily_targets.fat_g}
-          </span>
-        )}
-      </div>
-
-      <PlanRulesCard rules={activePlan.plan.rules ?? null} />
-
-      {meals.length === 0 ? (
-        <EmptyState icon="◐" title="Plan has no meals" body="Ask the copilot to add meals to this plan." />
-      ) : (
-        meals.map((meal: PlanMeal) => (
-          <PlanMealCard
-            key={meal.id}
-            meal={meal}
-            mealPlanId={activePlan.id}
-            adherenceOption={adhByMeal.get(meal.id)?.option_selected ?? null}
-            onLogged={(res) => {
-              toast.info(
-                res.inserted > 0
-                  ? `Logged ${res.inserted} entries as opción ${res.option_selected}.`
-                  : `Marked opción ${res.option_selected} as eaten.`,
-              );
-              // Refresh the TODAY view + our adherence.
-              events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
-              void loadActive(activePlan.id);
-            }}
-            onError={(m) => toast.error(m)}
-          />
-        ))
-      )}
-    </div>
+    <PlanListView
+      plans={plans}
+      loadErr={loadErr}
+      activeMealPlanId={activeMealPlanId}
+      onCreate={() => setMode({ view: 'form', kind: 'create' })}
+      onOpen={(id) => setMode({ view: 'detail', planId: id })}
+      onEdit={(id) => setMode({ view: 'form', kind: 'edit', planId: id })}
+      onDeleted={async () => {
+        await loadAll();
+      }}
+      onActivated={async () => {
+        if (typeof window !== 'undefined') window.location.reload();
+      }}
+    />
   );
 }
 
-// ─── Empty state — with chooser + example toggle ────────────────────────────
+// ─── LIST VIEW ──────────────────────────────────────────────────────────────
 
-function EmptyPlanState({
+function PlanListView({
+  plans,
   loadErr,
-  allPlans,
-  activating,
-  pendingDelete,
-  deleting,
-  onActivate,
-  onDelete,
+  activeMealPlanId,
+  onCreate,
+  onOpen,
+  onEdit,
+  onDeleted,
+  onActivated,
 }: {
+  plans: MealPlanRow[] | null;
   loadErr: string | null;
-  allPlans: MealPlanRow[];
-  activating: string | null;
-  pendingDelete: string | null;
-  deleting: string | null;
-  onActivate: (id: string) => void;
-  onDelete: (id: string) => void;
+  activeMealPlanId: string | null;
+  onCreate: () => void;
+  onOpen: (planId: string) => void;
+  onEdit: (planId: string) => void;
+  onDeleted: () => void | Promise<void>;
+  onActivated: () => void | Promise<void>;
 }) {
-  const [showExample, setShowExample] = useState(false);
-  const example = referenceFixture as unknown as MealPlan;
+  const { toast } = useToast();
+
+  async function activate(id: string) {
+    const res = await fetch(
+      `/api/mini-apps/calorie-lite/meal-plans/${id}/activate`,
+      { method: 'POST', credentials: 'same-origin' },
+    );
+    if (!res.ok) {
+      toast.error('Could not activate plan.');
+      return;
+    }
+    toast.info('Plan activated. Reloading…');
+    await onActivated();
+  }
+
+  async function remove(id: string) {
+    const res = await fetch(`/api/mini-apps/calorie-lite/meal-plans/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      toast.error('Could not delete plan.');
+      return;
+    }
+    toast.success('Plan deleted.');
+    await onDeleted();
+  }
+
+  // Sort: active first, then most-recently-updated.
+  const sorted = (plans ?? []).slice().sort((a, b) => {
+    const aA = a.id === activeMealPlanId ? 1 : 0;
+    const bA = b.id === activeMealPlanId ? 1 : 0;
+    if (aA !== bA) return bA - aA;
+    return b.updated_at.localeCompare(a.updated_at);
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+      {/* Header — matches the +ADD MEAL chip on TODAY. Compact chip, not the
+          oversized pill that showed up briefly in v0.5.1. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          <span className="label">PLANS</span>
+          <span
+            className="display-md"
+            style={{ fontSize: 'var(--text-heading)', lineHeight: 1 }}
+          >
+            Your Plans
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          style={{
+            background: 'var(--color-accent)',
+            color: 'var(--color-text-display)',
+            border: 0,
+            borderRadius: 'var(--radius-compact)',
+            padding: 'var(--space-2) var(--space-4)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + New Plan
+        </button>
+      </div>
+
       {loadErr && (
         <div
           role="alert"
@@ -330,180 +313,510 @@ function EmptyPlanState({
         </div>
       )}
 
-      <section
-        aria-label="No active meal plan"
-        style={{
-          background: 'transparent',
-          border: '1px dashed var(--color-border-visible)',
-          borderRadius: 'var(--radius-card)',
-          padding: 'var(--space-6)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-4)',
-        }}
-      >
-        <span className="label">◐ NO ACTIVE MEAL PLAN</span>
-        <p style={{ margin: 0, color: 'var(--color-text-primary)' }}>
-          Ask the copilot to create one (paste your nutritionist&apos;s plan
-          in the chat), or activate an existing plan below.
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowExample((v) => !v)}
-          style={{
-            background: 'transparent',
-            color: 'var(--color-text-secondary)',
-            border: '1px solid var(--color-border-visible)',
-            borderRadius: 'var(--radius-compact)',
-            padding: 'var(--space-2) var(--space-3)',
-            fontFamily: 'var(--font-label)',
-            fontSize: 'var(--text-label)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            alignSelf: 'flex-start',
+      {plans === null ? (
+        <p className="caption">Loading…</p>
+      ) : plans.length === 0 ? (
+        <EmptyState
+          icon="◐"
+          title="No plans yet"
+          body='Build one manually, or ask Copilot: "build me a 2000 kcal cutting plan".'
+          primaryAction={{
+            label: '+ Create a plan',
+            onClick: onCreate,
+            ariaLabel: 'Create a plan',
           }}
-        >
-          {showExample ? '◐ HIDE EXAMPLE' : '◐ SEE EXAMPLE'}
-        </button>
-      </section>
-
-      {allPlans.length > 0 && (
-        <section
-          aria-label="Available meal plans"
+        />
+      ) : (
+        <ul
           style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-3)',
+            gap: 'var(--space-2)',
           }}
         >
-          <span className="label">YOUR PLANS</span>
-          <ul
-            style={{
-              listStyle: 'none',
-              margin: 0,
-              padding: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-2)',
-            }}
-          >
-            {allPlans.map((p) => (
-              <li
-                key={p.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  border: '1px solid var(--color-border-visible)',
-                  borderRadius: 'var(--radius-card)',
-                }}
-              >
-                <span style={{ color: 'var(--color-text-primary)' }}>{p.name}</span>
-                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(p.id)}
-                    disabled={deleting === p.id}
-                    aria-label={pendingDelete === p.id ? 'Confirm delete' : 'Delete plan'}
-                    style={{
-                      background: 'transparent',
-                      color: pendingDelete === p.id
-                        ? 'var(--color-accent)'
-                        : 'var(--color-text-secondary)',
-                      border: `1px solid ${
-                        pendingDelete === p.id
-                          ? 'var(--color-accent)'
-                          : 'var(--color-border-visible)'
-                      }`,
-                      borderRadius: 'var(--radius-button)',
-                      padding: 'var(--space-2) var(--space-3)',
-                      fontFamily: 'var(--font-label)',
-                      fontSize: 'var(--text-label)',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      cursor: deleting === p.id ? 'not-allowed' : 'pointer',
-                      opacity: deleting === p.id ? 0.5 : 1,
-                    }}
-                  >
-                    {deleting === p.id
-                      ? '…'
-                      : pendingDelete === p.id
-                        ? '× Confirm?'
-                        : '× Delete'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onActivate(p.id)}
-                    disabled={activating === p.id}
-                    style={{
-                      background: 'var(--color-accent)',
-                      color: 'var(--color-text-display)',
-                      border: 0,
-                      borderRadius: 'var(--radius-button)',
-                      padding: 'var(--space-2) var(--space-4)',
-                      fontFamily: 'var(--font-label)',
-                      fontSize: 'var(--text-label)',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      cursor: activating === p.id ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {activating === p.id ? 'Activating…' : 'Activate'}
-                  </button>
-                </div>
+          {sorted.map((p) => {
+            const isActive = p.id === activeMealPlanId;
+            return (
+              <li key={p.id}>
+                <SwipeableRow
+                  ariaLabel={p.name}
+                  actions={[
+                    ...(isActive
+                      ? []
+                      : [
+                          {
+                            label: 'Set active',
+                            kind: 'primary' as const,
+                            onSelect: () => {
+                              void activate(p.id);
+                            },
+                          },
+                        ]),
+                    {
+                      label: 'Edit',
+                      kind: 'primary' as const,
+                      onSelect: () => onEdit(p.id),
+                    },
+                    {
+                      label: 'Delete',
+                      kind: 'destructive' as const,
+                      undoLabel: 'PLAN DELETED',
+                      onSelect: () => {
+                        void remove(p.id);
+                      },
+                    },
+                  ]}
+                >
+                  <PlanRow
+                    plan={p}
+                    isActive={isActive}
+                    onOpen={() => onOpen(p.id)}
+                  />
+                </SwipeableRow>
               </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {showExample && (
-        <section
-          aria-label="Reference plan preview"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-4)',
-            opacity: 0.85,
-          }}
-        >
-          <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-            ◐ EXAMPLE PLAN (READ-ONLY) — DIET JAM
-          </span>
-          <PlanRulesCard rules={example.plan.rules ?? null} />
-          {example.plan.meals.map((meal) => (
-            <section
-              key={meal.id}
-              style={{
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid var(--color-border-visible)',
-                borderRadius: 'var(--radius-card)',
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-              }}
-            >
-              <span className="label label-strong">
-                {String(meal.order).padStart(2, '0')} · {meal.name_en ?? meal.name_es ?? meal.id}
-              </span>
-              <span
-                className="data"
-                style={{
-                  color: 'var(--color-text-secondary)',
-                  fontSize: 'var(--text-caption)',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {meal.targets.calories_kcal} KCAL · {meal.options.length} OPCIONES
-              </span>
-            </section>
-          ))}
-        </section>
+            );
+          })}
+        </ul>
       )}
     </div>
+  );
+}
+
+function PlanRow({
+  plan,
+  isActive,
+  onOpen,
+}: {
+  plan: MealPlanRow;
+  isActive: boolean;
+  onOpen: () => void;
+}) {
+  const dt = plan.plan.daily_targets;
+  const summary = dt
+    ? `${Math.round(dt.calories_kcal)} KCAL · P${Math.round(dt.protein_g)} · C${Math.round(dt.carbs_g)} · F${Math.round(dt.fat_g)}`
+    : '—';
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-1)',
+        padding: 'var(--space-3) var(--space-4)',
+        border: '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+        background: 'rgba(0, 0, 0, 0.5)',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-2)',
+        }}
+      >
+        <span
+          style={{
+            color: 'var(--color-text-primary)',
+            fontSize: 'var(--text-body)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {plan.name}
+        </span>
+        {isActive && (
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-display)',
+              background: 'var(--color-accent)',
+              padding: '2px var(--space-2)',
+              borderRadius: 'var(--radius-compact)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              flexShrink: 0,
+            }}
+          >
+            Active
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <span
+          className="data"
+          style={{
+            color: 'var(--color-text-secondary)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {summary}
+        </span>
+        <span
+          className="data"
+          style={{
+            color: 'var(--color-text-disabled)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.04em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {relative(plan.created_at)}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// ─── DETAIL VIEW ────────────────────────────────────────────────────────────
+
+function PlanDetailView({
+  planId,
+  activeMealPlanId,
+  onBack,
+  onEdit,
+  onDuplicate,
+  onDeleted,
+  onActivated,
+}: {
+  planId: string;
+  activeMealPlanId: string | null;
+  onBack: () => void;
+  onEdit: (planId: string) => void;
+  onDuplicate: (planId: string) => void;
+  onDeleted: () => void | Promise<void>;
+  onActivated: () => void | Promise<void>;
+}) {
+  const events = useEvents();
+  const { toast } = useToast();
+  const { showUndo } = useUndoSnackbar();
+
+  const [plan, setPlan] = useState<MealPlanRow | null>(null);
+  const [adherence, setAdherence] = useState<MealPlanAdherence[] | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoadErr(null);
+    try {
+      const [planRes, adhRes] = await Promise.all([
+        fetch(`/api/mini-apps/calorie-lite/meal-plans/${planId}`, {
+          credentials: 'same-origin',
+        }),
+        fetch(
+          `/api/mini-apps/calorie-lite/meal-plans/adherence?date=${todayKey()}`,
+          { credentials: 'same-origin' },
+        ),
+      ]);
+      if (!planRes.ok) {
+        setLoadErr('Could not load plan.');
+        return;
+      }
+      const planBody = (await planRes.json()) as { meal_plan: MealPlanRow };
+      setPlan(planBody.meal_plan);
+      if (adhRes.ok) {
+        const adhBody = (await adhRes.json()) as { adherence: MealPlanAdherence[] };
+        setAdherence(adhBody.adherence);
+      } else {
+        setAdherence([]);
+      }
+    } catch {
+      setLoadErr('Network error.');
+    }
+  }, [planId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function activate() {
+    const res = await fetch(
+      `/api/mini-apps/calorie-lite/meal-plans/${planId}/activate`,
+      { method: 'POST', credentials: 'same-origin' },
+    );
+    if (!res.ok) {
+      toast.error('Could not activate plan.');
+      return;
+    }
+    toast.info('Plan activated. Reloading…');
+    await onActivated();
+  }
+
+  function requestDelete() {
+    setMenuOpen(false);
+    showUndo({
+      label: 'PLAN DELETED',
+      onUndo: () => {},
+      onCommit: async () => {
+        const res = await fetch(
+          `/api/mini-apps/calorie-lite/meal-plans/${planId}`,
+          { method: 'DELETE', credentials: 'same-origin' },
+        );
+        if (!res.ok) {
+          toast.error('Could not delete plan.');
+          return;
+        }
+        toast.success('Plan deleted.');
+        await onDeleted();
+      },
+      duration: 5000,
+    });
+  }
+
+  if (loadErr) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <BackLink onBack={onBack} />
+        <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
+          {loadErr}
+        </p>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <BackLink onBack={onBack} />
+        <p className="caption">Loading…</p>
+      </div>
+    );
+  }
+
+  const isActive = plan.id === activeMealPlanId;
+  const dt = plan.plan.daily_targets;
+  const meals: PlanMeal[] = plan.plan.meals ?? [];
+  const adhByMeal = new Map<string, MealPlanAdherence>();
+  for (const a of adherence ?? []) adhByMeal.set(a.meal_id, a);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+      {/* Header — back link + name + ACTIVE chip */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <BackLink onBack={onBack} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 'var(--space-3)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            className="display-md"
+            style={{ fontSize: 'var(--text-heading)', lineHeight: 1 }}
+          >
+            {plan.name}
+          </span>
+          {isActive && (
+            <span
+              className="data"
+              style={{
+                color: 'var(--color-text-display)',
+                background: 'var(--color-accent)',
+                padding: '2px var(--space-2)',
+                borderRadius: 'var(--radius-compact)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Active
+            </span>
+          )}
+        </div>
+        {dt && (
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {Math.round(dt.calories_kcal)} KCAL · P{Math.round(dt.protein_g)} · C{Math.round(dt.carbs_g)} · F{Math.round(dt.fat_g)}
+          </span>
+        )}
+      </div>
+
+      {/* Action row — SET ACTIVE / EDIT / DUPLICATE / ⋯ */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          flexWrap: 'wrap',
+          position: 'relative',
+        }}
+      >
+        {!isActive && (
+          <ActionChip primary onClick={() => void activate()}>
+            Set active
+          </ActionChip>
+        )}
+        <ActionChip onClick={() => onEdit(plan.id)}>Edit</ActionChip>
+        <ActionChip onClick={() => onDuplicate(plan.id)}>Duplicate</ActionChip>
+        <ActionChip
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          ⋯
+        </ActionChip>
+        {menuOpen && (
+          <div
+            role="menu"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + var(--space-2))',
+              right: 0,
+              zIndex: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: 180,
+              background: 'var(--color-surface-raised)',
+              border: '1px solid var(--color-border-visible)',
+              borderRadius: 'var(--radius-compact)',
+              overflow: 'hidden',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={requestDelete}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                padding: 'var(--space-3) var(--space-4)',
+                fontFamily: 'var(--font-label)',
+                fontSize: 'var(--text-caption)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--color-accent)',
+              }}
+            >
+              × Delete plan
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Meals */}
+      {meals.length === 0 ? (
+        <EmptyState
+          icon="◐"
+          title="Plan has no meals"
+          body="Edit this plan to add meals, or ask the copilot."
+          primaryAction={{
+            label: '+ Edit plan',
+            onClick: () => onEdit(plan.id),
+            ariaLabel: 'Edit plan',
+          }}
+        />
+      ) : (
+        meals.map((meal: PlanMeal) => (
+          <PlanMealCard
+            key={meal.id}
+            meal={meal}
+            mealPlanId={plan.id}
+            adherenceOption={adhByMeal.get(meal.id)?.option_selected ?? null}
+            onLogged={(res) => {
+              toast.info(
+                res.inserted > 0
+                  ? `Logged ${res.inserted} entries as option ${res.option_selected}.`
+                  : `Marked option ${res.option_selected} as eaten.`,
+              );
+              events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
+              void load();
+            }}
+            onError={(m) => toast.error(m)}
+          />
+        ))
+      )}
+
+      {/* Rules — collapsed by default (already the PlanRulesCard behavior) */}
+      <PlanRulesCard rules={plan.plan.rules ?? null} />
+    </div>
+  );
+}
+
+// ─── UI primitives ──────────────────────────────────────────────────────────
+
+function BackLink({ onBack }: { onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        color: 'var(--color-text-secondary)',
+        fontFamily: 'var(--font-label)',
+        fontSize: 'var(--text-caption)',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        alignSelf: 'flex-start',
+      }}
+      aria-label="Back to plans list"
+    >
+      ← Back to plans
+    </button>
+  );
+}
+
+function ActionChip({
+  primary,
+  children,
+  onClick,
+  ...rest
+}: {
+  primary?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children'>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: primary ? 'var(--color-accent)' : 'transparent',
+        color: primary ? 'var(--color-text-display)' : 'var(--color-text-primary)',
+        border: primary ? 0 : '1px solid var(--color-border-visible)',
+        borderRadius: 'var(--radius-compact)',
+        padding: 'var(--space-2) var(--space-3)',
+        fontFamily: 'var(--font-label)',
+        fontSize: 'var(--text-caption)',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+      }}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }

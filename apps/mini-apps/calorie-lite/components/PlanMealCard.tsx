@@ -90,6 +90,10 @@ export function PlanMealCard({
   const title = meal.name_en ?? meal.name_es ?? meal.id.toUpperCase();
   const isLoggedToday = adherenceOption === selected;
 
+  // Compact single-line macro summary — replaces the previous verbose
+  // "PROTEIN 35G · CARBS 95G · FAT 15G · 650 KCAL" that ate an entire row.
+  const targetSummary = `P${Math.round(meal.targets.protein_g)}g · C${Math.round(meal.targets.carbs_g)}g · F${Math.round(meal.targets.fat_g)}g · ${Math.round(meal.targets.calories_kcal)} KCAL`;
+
   return (
     <section
       aria-label={title}
@@ -103,32 +107,32 @@ export function PlanMealCard({
         gap: 'var(--space-3)',
       }}
     >
+      {/* Header — meal number + name on left, tiny target summary on right.
+          Previous version stacked target on its own row which cost vertical
+          real estate. */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
           gap: 'var(--space-3)',
+          flexWrap: 'wrap',
         }}
       >
         <span className="label label-strong">
-          {String(meal.order).padStart(2, '0')} · {title}
+          {String(meal.order).padStart(2, '0')} · {title.toUpperCase()}
         </span>
-        {adherenceOption != null && (
-          <span
-            className="data"
-            style={{
-              color: 'var(--color-accent)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.06em',
-            }}
-          >
-            ◐ LOGGED OPCIÓN {adherenceOption}
-          </span>
-        )}
+        <span
+          className="data"
+          style={{
+            color: 'var(--color-text-secondary)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {targetSummary}
+        </span>
       </div>
-
-      <TargetsLine targets={meal.targets} />
 
       <OptionChips
         options={meal.options}
@@ -138,30 +142,57 @@ export function PlanMealCard({
 
       {option && <IngredientList option={option} />}
 
-      <button
-        type="button"
-        onClick={submitLog}
-        disabled={logging}
-        style={{
-          background: logging ? 'var(--color-surface-raised)' : 'var(--color-accent)',
-          color: logging ? 'var(--color-text-disabled)' : 'var(--color-text-display)',
-          border: 0,
-          borderRadius: 'var(--radius-button)',
-          padding: 'var(--space-3) var(--space-6)',
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: logging ? 'not-allowed' : 'pointer',
-          alignSelf: 'flex-start',
-        }}
-      >
-        {logging
-          ? 'Logging…'
-          : isLoggedToday
-            ? `+ Re-log as opción ${selected}`
-            : `+ Log this meal as opción ${selected}`}
-      </button>
+      {/* Compact LOG chip — was a full-width oversized red pill in v0.5.1.
+          Now sized like the +ADD MEAL / +NEW PLAN chips elsewhere. Also
+          the "already-logged" state renders as a ghost pill instead of a
+          second loud red bar. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <button
+          type="button"
+          onClick={submitLog}
+          disabled={logging}
+          style={{
+            background: isLoggedToday
+              ? 'transparent'
+              : logging
+                ? 'var(--color-surface-raised)'
+                : 'var(--color-accent)',
+            color: isLoggedToday
+              ? 'var(--color-text-secondary)'
+              : logging
+                ? 'var(--color-text-disabled)'
+                : 'var(--color-text-display)',
+            border: isLoggedToday
+              ? '1px solid var(--color-border-visible)'
+              : 0,
+            borderRadius: 'var(--radius-compact)',
+            padding: 'var(--space-2) var(--space-4)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: logging ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {logging
+            ? 'Logging…'
+            : isLoggedToday
+              ? `Logged · tap to re-log`
+              : `+ Log option ${selected}`}
+        </button>
+        {adherenceOption != null && !isLoggedToday && (
+          <span
+            className="data"
+            style={{
+              color: 'var(--color-text-disabled)',
+              fontSize: 'var(--text-caption)',
+              letterSpacing: '0.06em',
+            }}
+          >
+            Prev: option {adherenceOption}
+          </span>
+        )}
+      </div>
     </section>
   );
 }
@@ -227,7 +258,7 @@ function OptionChips({
               flexShrink: 0,
             }}
           >
-            OPCIÓN {o.option}
+            OPTION {o.option}
             {label ? ` · ${label.toUpperCase()}` : ''}
           </button>
         );
@@ -237,14 +268,18 @@ function OptionChips({
 }
 
 function IngredientList({ option }: { option: PlanMealOption }) {
+  // CSS grid handles the 2-column-where-fits behavior via
+  // `repeat(auto-fill, minmax(...))`. At container widths <360px, one column;
+  // above that, two columns share the row. Zero JS breakpoint math.
   return (
     <ul
       style={{
         listStyle: 'none',
         margin: 0,
         padding: 0,
-        display: 'flex',
-        flexDirection: 'column',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))',
+        gap: '0 var(--space-4)',
       }}
     >
       {option.ingredients.map((ing, idx) => (
