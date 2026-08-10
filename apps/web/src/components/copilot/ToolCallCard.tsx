@@ -1,5 +1,7 @@
 'use client';
 
+import { PixelLoader } from './PixelLoader';
+
 /**
  * ToolCallCard — renders a single tool invocation part inside an assistant
  * message. Layout: [status dot] tool_name · summary (or error).
@@ -93,8 +95,10 @@ export function ToolCallCard({
       ? 'var(--color-accent)'
       : 'var(--color-border-visible)';
 
-  // Status glyph — Nothing OS shorthand.
-  const glyph = isRunning ? '◐' : isError ? '✕' : isWrite ? '●' : '○';
+  // Status glyph — Nothing OS shorthand. Running state uses the twinkling
+  // pixel loader so tool cards match the THINKING / LOADING CHAT patterns
+  // (no more mixed spinner vocabulary — see PixelLoader.tsx header).
+  const glyph = isError ? '✕' : isWrite ? '●' : '○';
   const statusLabel = isRunning
     ? 'RUNNING'
     : isError
@@ -126,7 +130,11 @@ export function ToolCallCard({
           gap: 'var(--space-2)',
         }}
       >
-        <span aria-hidden style={{ fontSize: 'var(--text-body-sm)' }}>{glyph}</span>
+        {isRunning ? (
+          <PixelLoader size="sm" label="Running" />
+        ) : (
+          <span aria-hidden style={{ fontSize: 'var(--text-body-sm)' }}>{glyph}</span>
+        )}
         <span
           style={{
             letterSpacing: '0.08em',

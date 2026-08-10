@@ -14,7 +14,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mealEnum } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 const inputSchema = z.object({
@@ -54,7 +54,16 @@ export function makeLogCalorieEntryTool(userId: string, supabase: SupabaseClient
       'Log a food entry to calorie-lite for the current user. Requires kcal + a name. Use search_foods first when the user names a specific food; only fabricate values when the user explicitly gives them.',
     inputSchema,
     async execute(input: Input): Promise<LogCalorieResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'log_calorie_entry', input } as const;
+      const idempotencyKey = computeIdempotencyKey('log_calorie_entry', input, userId);
+      const auditBase = { supabase, userId, toolName: 'log_calorie_entry', input, idempotencyKey } as const;
+
+      // Idempotency short-circuit — if the agent loop re-emitted the same
+      // log_calorie_entry inside a 30s bucket, return the prior result so
+      // we don't insert a duplicate entry. Miss → proceed normally.
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as LogCalorieResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

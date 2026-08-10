@@ -22,6 +22,11 @@ const profilePatchSchema = z
   .object({
     display_name: z.string().trim().max(80).nullable().optional(),
     locale: z.string().trim().min(2).max(16).optional(),
+    // IANA timezone (e.g. 'America/Mexico_City'). Captured from
+    // Intl.DateTimeFormat().resolvedOptions().timeZone on the client. See
+    // migration 024_profile_timezone.sql for the persistence layer + the
+    // /api/copilot route for how it's injected into reminder scheduling.
+    timezone: z.string().trim().min(1).max(64).nullable().optional(),
   })
   .strict();
 
@@ -38,7 +43,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, locale, created_at, updated_at')
+    .select('id, display_name, locale, timezone, created_at, updated_at')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -93,7 +98,7 @@ export async function PATCH(request: Request) {
       { id: user.id, ...parsed.data },
       { onConflict: 'id' },
     )
-    .select('id, display_name, locale, created_at, updated_at')
+    .select('id, display_name, locale, timezone, created_at, updated_at')
     .single();
 
   if (error) {

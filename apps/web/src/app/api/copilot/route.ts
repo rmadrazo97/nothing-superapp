@@ -271,12 +271,18 @@ export async function POST(request: Request) {
   //    steer tool selection.
   //    Optional `thread_id` opts the turn into persistent history — the
   //    route loads prior messages + upserts new turns via onFinish.
-  let body: { messages?: UIMessage[]; context?: string; thread_id?: string };
+  let body: {
+    messages?: UIMessage[];
+    context?: string;
+    thread_id?: string;
+    timezone?: string;
+  };
   try {
     body = (await request.json()) as {
       messages?: UIMessage[];
       context?: string;
       thread_id?: string;
+      timezone?: string;
     };
   } catch {
     return new Response(JSON.stringify({ error: 'invalid_json' }), {
@@ -307,7 +313,52 @@ export async function POST(request: Request) {
   const scopedContextBlock = isCalorieLite
     ? await buildCalorieLiteContextBlock(user.id, supabase)
     : '';
-  const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---${scopedPromptAppend}${scopedContextBlock}`;
+
+  // Timezone injection (task #105) — the client sends the browser IANA zone
+  // on every request. Fall back to the persisted profiles.timezone, then UTC.
+  // The block below is what makes "remind me in 10 min" hit the user's LOCAL
+  // wall-clock instead of drifting on a UTC-relative interpretation.
+  const clientTz = typeof body.timezone === 'string' ? body.timezone.trim() : '';
+  let userTz = /^[A-Za-z0-9._+/-]{1,64}$/.test(clientTz) ? clientTz : '';
+  if (!userTz) {
+    try {
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('timezone')
+        .eq('id', user.id)
+        .maybeSingle();
+      const persisted = (profileRow?.timezone as string | null) ?? null;
+      if (persisted && /^[A-Za-z0-9._+/-]{1,64}$/.test(persisted)) userTz = persisted;
+    } catch {
+      // ignore — fall through to UTC
+    }
+  }
+  if (!userTz) userTz = 'UTC';
+  const nowLocalIso = safeFormatLocalIso(userTz);
+  const timezoneBlock = [
+    '',
+    '--- USER TIMEZONE ---',
+    `IANA zone: ${userTz}`,
+    `Current local time: ${nowLocalIso}`,
+    'When creating reminders (create_reminder), ALWAYS set `timezone` to the IANA zone above.',
+    'When the user says "in 10 minutes", "tomorrow at 8", "tonight", interpret those as the user\'s LOCAL wall-clock, not UTC. Convert to the correct ISO/HH:MM values before calling the tool.',
+    '--- END TIMEZONE ---',
+  ].join('\n');
+
+  const system = `${SYSTEM_PROMPT}\n${context}\n--- END CONTEXT ---${timezoneBlock}${scopedPromptAppend}${scopedContextBlock}`;
+
+  // Persist the browser-reported timezone opportunistically — if the client
+  // just told us a valid zone that differs from what we have on file, refresh
+  // it so the profile record is always current. Non-fatal on failure.
+  if (userTz && userTz !== 'UTC' && clientTz === userTz) {
+    void supabase
+      .from('profiles')
+      .update({ timezone: userTz })
+      .eq('id', user.id)
+      .then(({ error }) => {
+        if (error) console.error('[copilot] profile timezone update failed', error.message);
+      });
+  }
 
   // 4b. Resolve thread persistence — if `thread_id` is present and belongs
   //     to the caller, we'll persist the fresh turn on stream finish. If not
@@ -502,6 +553,38 @@ function normalizeAssistantContent(content: unknown): unknown[] {
     }
   }
   return parts;
+}
+
+/**
+ * Format `now` as an ISO-like string in the user's IANA zone — e.g.
+ * "2026-08-10 21:47 (America/Mexico_City, UTC-06:00)". Used purely inside the
+ * system prompt so the model has a concrete "current local wall clock" to
+ * reason about "in 10 min" / "tonight" phrasing.
+ *
+ * Never throws — bad zone → falls back to a UTC label. The route's tz
+ * validator upstream should keep us from ever hitting the catch.
+ */
+function safeFormatLocalIso(tz: string): string {
+  try {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZoneName: 'shortOffset',
+    }).formatToParts(now);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+    const date = `${get('year')}-${get('month')}-${get('day')}`;
+    const time = `${get('hour')}:${get('minute')}`;
+    const off = get('timeZoneName');
+    return `${date} ${time} (${tz}, ${off})`;
+  } catch {
+    return `${new Date().toISOString()} (UTC — tz parse failed)`;
+  }
 }
 
 function extractText(msg: UIMessage | null): string {

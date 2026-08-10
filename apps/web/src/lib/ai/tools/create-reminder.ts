@@ -10,7 +10,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeNextFireAt, reminderInsertSchema } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 type Input = z.infer<typeof reminderInsertSchema>;
@@ -28,9 +28,11 @@ export interface ToolError {
 export function makeCreateReminderTool(userId: string, supabase: SupabaseClient) {
   return tool({
     description: [
-      "Create a reminder for the user. Two kinds: 'notify' (plain push at the scheduled time)",
-      "and 'agent_loop' (an autonomous copilot prompt that runs on the schedule and pushes",
-      'the result — set agent_task = { prompt, context?, model?, max_steps? }).',
+      'Create a Reminder or a Task for the user. Two kinds, one list:',
+      "  • 'notify'      = a REMINDER — a plain push at the scheduled time (e.g. drink water, weigh in).",
+      "  • 'agent_loop'  = a TASK — an autonomous assistant run on the schedule that does work",
+      '                    and pushes the result (e.g. weekly meal-plan review, grocery list from',
+      '                    the active plan). Set agent_task = { prompt, context?, model?, max_steps? }.',
       '',
       'Schedule shapes:',
       "  once     → schedule_at (ISO datetime)",
@@ -43,7 +45,16 @@ export function makeCreateReminderTool(userId: string, supabase: SupabaseClient)
     ].join('\n'),
     inputSchema: reminderInsertSchema,
     async execute(input: Input): Promise<CreateReminderResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'create_reminder', input } as const;
+      const idempotencyKey = computeIdempotencyKey('create_reminder', input, userId);
+      const auditBase = { supabase, userId, toolName: 'create_reminder', input, idempotencyKey } as const;
+
+      // Idempotency short-circuit — if the agent loop re-emitted the same
+      // create_reminder inside a 30s bucket, return the prior result so we
+      // don't insert a duplicate reminder row. Miss → proceed normally.
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as CreateReminderResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

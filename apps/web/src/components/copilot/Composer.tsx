@@ -401,7 +401,7 @@ export function Composer({
           }
           style={iconBtnStyle}
         >
-          ◐
+          <CameraIcon />
         </button>
 
         {voiceSupported && (
@@ -420,7 +420,7 @@ export function Composer({
               animation: listening ? 'nsa-voice-pulse 1.2s ease-in-out infinite' : undefined,
             }}
           >
-            {listening ? '●' : '◉'}
+            <MicIcon />
           </button>
         )}
 
@@ -486,5 +486,58 @@ export function Composer({
         </button>
       </form>
     </div>
+  );
+}
+
+/**
+ * Camera + mic SVGs — 16×16, `stroke="currentColor"`, 1.5 px stroke to match
+ * the nav bar's spark icon weight. Deliberately plain: no fills, no drop
+ * shadows — the composer already communicates state via the button chrome
+ * (border colour + pulse), so the icon must stay silent.
+ */
+function CameraIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      focusable="false"
+    >
+      {/* Body */}
+      <path d="M2 5.5 A1.5 1.5 0 0 1 3.5 4 h1.9 l1-1.4 h3.2 l1 1.4 h1.9 A1.5 1.5 0 0 1 14 5.5 v6 A1.5 1.5 0 0 1 12.5 13 h-9 A1.5 1.5 0 0 1 2 11.5 z" />
+      {/* Lens */}
+      <circle cx="8" cy="8.5" r="2.5" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      focusable="false"
+    >
+      {/* Capsule */}
+      <rect x="6" y="2" width="4" height="7.5" rx="2" />
+      {/* Yoke */}
+      <path d="M4 8.5 v0.5 a4 4 0 0 0 8 0 v-0.5" />
+      {/* Stand */}
+      <line x1="8" y1="13" x2="8" y2="14.25" />
+      <line x1="5.75" y1="14.25" x2="10.25" y2="14.25" />
+    </svg>
   );
 }

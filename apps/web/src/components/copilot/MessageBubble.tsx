@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/lib/toast/context';
+import { PixelLoader } from './PixelLoader';
 import { ReasoningDisclosure } from './ReasoningDisclosure';
 import { renderMarkdownLite } from './markdown-lite';
 
@@ -125,7 +126,12 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         onClick={() => setShowMeta((v) => !v)}
         style={{
           position: 'relative',
-          maxWidth: '85%',
+          // v0.5.3 — widen bubbles so the chat column doesn't waste the shell
+          // width. User turns stay narrower (78%) so they read as
+          // conversational asides; assistant turns get 92% because the
+          // markdown-rendered answers need room for bullet lists / code
+          // blocks / tool cards without a wrapping cliff.
+          maxWidth: isUser ? '78%' : '92%',
           padding: 'var(--space-3) var(--space-4)',
           borderRadius: 'var(--radius-card)',
           background: isUser ? 'transparent' : 'rgba(255, 255, 255, 0.03)',
@@ -174,9 +180,10 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           bubbleContent
         ) : message.role === 'assistant' && message.streaming ? (
           <span
-            aria-live="polite"
             style={{
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
               color: 'var(--color-text-secondary)',
               fontFamily: 'var(--font-label)',
               fontSize: 'var(--text-caption)',
@@ -184,10 +191,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               textTransform: 'uppercase',
             }}
           >
-            Thinking
-            <span className="nsa-cursor" aria-hidden style={{ marginLeft: 4 }}>
-              ▊
-            </span>
+            <PixelLoader size="md" label="Thinking" />
+            <span>Thinking</span>
           </span>
         ) : null}
 

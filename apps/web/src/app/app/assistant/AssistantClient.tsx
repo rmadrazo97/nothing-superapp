@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { UIMessage } from 'ai';
 import { CopilotChat } from '@/components/copilot/CopilotChat';
+import { PixelLoader } from '@/components/copilot/PixelLoader';
 import { ThreadDrawer } from '@/components/copilot/ThreadDrawer';
 import type { CopilotMessage } from '@nothing/shared';
 
@@ -207,6 +208,9 @@ export function AssistantClient() {
         <div
           style={{
             padding: 'var(--space-6)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
             color: 'var(--color-text-secondary)',
             fontFamily: 'var(--font-label)',
             fontSize: 'var(--text-caption)',
@@ -214,7 +218,8 @@ export function AssistantClient() {
             textTransform: 'uppercase',
           }}
         >
-          Loading chat…
+          <PixelLoader size="lg" label="Loading chat" />
+          <span>Loading chat</span>
         </div>
       ) : (
         <CopilotChat

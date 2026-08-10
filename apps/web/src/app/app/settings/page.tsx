@@ -156,10 +156,25 @@ function formatPeriodEnd(iso: string | null | undefined): string {
 
 // ─── page component ───────────────────────────────────────────────────────
 
+/**
+ * Grab the browser IANA zone once. Intl is available in every modern engine
+ * including iOS Safari + the PWA runtime. Returns null on the rare env
+ * without Intl so the field still renders a usable text input.
+ */
+function detectBrowserTimezone(): string | null {
+  if (typeof Intl === 'undefined') return null;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function SettingsPage() {
   // Profile state
   const [email, setEmail] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
+  const [timezone, setTimezone] = useState<string>('');
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileStatus, setProfileStatus] = useState<SaveStatus>({ kind: 'idle' });
 
@@ -197,12 +212,17 @@ export default function SettingsPage() {
         });
         if (!res.ok) throw new Error('profile fetch failed');
         const body = (await res.json()) as {
-          profile: { display_name: string | null } | null;
+          profile: { display_name: string | null; timezone: string | null } | null;
           email: string | null;
         };
         if (cancelled) return;
         setEmail(body.email ?? '');
         setDisplayName(body.profile?.display_name ?? '');
+        // Timezone: prefer the persisted value; fall back to the browser's
+        // IANA zone so a first-time visitor sees the correct guess and can
+        // save it verbatim. Empty string means "unknown → detect on save".
+        const persistedTz = body.profile?.timezone ?? null;
+        setTimezone(persistedTz ?? detectBrowserTimezone() ?? '');
         setProfileLoaded(true);
       } catch {
         if (!cancelled) setProfileLoaded(true);
@@ -266,6 +286,9 @@ export default function SettingsPage() {
           credentials: 'same-origin',
           body: JSON.stringify({
             display_name: displayName.trim() === '' ? null : displayName.trim(),
+            // Only send timezone if the user has one (persisted OR browser-
+            // detected). An empty string means "leave what's already stored".
+            ...(timezone.trim().length > 0 ? { timezone: timezone.trim() } : {}),
           }),
         });
         if (!res.ok) {
@@ -294,7 +317,7 @@ export default function SettingsPage() {
         });
       }
     },
-    [displayName, toast],
+    [displayName, timezone, toast],
   );
 
   const savePreferences = useCallback(
@@ -426,6 +449,37 @@ export default function SettingsPage() {
               placeholder="What should we call you?"
               style={INPUT_STYLE}
             />
+          </div>
+
+          {/* Timezone (task #105). Pre-filled from the browser IANA zone on
+              first visit; persisted to profiles.timezone; read by the copilot
+              route so "remind me in 10 min" fires on the user's local wall
+              clock, not UTC. Plain text input — dropdowns of every IANA zone
+              (300+) don't earn their weight for a value users change once. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label htmlFor="settings-timezone" style={FIELD_LABEL_STYLE}>
+              Timezone
+            </label>
+            <input
+              id="settings-timezone"
+              type="text"
+              value={timezone}
+              onChange={(e) => {
+                setTimezone(e.target.value);
+                if (profileStatus.kind !== 'idle') setProfileStatus({ kind: 'idle' });
+              }}
+              disabled={!profileLoaded || profileStatus.kind === 'saving'}
+              maxLength={64}
+              placeholder="America/Mexico_City"
+              aria-describedby="settings-timezone-hint"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              style={INPUT_STYLE}
+            />
+            <p id="settings-timezone-hint" style={{ ...STATUS_MSG_STYLE, fontSize: 'var(--text-caption)' }}>
+              IANA zone. The assistant uses this to schedule reminders in your local time.
+            </p>
           </div>
 
           <button
@@ -764,6 +818,11 @@ function AboutCard() {
         </span>
       </div>
 
+      {/* v0.5.3 (task #99): two-step progressive disclosure — the first
+          expand shows ONLY the latest release, then a secondary
+          `▶ SHOW OLDER (N RELEASES)` reveals the rest inside a bounded
+          scroll box. Prior behaviour dumped all 8 releases on one tap,
+          which shoved every section below off the viewport. */}
       <details
         style={{
           display: 'flex',
@@ -795,51 +854,109 @@ function AboutCard() {
             gap: 'var(--space-4)',
             paddingTop: 'var(--space-3)',
             borderTop: '1px solid var(--color-border)',
+            // Bounded scroll — long changelogs stay tidy, and the box
+            // catches the scroll so the page doesn't jump underneath.
+            maxHeight: 'clamp(240px, 40dvh, 480px)',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
           }}
         >
-          {CHANGELOG.map((entry) => (
-            <article
-              key={entry.version}
+          {CHANGELOG.length > 0 && (
+            <ChangelogEntry entry={CHANGELOG[0]} />
+          )}
+
+          {CHANGELOG.length > 1 && (
+            <details
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 'var(--space-2)',
+                gap: 'var(--space-3)',
               }}
             >
-              <h3
+              <summary
                 style={{
-                  margin: 0,
+                  cursor: 'pointer',
+                  listStyle: 'none',
                   fontFamily: 'var(--font-label)',
-                  fontSize: 'var(--text-body-sm)',
-                  letterSpacing: '0.06em',
-                  color: 'var(--color-text-display)',
+                  fontSize: 'var(--text-caption)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text-secondary)',
+                  padding: 'var(--space-2) 0',
+                  userSelect: 'none',
                 }}
               >
-                v{entry.version}{' '}
-                <span style={{ color: 'var(--color-text-secondary)' }}>
-                  · {formatReleaseDate(entry.date)}
-                </span>
-              </h3>
-              <ul
+                ▶ Show older ({CHANGELOG.length - 1}{' '}
+                {CHANGELOG.length - 1 === 1 ? 'release' : 'releases'})
+              </summary>
+              <div
                 style={{
-                  margin: 0,
-                  paddingLeft: 'var(--space-4)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 'var(--space-1)',
-                  color: 'var(--color-text-primary)',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 'var(--text-body-sm)',
+                  gap: 'var(--space-4)',
+                  paddingTop: 'var(--space-2)',
+                  borderTop: '1px solid var(--color-border)',
                 }}
               >
-                {entry.highlights.map((line, i) => (
-                  <li key={i}>{line}</li>
+                {CHANGELOG.slice(1).map((entry) => (
+                  <ChangelogEntry key={entry.version} entry={entry} />
                 ))}
-              </ul>
-            </article>
-          ))}
+              </div>
+            </details>
+          )}
         </div>
       </details>
     </section>
+  );
+}
+
+/**
+ * ChangelogEntry — single-release renderer, factored out of AboutCard so
+ * the latest-release + older-releases branches can share one presentation.
+ */
+function ChangelogEntry({
+  entry,
+}: {
+  entry: (typeof CHANGELOG)[number];
+}) {
+  return (
+    <article
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-2)',
+      }}
+    >
+      <h3
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-label)',
+          fontSize: 'var(--text-body-sm)',
+          letterSpacing: '0.06em',
+          color: 'var(--color-text-display)',
+        }}
+      >
+        v{entry.version}{' '}
+        <span style={{ color: 'var(--color-text-secondary)' }}>
+          · {formatReleaseDate(entry.date)}
+        </span>
+      </h3>
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 'var(--space-4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-1)',
+          color: 'var(--color-text-primary)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-body-sm)',
+        }}
+      >
+        {entry.highlights.map((line, i) => (
+          <li key={i}>{line}</li>
+        ))}
+      </ul>
+    </article>
   );
 }

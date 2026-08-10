@@ -9,6 +9,19 @@ import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ToolCallCard } from './ToolCallCard';
 
 /**
+ * Browser IANA timezone — cached at first read. Safe on SSR (returns null),
+ * safe in every modern browser (Intl.DateTimeFormat is broadly available).
+ */
+function getBrowserTimezone(): string | null {
+  if (typeof Intl === 'undefined') return null;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Copilot chat surface — v0.6 rebuild.
  *
  * The chat is now a proper AI chat app:
@@ -79,18 +92,47 @@ export function CopilotChat({
   const [uiError, setUiError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // v0.5.3 — the transport MUST be stable across renders. Prior version
+  // recreated the DefaultChatTransport whenever `threadId` changed, and the
+  // AI SDK's useChat swaps its internal Chat instance when the transport
+  // reference changes → in-flight SSE aborted mid-first-message. Fix: build
+  // the transport ONCE and thread `thread_id` + `timezone` in via a per-
+  // request `prepareSendMessagesRequest` callback that reads from refs.
+  //
+  // The `context` prop is stable per-page (scope = "calorie-lite" or
+  // undefined) so it stays in the constructor body.
+  const threadIdRef = useRef<string | null | undefined>(threadId);
+  useEffect(() => {
+    threadIdRef.current = threadId;
+  }, [threadId]);
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: '/api/copilot',
-        // Forwarded on every request body — the route handler reads
-        // `body.context` and appends a scoped system-prompt block.
-        body: {
-          ...(context ? { context } : {}),
-          ...(threadId ? { thread_id: threadId } : {}),
+        body: context ? { context } : undefined,
+        prepareSendMessagesRequest: ({ messages, body: extraBody }) => {
+          // Read the dynamic values at request time — NOT via the transport's
+          // static `body` — so a threadId flip from null → uuid mid-first-
+          // message doesn't force us to rebuild the transport (which would
+          // abort the SSE stream and trigger the historical race).
+          const tid = threadIdRef.current;
+          const tz = getBrowserTimezone();
+          return {
+            body: {
+              messages,
+              ...(context ? { context } : {}),
+              ...(tid ? { thread_id: tid } : {}),
+              ...(tz ? { timezone: tz } : {}),
+              ...(extraBody ?? {}),
+            },
+          };
         },
       }),
-    [context, threadId],
+    // `context` is captured — a page that mounts with scope="calorie-lite"
+    // never changes scope mid-session. If that assumption ever breaks,
+    // context needs to move into a ref too.
+    [context],
   );
 
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
@@ -394,6 +436,11 @@ export function CopilotChat({
         >
           <div
             style={{
+              // v0.5.3 — match the shell column width exactly (Shell.tsx =
+              // maxWidth 480). Kept as a hardcoded number rather than a
+              // percentage so the fixed-position composer aligns visually
+              // with the scrolling chat column above it even on wider
+              // desktop windows where env(safe-area-inset-*) is 0.
               maxWidth: 480,
               margin: '0 auto',
               padding: '0 var(--space-4) var(--space-2)',
@@ -497,9 +544,30 @@ function RenderedMessage({
     errored,
   };
 
-  const toolParts = message.parts.filter(
+  // Client-side dedupe by toolCallId — the SSE stream occasionally re-emits
+  // the same tool-* part when a reconnect happens mid-turn, and the server-
+  // side idempotency guard (migration 025) makes the second run a no-op.
+  // Rendering both parts would show two identical cards; keep only the
+  // freshest occurrence (last write wins) for each toolCallId. Parts with
+  // no toolCallId (streaming phase, before the id is assigned) fall through
+  // unchanged so the "running" card still renders.
+  const rawToolParts = message.parts.filter(
     (p) => typeof p.type === 'string' && (p.type.startsWith('tool-') || p.type === 'dynamic-tool'),
   );
+  const seenToolCallIds = new Set<string>();
+  const toolParts = [] as typeof rawToolParts;
+  for (let i = rawToolParts.length - 1; i >= 0; i--) {
+    const anyPart = rawToolParts[i] as { toolCallId?: unknown };
+    const id =
+      typeof anyPart.toolCallId === 'string' && anyPart.toolCallId.length > 0
+        ? anyPart.toolCallId
+        : null;
+    if (id !== null) {
+      if (seenToolCallIds.has(id)) continue;
+      seenToolCallIds.add(id);
+    }
+    toolParts.unshift(rawToolParts[i]);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -510,6 +578,7 @@ function RenderedMessage({
         const anyPart = p as {
           type: string;
           toolName?: string;
+          toolCallId?: string;
           state?: string;
           input?: unknown;
           output?: unknown;
@@ -519,9 +588,12 @@ function RenderedMessage({
           anyPart.type === 'dynamic-tool'
             ? (anyPart.toolName ?? 'tool')
             : anyPart.type.replace(/^tool-/, '');
+        const stableKey = anyPart.toolCallId
+          ? `${message.id}-toolcall-${anyPart.toolCallId}`
+          : `${message.id}-tool-${idx}`;
         return (
           <ToolCallCard
-            key={`${message.id}-tool-${idx}`}
+            key={stableKey}
             toolName={toolName}
             state={anyPart.state ?? 'input-available'}
             input={anyPart.input}
