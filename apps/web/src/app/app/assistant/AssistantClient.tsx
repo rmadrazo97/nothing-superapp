@@ -10,10 +10,16 @@
  *   - Passing thread_id + initialMessages into <CopilotChat/> so onFinish
  *     persists new turns to the right row.
  *
- * The chat is keyed by threadId so switching between threads remounts the
- * useChat state cleanly (no leaked in-flight streams).
+ * v0.5.2 — Fix for BUG #1 (first-message race). CopilotChat is NOT keyed by
+ * threadId anymore. Keying by threadId caused React to unmount + remount the
+ * chat when ensureThreadForFirstMessage flipped the id from null → uuid,
+ * which aborted the in-flight stream and wiped the user's bubble. Instead,
+ * CopilotChat stays mounted; thread switches (from the drawer) hydrate via
+ * an effect that reacts to initialMessages changing, and first-message
+ * threads created by this component are marked "self-created" so we don't
+ * clobber the live stream by refetching an (empty) row for them.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { UIMessage } from 'ai';
 import { CopilotChat } from '@/components/copilot/CopilotChat';
@@ -33,6 +39,12 @@ export function AssistantClient() {
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [hydrating, setHydrating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Thread ids we created ourselves during a first-message send. We must NOT
+  // hydrate these — the live stream is the source of truth, and fetching
+  // /api/copilot/threads/<id> mid-stream would return zero (or partial)
+  // messages and clobber the visible bubble. Once the stream finishes and
+  // persistence lands, subsequent renders reuse the same in-memory messages.
+  const selfCreatedThreadsRef = useRef<Set<string>>(new Set());
 
   // Keep local threadId in sync with the URL (back/forward navigation).
   useEffect(() => {
@@ -41,9 +53,16 @@ export function AssistantClient() {
 
   // Hydrate messages whenever the selected thread id changes. New threads
   // (no id → null) or invalid ids skip the fetch and render empty state.
+  // Self-created threads (from ensureThreadForFirstMessage) are skipped so
+  // we don't tear down the in-flight stream that owns their first turn.
   useEffect(() => {
     if (!threadId) {
       setInitialMessages([]);
+      return;
+    }
+    if (selfCreatedThreadsRef.current.has(threadId)) {
+      // First-message flow: leave live messages alone; parent's initialMessages
+      // stays at whatever it was (usually []), CopilotChat keeps its state.
       return;
     }
     let cancelled = false;
@@ -96,6 +115,10 @@ export function AssistantClient() {
         if (!res.ok) return;
         const data = (await res.json()) as { thread?: { id: string } };
         if (data.thread?.id) {
+          // Mark this id as self-created BEFORE state/URL updates so the
+          // hydrate effect skips it. Otherwise the effect would race the
+          // in-flight stream and wipe the user's bubble.
+          selfCreatedThreadsRef.current.add(data.thread.id);
           setThreadId(data.thread.id);
           const params = new URLSearchParams(searchParams.toString());
           params.set('t', data.thread.id);
@@ -169,28 +192,15 @@ export function AssistantClient() {
             ◐ COPILOT
           </span>
         </div>
-        <button
-          type="button"
-          aria-label="Start a new chat"
-          onClick={clearThread}
-          style={{
-            width: 40,
-            height: 40,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            color: 'var(--color-accent)',
-            border: '1px solid var(--color-accent)',
-            borderRadius: 'var(--radius-compact)',
-            fontFamily: 'var(--font-label)',
-            fontSize: 18,
-            lineHeight: 1,
-            cursor: 'pointer',
-          }}
-        >
-          +
-        </button>
+        {/*
+          v0.5.2 — Removed the header "+" (new chat) button. It duplicated
+          the drawer's "+ NEW CHAT" action AND shared the composer send
+          button's cadmium accent + shape, causing frequent tap mis-hits
+          that orphaned empty "New chat" rows (see BUG #4 in
+          services/growth/campaigns/nothing-superapp/reports/assistant-deep-test-v0.5.1.md).
+          A spacer keeps the header title centered.
+        */}
+        <div aria-hidden style={{ width: 40, height: 40 }} />
       </header>
 
       {hydrating ? (
@@ -208,10 +218,9 @@ export function AssistantClient() {
         </div>
       ) : (
         <CopilotChat
-          // Key by threadId so useChat state resets cleanly on thread switch.
-          // Falsy → single key so a "new chat" empty state doesn't remount
-          // on every render.
-          key={threadId ?? 'new'}
+          // NOTE: no `key` prop — see the file header comment for why.
+          // Thread hydration + reset is handled inside CopilotChat via an
+          // effect that reacts to initialMessages changing.
           threadId={threadId}
           initialMessages={initialMessages}
           onFirstMessage={(text) => void ensureThreadForFirstMessage(text)}

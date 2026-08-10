@@ -96,6 +96,11 @@ export function CopilotChat({
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     transport,
     messages: initialMessages,
+    // Deliberately NO `id` prop — passing a stable id would help useChat
+    // recognise thread switches, but v0.5's first-message flow can't safely
+    // change the id mid-stream (the AI SDK's useChat recreates the internal
+    // Chat instance when `id` changes, aborting the in-flight request). We
+    // instead handle thread switches via the setMessages effect below.
     onError(err) {
       // Map server errors → human toast copy. `err.message` may include the
       // JSON body when the response wasn't 2xx.
@@ -115,6 +120,26 @@ export function CopilotChat({
   });
 
   const busy = status === 'submitted' || status === 'streaming';
+
+  const firstUserFiredRef = useRef(false);
+
+  // v0.5.2 — replace the useChat internal messages when the parent hands us
+  // a different `initialMessages` array (drawer thread switch, thread clear,
+  // rehydrate of a stored thread). We skip the initial render (identity
+  // check against the first-seen reference) and refuse to overwrite mid-
+  // stream so the live turn isn't wiped. The parent skips the fetch for
+  // self-created threads so first-message flows never trip this branch.
+  const firstInitialMessagesRef = useRef(initialMessages);
+  useEffect(() => {
+    if (initialMessages === firstInitialMessagesRef.current) return;
+    if (status === 'submitted' || status === 'streaming') return;
+    setMessages(initialMessages ?? []);
+    // Reset the first-user-fired latch so a switched-into thread's first
+    // NEW user message re-invokes ensureThreadForFirstMessage if needed
+    // (won't for existing threads — the guard is `messages.length === 0`).
+    firstUserFiredRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMessages, status]);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -159,8 +184,6 @@ export function CopilotChat({
     el.scrollTop = el.scrollHeight;
     setShowJumpChip(false);
   }, []);
-
-  const firstUserFiredRef = useRef(false);
 
   const send = useCallback(
     (rawText: string, attachments: ComposerAttachment[] = []) => {
