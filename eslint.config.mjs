@@ -107,6 +107,9 @@ export default [
       // Downgrade — a legit style nag, not a bug. Editor + code-review catch
       // the interesting cases; we don't want lint blocking CI on this.
       'prefer-const': 'warn',
+      // Character-class escapes like `[\-]` are harmless-but-unnecessary
+      // and appear in a few regexes across the codebase. Warn, don't fail.
+      'no-useless-escape': 'warn',
     },
   },
 ];
