@@ -29,11 +29,63 @@ import { foodCategoryEnum } from '@nothing/shared';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// v0.5.3 (#97): select rank_penalty + is_canonical so the JS-side sort has
+// the columns it needs. Not surfaced in the response — the client only cares
+// about display fields.
 const FOOD_COLUMNS =
-  'id, name, brand, serving_g, serving_label, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, cholesterol_mg, category';
+  'id, name, brand, serving_g, serving_label, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, cholesterol_mg, category, rank_penalty, is_canonical';
 
 const CUSTOM_FOOD_COLUMNS =
   'id, user_id, name, brand, serving_g, serving_label, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, cholesterol_mg, created_at';
+
+/**
+ * Cheap trigram-like similarity between the query and a food name. Not a
+ * true pg_trgm — a fast Jaccard-on-3grams approximation that's stable + fast
+ * enough for a 200-row post-fetch sort. Returns a number in [0, 3+] once the
+ * boost multiplier is applied by `scoreRow`.
+ */
+function trigrams(s: string): Set<string> {
+  const padded = `  ${s}  `;
+  const out = new Set<string>();
+  for (let i = 0; i < padded.length - 2; i += 1) {
+    out.add(padded.slice(i, i + 3));
+  }
+  return out;
+}
+
+function similarity(a: string, b: string): number {
+  const ta = trigrams(a);
+  const tb = trigrams(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let intersect = 0;
+  for (const g of tb) if (ta.has(g)) intersect += 1;
+  const union = ta.size + tb.size - intersect;
+  return union === 0 ? 0 : intersect / union;
+}
+
+/**
+ * Score a food row against a lowercased query string.
+ *   3× — query is a prefix of the (lowercased) name.
+ *   2× — any whitespace/comma-delimited word in the name starts with the query.
+ *   1× — plain substring / trigram match (base weight).
+ * Multiplied by trigram similarity so tighter matches always outscore loose
+ * ones within a boost bucket. `is_canonical` rows get a small additive
+ * bonus so a canonical row wins ties (e.g. "chicken breast, cooked" vs
+ * "chicken breast, raw" — assuming the raw one isn't canonical).
+ */
+function scoreRow(name: string, qLower: string): number {
+  const nameLower = name.toLowerCase();
+  let boost = 1;
+  if (nameLower.startsWith(qLower)) {
+    boost = 3;
+  } else {
+    // Word-initial match: split on spaces/commas/hyphens.
+    const words = nameLower.split(/[\s,\-]+/);
+    if (words.some((w) => w.startsWith(qLower))) boost = 2;
+  }
+  const sim = similarity(nameLower, qLower);
+  return sim * boost;
+}
 
 const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
@@ -83,6 +135,15 @@ export async function GET(request: Request) {
   // We `select('...', { count: 'exact' })` so pagination controls know the
   // total. `ilike` uses the `foods_name_lower_idx` index for case-insensitive
   // prefix/substring lookups.
+  //
+  // v0.5.3 (#97): when the caller passes `q`, we can no longer sort by
+  // `name asc` at the DB — that ignores rank_penalty + the query-relative
+  // similarity/prefix boost. Fetch a WIDE window (up to 200 rows) ordered
+  // by (rank_penalty asc, name asc) so canonical-ish rows arrive first,
+  // then re-sort in JS by (similarity * boost) DESC before paginating.
+  //
+  // Without `q` the old `name asc` path still applies — no meaningful
+  // ranking to do, and the DB index covers it cheaply.
   let publicQuery = supabase
     .from('foods')
     .select(FOOD_COLUMNS, { count: 'exact' });
@@ -96,13 +157,18 @@ export async function GET(request: Request) {
     publicQuery = publicQuery.eq('category', category);
   }
 
-  // If we're merging customs into the same page, fetch a wider window from
-  // public and slice after merge. Otherwise, page the DB directly.
-  const publicFetch = includeCustom
-    ? publicQuery.order('name', { ascending: true }).limit(limit + offset + 50)
-    : publicQuery
+  const hasQuery = !!(q && q.length > 0);
+  // Wide fetch when we need to re-rank; otherwise page directly.
+  const publicFetch = hasQuery
+    ? publicQuery
+        .order('rank_penalty', { ascending: true })
         .order('name', { ascending: true })
-        .range(offset, offset + limit - 1);
+        .limit(200)
+    : includeCustom
+      ? publicQuery.order('name', { ascending: true }).limit(limit + offset + 50)
+      : publicQuery
+          .order('name', { ascending: true })
+          .range(offset, offset + limit - 1);
 
   const { data: publicFoods, error: publicError, count: publicCount } =
     await publicFetch;
@@ -112,15 +178,45 @@ export async function GET(request: Request) {
 
   type PublicRow = NonNullable<typeof publicFoods>[number] & {
     _source?: 'public';
+    rank_penalty?: number | null;
+    is_canonical?: boolean | null;
   };
-  const publicRows: PublicRow[] = (publicFoods ?? []).map((row) => ({
+  let publicRows: PublicRow[] = (publicFoods ?? []).map((row) => ({
     ...row,
     _source: 'public' as const,
   }));
 
+  // JS-side re-ranking. Mirrors the ORDER BY described in migration 023:
+  //   (similarity * boost) DESC, rank_penalty ASC, name ASC
+  // where `boost` is 3× if the query is a prefix of the name, 2× if any
+  // word starts with the query, 1× otherwise. Similarity is a cheap Jaccard
+  // trigram approximation — good enough to sort within a ranked bucket
+  // without pulling in a full pg_trgm client.
+  if (hasQuery) {
+    const qLower = q!.toLowerCase();
+    publicRows = publicRows
+      .map((r) => ({
+        row: r,
+        score: scoreRow(String(r.name), qLower),
+        penalty: Number(r.rank_penalty ?? 0),
+      }))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+        return String(a.row.name).localeCompare(String(b.row.name));
+      })
+      .map((s) => s.row);
+  }
+
   if (!includeCustom) {
+    // With a query we fetched a wide window + re-ranked; paginate now that
+    // the ordering is stable. Without a query, the DB already returned the
+    // right page via .range().
+    const page = hasQuery
+      ? publicRows.slice(offset, offset + limit)
+      : publicRows;
     return NextResponse.json({
-      foods: publicRows,
+      foods: page,
       total: publicCount ?? publicRows.length,
     });
   }

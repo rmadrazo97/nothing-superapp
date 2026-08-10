@@ -98,6 +98,14 @@ function foodKey(food: Pick<FoodResult, 'id' | '_source'>): string {
   return `${food._source}:${food.id}`;
 }
 
+/**
+ * v0.5.3 (#97) — every top-level flex/list wrapper now carries
+ * `min-width: 0` + `max-width: 100%` so a wide food name (e.g.
+ * "Babyfood, cereal, oatmeal, with fruit, dry instant") can't push the
+ * card past the shell's 480px column. Food-name text uses
+ * `overflow-wrap: anywhere` so it wraps mid-string on very narrow
+ * viewports rather than triggering horizontal scroll.
+ */
 export function FoodSearch({
   meal,
   onSaved,
@@ -305,13 +313,21 @@ export function FoodSearch({
   const showEmptyStateChips = query.trim() === '';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+        maxWidth: '100%',
+        minWidth: 0,
+      }}
+    >
       <input
         className="input"
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search 150+ foods"
+        placeholder="Search 500+ foods"
         autoComplete="off"
         style={{
           fontFamily: 'var(--font-label)',
@@ -345,6 +361,8 @@ export function FoodSearch({
           gap: 'var(--space-2)',
           overflowX: 'auto',
           paddingBottom: 'var(--space-2)',
+          maxWidth: '100%',
+          scrollbarWidth: 'none',
         }}
       >
         {CATEGORIES.map((c) => {
@@ -401,6 +419,8 @@ export function FoodSearch({
             padding: 0,
             display: 'flex',
             flexDirection: 'column',
+            maxWidth: '100%',
+            minWidth: 0,
           }}
         >
           {(results ?? []).map((f) => {
@@ -460,6 +480,10 @@ function ChipStrip({
           gap: 'var(--space-2)',
           overflowX: 'auto',
           paddingBottom: 'var(--space-2)',
+          // Bound the strip so it can scroll horizontally without pushing the
+          // parent card past the shell's 480px column.
+          maxWidth: '100%',
+          scrollbarWidth: 'none',
         }}
       >
         {items.map((item) => {
@@ -538,6 +562,10 @@ function FoodRow({
         borderBottom: '1px solid var(--color-border)',
         display: 'flex',
         alignItems: 'baseline',
+        // Bound the row to the card — long food names wrap rather than
+        // pushing the row past the shell's 480px column.
+        maxWidth: '100%',
+        minWidth: 0,
       }}
     >
       <button
@@ -545,6 +573,7 @@ function FoodRow({
         onClick={() => onPick(food)}
         style={{
           flex: 1,
+          minWidth: 0,
           background: 'transparent',
           border: 0,
           padding: 'var(--space-3) 0',
@@ -562,9 +591,12 @@ function FoodRow({
             style={{
               color: 'var(--color-text-primary)',
               fontSize: 'var(--text-body)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              // v0.5.3 (#97) — allow mid-string wrap for long USDA names.
+              // Ellipsis stayed a footgun once we jumped from ~150 to ~500+
+              // foods with names like "Babyfood, cereal, oatmeal, w/fruit".
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              lineHeight: 1.25,
             }}
           >
             {food.name}
