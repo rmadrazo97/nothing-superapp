@@ -15,8 +15,16 @@ type View = 'upcoming' | 'all' | 'history';
 export default function RemindersPage() {
   const [view, setView] = useState<View>('upcoming');
   return (
+    // v0.5.3 (task #103): the content was rendering in a narrow left-anchored
+    // column with a big empty right gutter — the shell already caps width,
+    // but the inner column has no max-width so on mid-sized viewports it
+    // stretched arbitrarily. Center at 480px so the tab strip + CTA + list
+    // read as one unit like the other mini-apps.
     <div
       style={{
+        width: '100%',
+        maxWidth: 480,
+        margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--space-6)',
@@ -40,7 +48,7 @@ function Header({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span className="label">REMINDERS</span>
+        <span className="label">REMINDERS AND TASKS</span>
       </div>
       <div
         role="tablist"

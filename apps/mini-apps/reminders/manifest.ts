@@ -13,8 +13,11 @@ import { defineMiniApp } from '@nothing/mini-apps-runtime';
  */
 export default defineMiniApp({
   slug: 'reminders',
-  name: 'Reminders',
-  description: 'Reminders and agent loops.',
+  // v0.5.3: renamed to "Reminders and Tasks" so the two-kinds-one-list shape
+  // (pings vs scheduled agent runs) is obvious at the launcher tile. Slug
+  // stays `reminders` so nothing routes-side moves.
+  name: 'Reminders and Tasks',
+  description: 'Reminders that ping you and Tasks that fire the assistant.',
   // ⏰ renders reliably on iOS Safari 17+ (verified). Emoji tile icons are
   // the locked launcher direction (see project memo:
   // feedback_ns_tile_icons_use_emoji — do NOT unify to flat glyphs).
@@ -22,6 +25,6 @@ export default defineMiniApp({
   route: '/app/reminders',
   requiresSubscription: true,
   settings: {
-    title: 'Reminders',
+    title: 'Reminders and Tasks',
   },
 });

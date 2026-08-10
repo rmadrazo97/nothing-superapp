@@ -12,6 +12,7 @@ import type { Reminder, ReminderRun } from '@nothing/shared';
 import NewReminderForm from './NewReminderForm.tsx';
 import ReminderRow from './ReminderRow.tsx';
 import HistoryList from './HistoryList.tsx';
+import InfoBanner from './InfoBanner.tsx';
 
 type View = 'upcoming' | 'all' | 'history';
 
@@ -115,9 +116,15 @@ export default function RemindersView({ view }: { view: View }) {
         </div>
       )}
 
+      {/* v0.5.3 (task #107): dashed-outline explainer for the two-in-one
+          shape. Persists dismissal per-user via mini-app settings. */}
+      <InfoBanner />
+
       {/* v0.5.1: shrunk from a filled cadmium hero-CTA button to a compact
-          ghost variant — the previous size dominated the tab strip. Same
-          density as the ← BACK link across mini-app subpages. */}
+          ghost variant — the previous size dominated the tab strip.
+          v0.5.3 (task #103): tightened further to a chip that mirrors
+          calorie-lite's `+ ADD MEAL` — same density, same ghost cadmium,
+          same self-align, so the two mini-apps read as one family. */}
       <button
         type="button"
         onClick={() => setFormOpen((o) => !o)}
@@ -128,12 +135,13 @@ export default function RemindersView({ view }: { view: View }) {
           padding: 'var(--space-2) var(--space-4)',
           borderRadius: 'var(--radius-button)',
           fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-caption)',
+          fontSize: 'var(--text-label)',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           cursor: 'pointer',
           alignSelf: 'flex-start',
-          minHeight: 36,
+          height: 36,
+          lineHeight: 1,
         }}
       >
         {formOpen ? '× CLOSE' : '+ NEW REMINDER'}

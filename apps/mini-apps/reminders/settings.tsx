@@ -88,7 +88,7 @@ export default function RemindersSettings({ onClose }: { onClose: () => void }) 
   };
 
   return (
-    <MiniAppSettingsPanel name="Reminders" onBack={onClose}>
+    <MiniAppSettingsPanel name="Reminders and Tasks" onBack={onClose}>
       <SettingsSection number={1} title="Notifications">
         <SettingsToggle
           label="Push me reminder outcomes"
