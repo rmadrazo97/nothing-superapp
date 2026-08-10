@@ -7,9 +7,20 @@
  *   1. Master toggle for the `reminders` push topic (fan-out is only made
  *      to users whose `preferences.push_topics` contains 'reminders').
  *   2. Clear-all-history button (DELETE runs one-by-one).
+ *
+ * Refactored to use the shared mini-app settings framework so the visual
+ * language matches every other mini-app's settings surface. This one still
+ * writes to `preferences` (not `mini_app_settings`) because push topics
+ * are cross-app state, not reminders-only state.
  */
 import { useEffect, useState } from 'react';
 import { usePreferences } from '@nothing/mini-apps-runtime';
+import {
+  MiniAppSettingsPanel,
+  SettingsSection,
+  SettingsToggle,
+  SettingsButton,
+} from '../../web/src/components/mini-app-settings';
 
 export default function RemindersSettings({ onClose }: { onClose: () => void }) {
   const preferences = usePreferences();
@@ -77,102 +88,52 @@ export default function RemindersSettings({ onClose }: { onClose: () => void }) 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', padding: 'var(--space-4)' }}>
-      <label style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-        <input
-          type="checkbox"
+    <MiniAppSettingsPanel name="Reminders" onBack={onClose}>
+      <SettingsSection number={1} title="Notifications">
+        <SettingsToggle
+          label="Push me reminder outcomes"
+          helper="When off, reminders still fire (agent loops still run + history is logged) but you won't get a push notification. Global push must be enabled in the main app Settings."
           checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
+          onChange={setEnabled}
+          disabled={busy}
         />
-        <span
-          className="body"
-          style={{ color: 'var(--color-text-display)', fontFamily: 'var(--font-body)' }}
+        <SettingsButton
+          type="button"
+          variant="primary"
+          onClick={() => void save()}
+          disabled={busy}
         >
-          Push me reminder outcomes
-        </span>
-      </label>
+          {busy ? 'Saving…' : 'Save'}
+        </SettingsButton>
+        {msg && (
+          <p
+            role="status"
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-body)',
+              fontSize: 'var(--text-caption)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            {msg}
+          </p>
+        )}
+      </SettingsSection>
 
-      <span
-        className="caption"
-        style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+      <SettingsSection
+        number={2}
+        title="History"
+        description="Wipes every logged reminder run for your account. There is no undo."
       >
-        When off, reminders still fire (agent loops still run + history is
-        logged) but you won't get a push notification. Global push must be
-        enabled in the main app Settings.
-      </span>
-
-      <button
-        type="button"
-        onClick={save}
-        disabled={busy}
-        style={{
-          background: 'var(--color-accent)',
-          color: 'var(--color-on-accent, #000)',
-          border: 0,
-          padding: 'var(--space-3) var(--space-4)',
-          borderRadius: 'var(--radius-button)',
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: busy ? 'default' : 'pointer',
-          opacity: busy ? 0.5 : 1,
-          alignSelf: 'flex-start',
-        }}
-      >
-        Save
-      </button>
-
-      <div style={{ height: 1, background: 'var(--color-border)' }} />
-
-      <button
-        type="button"
-        onClick={clearHistory}
-        disabled={busy}
-        style={{
-          background: 'transparent',
-          border: '1px solid var(--color-border-visible)',
-          color: 'var(--color-text-secondary)',
-          padding: 'var(--space-2) var(--space-3)',
-          borderRadius: 'var(--radius-button)',
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-caption)',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          cursor: busy ? 'default' : 'pointer',
-          alignSelf: 'flex-start',
-        }}
-      >
-        Clear history
-      </button>
-
-      {msg && (
-        <span
-          className="caption"
-          style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+        <SettingsButton
+          type="button"
+          variant="accent-ghost"
+          onClick={() => void clearHistory()}
+          disabled={busy}
         >
-          {msg}
-        </span>
-      )}
-
-      <button
-        type="button"
-        onClick={onClose}
-        style={{
-          background: 'transparent',
-          border: 0,
-          color: 'var(--color-text-secondary)',
-          padding: 0,
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-caption)',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          alignSelf: 'flex-start',
-        }}
-      >
-        Close
-      </button>
-    </div>
+          Clear history
+        </SettingsButton>
+      </SettingsSection>
+    </MiniAppSettingsPanel>
   );
 }

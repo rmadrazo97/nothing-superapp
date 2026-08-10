@@ -106,6 +106,10 @@ const MINI_APP_SETTINGS: Record<string, MiniAppSettingsLoader> = {
     import('@nothing-mini-apps/calorie-lite/settings') as Promise<{
       default: ComponentType<MiniAppSettingsProps>;
     }>,
+  'gym-routine': () =>
+    import('@nothing-mini-apps/gym-routine/settings') as Promise<{
+      default: ComponentType<MiniAppSettingsProps>;
+    }>,
   reminders: () =>
     import('@nothing-mini-apps/reminders/settings') as Promise<{
       default: ComponentType<MiniAppSettingsProps>;
