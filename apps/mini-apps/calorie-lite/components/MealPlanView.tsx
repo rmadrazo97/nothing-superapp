@@ -1,33 +1,41 @@
 'use client';
 
 /**
- * MealPlanView — the PLAN tab (v0.5.2 redesign).
+ * MealPlanView — the PLAN tab (v0.5.3 redesign).
  *
- * User feedback (2026-08-10): "this UI is horrible. I cannot see other plans /
- * edit / add other plans, only one active that was only created by the
- * assistant." — so this rewrite is LIST-first, adds a full CREATE/EDIT form,
- * and moves the DELETE affordance out of the header down into a menu with
- * an undo snackbar.
+ * Design plan: services/growth/campaigns/nothing-superapp/design/plan-view-v0.5.3.md
+ *
+ * v0.5.2 shipped "a cleaner dashboard" and the user rejected it as generic.
+ * v0.5.3 stops treating the plan as a dashboard. The plan detail is a
+ * *prescription slip*: RX-kicker → Grotesk plan name → segmented macro
+ * tape ticker (Doto numerals) → left-gutter meal timeline rail. The list
+ * is a *cabinet of index cards* with a filled-red pushpin marking the
+ * active plan.
+ *
+ * Signature primitives (see `PlanSignature.tsx`):
+ *   <MacroTape>    4-cell tape strip, Doto numerals
+ *   <Pushpin>      12px filled/hollow ember circle (ACTIVE marker)
+ *   <AdherenceLED> 6px success-green dot per meal
+ *   <TimelineRail> + <TimelineStation> — the numbered-gutter meal list
  *
  * Views (local state, no routing needed):
- *   list    — default landing; shows every plan with active-first sort
- *   detail  — one plan, redesigned; SET ACTIVE / EDIT / DUPLICATE / ⋯
- *   form    — create or edit; assembles a MealPlanInsert payload
+ *   list    — cabinet of pushpinned index cards, ACTIVE first
+ *   detail  — prescription slip with tape ticker + timeline rail
+ *   form    — worksheet (PlanForm handles this)
  *
- * Data flow:
- *   - `preferences.active_meal_plan_id` (passed from the layout) tells us
- *     which plan is currently active
- *   - GET /api/mini-apps/calorie-lite/meal-plans → list of plans
- *   - GET /api/mini-apps/calorie-lite/meal-plans/[id] → detail + rules + meals
- *   - POST /api/mini-apps/calorie-lite/meal-plans → create
- *   - PATCH /api/mini-apps/calorie-lite/meal-plans/[id] → edit
- *   - DELETE /api/mini-apps/calorie-lite/meal-plans/[id] → destructive (undo)
- *   - POST /api/mini-apps/calorie-lite/meal-plans/[id]/activate → set active
- *   - DELETE /api/mini-apps/calorie-lite/meal-plans/[id]/activate → clear active
+ * Data flow (unchanged from v0.5.2 — B2 API confirmed no migration needed):
+ *   GET    /api/mini-apps/calorie-lite/meal-plans
+ *   GET    /api/mini-apps/calorie-lite/meal-plans/[id]
+ *   POST   /api/mini-apps/calorie-lite/meal-plans          (create)
+ *   PATCH  /api/mini-apps/calorie-lite/meal-plans/[id]     (edit)
+ *   DELETE /api/mini-apps/calorie-lite/meal-plans/[id]     (destructive → undo)
+ *   POST   /api/mini-apps/calorie-lite/meal-plans/[id]/activate
+ *   DELETE /api/mini-apps/calorie-lite/meal-plans/[id]/activate
  *
- * All destructive actions route through the shell's <UndoSnackbar> via
- * <SwipeableRow> — the DELETE that used to sit at the header level is now
- * a swipe-left action + a ⋯ menu item in detail view.
+ * Delete affordance: LIST swipe-action only. The v0.5.2 ⋯-menu in the
+ * DETAIL header is *gone* — the header is for reading the prescription,
+ * not for destroying it. Consistent with SwipeableRow semantics used
+ * elsewhere in the shell.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useEvents, EmptyState } from '@nothing/mini-apps-runtime';
@@ -36,8 +44,13 @@ import type { MealPlan, MealPlanAdherence, PlanMeal } from '@nothing/shared';
 import { PlanRulesCard } from './PlanRulesCard.tsx';
 import { PlanMealCard } from './PlanMealCard.tsx';
 import { PlanForm } from './PlanForm.tsx';
+import {
+  MacroTape,
+  Pushpin,
+  TimelineRail,
+  TimelineStation,
+} from './PlanSignature.tsx';
 import { SwipeableRow } from '../../../web/src/components/shell/SwipeableRow';
-import { useUndoSnackbar } from '../../../web/src/components/shell/UndoSnackbar';
 import { useToast } from '../../../web/src/lib/toast/context';
 
 // ─── Local types ────────────────────────────────────────────────────────────
@@ -67,7 +80,17 @@ function todayKey(): string {
   return `${y}-${m}-${d}`;
 }
 
-/** "2 days ago" / "just now" — small, readable relative time. */
+/** ISO → RX-style stamp: "RX · 2026-08-10". Not a language toggle — this is
+ * chrome, always English. */
+function rxStamp(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `RX · ${y}-${m}-${day}`;
+}
+
+/** "just now" / "5m ago" / "2d ago" — compact. */
 function relative(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
@@ -124,7 +147,6 @@ export function MealPlanView({
   // ─── Route by mode ────────────────────────────────────────────────────────
 
   if (mode.view === 'form') {
-    // Look up the source row for edit / duplicate.
     const seedPlan =
       mode.kind === 'edit'
         ? plans?.find((p) => p.id === mode.planId) ?? null
@@ -139,14 +161,14 @@ export function MealPlanView({
             ? { id: seedPlan.id, name: seedPlan.name, plan: seedPlan.plan }
             : mode.kind === 'duplicate' && seedPlan
               ? {
-                  // Duplicate = pre-filled form but CREATE semantics — id is
-                  // undefined so PlanForm's isEdit gate stays false.
                   name: `${seedPlan.name} (Copy)`,
                   plan: seedPlan.plan,
                 }
               : undefined
         }
-        onCancel={() => setMode(seedPlan?.id ? { view: 'detail', planId: seedPlan.id } : { view: 'list' })}
+        onCancel={() =>
+          setMode(seedPlan?.id ? { view: 'detail', planId: seedPlan.id } : { view: 'list' })
+        }
         onSaved={async (savedId) => {
           toast.success(mode.kind === 'edit' ? 'Plan saved.' : 'Plan created.');
           await loadAll();
@@ -162,15 +184,12 @@ export function MealPlanView({
       <PlanDetailView
         planId={mode.planId}
         activeMealPlanId={activeMealPlanId}
+        libraryCount={plans?.length ?? 0}
         onBack={() => setMode({ view: 'list' })}
         onEdit={(id) => setMode({ view: 'form', kind: 'edit', planId: id })}
         onDuplicate={(id) =>
           setMode({ view: 'form', kind: 'duplicate', sourcePlanId: id })
         }
-        onDeleted={async () => {
-          await loadAll();
-          setMode({ view: 'list' });
-        }}
         onActivated={async () => {
           // Preferences drive the active pointer; reload the shell so the
           // TODAY tab + FromPlanDropdown pick up the change.
@@ -199,7 +218,7 @@ export function MealPlanView({
   );
 }
 
-// ─── LIST VIEW ──────────────────────────────────────────────────────────────
+// ─── LIST VIEW — "the cabinet" ──────────────────────────────────────────────
 
 function PlanListView({
   plans,
@@ -248,7 +267,6 @@ function PlanListView({
     await onDeleted();
   }
 
-  // Sort: active first, then most-recently-updated.
   const sorted = (plans ?? []).slice().sort((a, b) => {
     const aA = a.id === activeMealPlanId ? 1 : 0;
     const bA = b.id === activeMealPlanId ? 1 : 0;
@@ -256,45 +274,56 @@ function PlanListView({
     return b.updated_at.localeCompare(a.updated_at);
   });
 
+  const totalCount = plans?.length ?? 0;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      {/* Header — matches the +ADD MEAL chip on TODAY. Compact chip, not the
-          oversized pill that showed up briefly in v0.5.1. */}
+      {/* Kicker row — mono, tracked, no big title. The library COUNT is the
+          only "number" here and it lives in the label bar, not in a hero. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'baseline',
           justifyContent: 'space-between',
           gap: 'var(--space-3)',
+          paddingBottom: 'var(--space-2)',
+          borderBottom: '1px solid var(--color-border-visible)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-          <span className="label">PLANS</span>
-          <span
-            className="display-md"
-            style={{ fontSize: 'var(--text-heading)', lineHeight: 1 }}
-          >
-            Your Plans
+        <span
+          style={{
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-label)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-secondary)',
+          }}
+        >
+          Plans
+          <span style={{ color: 'var(--color-text-disabled)' }}>
+            {'  ·  '}
+            {String(totalCount).padStart(2, '0')} in library
           </span>
-        </div>
+        </span>
         <button
           type="button"
           onClick={onCreate}
           style={{
-            background: 'var(--color-accent)',
-            color: 'var(--color-text-display)',
-            border: 0,
-            borderRadius: 'var(--radius-compact)',
-            padding: 'var(--space-2) var(--space-4)',
+            all: 'unset',
+            cursor: 'pointer',
             fontFamily: 'var(--font-label)',
-            fontSize: 'var(--text-caption)',
+            fontSize: 'var(--text-label)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
-            cursor: 'pointer',
+            color: 'var(--color-accent)',
+            padding: 'var(--space-1) var(--space-2)',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 'var(--radius-compact)',
             whiteSpace: 'nowrap',
           }}
+          aria-label="Create a new plan"
         >
-          + New Plan
+          + New
         </button>
       </div>
 
@@ -334,7 +363,7 @@ function PlanListView({
             padding: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-2)',
+            gap: 'var(--space-3)',
           }}
         >
           {sorted.map((p) => {
@@ -370,7 +399,7 @@ function PlanListView({
                     },
                   ]}
                 >
-                  <PlanRow
+                  <PlanIndexCard
                     plan={p}
                     isActive={isActive}
                     onOpen={() => onOpen(p.id)}
@@ -385,7 +414,8 @@ function PlanListView({
   );
 }
 
-function PlanRow({
+/** An "index card" — pushpin gutter on the left, plan meta on the right. */
+function PlanIndexCard({
   plan,
   isActive,
   onOpen,
@@ -395,9 +425,10 @@ function PlanRow({
   onOpen: () => void;
 }) {
   const dt = plan.plan.daily_targets;
-  const summary = dt
-    ? `${Math.round(dt.calories_kcal)} KCAL · P${Math.round(dt.protein_g)} · C${Math.round(dt.carbs_g)} · F${Math.round(dt.fat_g)}`
-    : '—';
+  const kcal = dt ? Math.round(dt.calories_kcal) : null;
+  const p = dt ? Math.round(dt.protein_g) : null;
+  const c = dt ? Math.round(dt.carbs_g) : null;
+  const f = dt ? Math.round(dt.fat_g) : null;
 
   return (
     <button
@@ -406,117 +437,147 @@ function PlanRow({
       style={{
         all: 'unset',
         cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-1)',
-        padding: 'var(--space-3) var(--space-4)',
+        display: 'grid',
+        gridTemplateColumns: '28px 1fr auto',
+        gap: 'var(--space-3)',
+        alignItems: 'center',
+        padding: 'var(--space-4)',
         border: '1px solid var(--color-border-visible)',
+        borderLeft: isActive
+          ? '2px solid var(--color-accent)'
+          : '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: isActive ? 'rgba(215, 25, 33, 0.04)' : 'rgba(0, 0, 0, 0.5)',
         width: '100%',
         boxSizing: 'border-box',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 'var(--space-2)',
-        }}
-      >
+      {/* Left: pushpin */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Pushpin active={isActive} size={14} />
+      </div>
+
+      {/* Middle: name + macro strip */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
         <span
           style={{
-            color: 'var(--color-text-primary)',
+            color: 'var(--color-text-display)',
+            fontFamily: 'var(--font-body)',
+            fontWeight: 500,
             fontSize: 'var(--text-body)',
+            lineHeight: 1.2,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            flex: 1,
-            minWidth: 0,
           }}
         >
           {plan.name}
         </span>
-        {isActive && (
+        {dt ? (
           <span
-            className="data"
             style={{
-              color: 'var(--color-text-display)',
-              background: 'var(--color-accent)',
-              padding: '2px var(--space-2)',
-              borderRadius: 'var(--radius-compact)',
+              fontFamily: 'var(--font-label)',
               fontSize: 'var(--text-caption)',
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
+              color: 'var(--color-text-secondary)',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {kcal} KCAL{'  ·  '}P{p}{'  '}C{c}{'  '}F{f}
+          </span>
+        ) : (
+          <span
+            className="caption"
+            style={{ color: 'var(--color-text-disabled)' }}
+          >
+            no targets
+          </span>
+        )}
+      </div>
+
+      {/* Right: status stamp + relative time */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 'var(--space-1)',
+          flexShrink: 0,
+        }}
+      >
+        {isActive ? (
+          <span
+            style={{
+              fontFamily: 'var(--font-label)',
+              fontSize: '10px',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              flexShrink: 0,
+              color: 'var(--color-accent)',
+              border: '1px solid var(--color-accent)',
+              padding: '2px 6px',
+              borderRadius: '2px',
             }}
           >
             Active
           </span>
+        ) : (
+          <span
+            style={{
+              fontFamily: 'var(--font-label)',
+              fontSize: '10px',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-disabled)',
+              padding: '2px 6px',
+            }}
+          >
+            —
+          </span>
         )}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 'var(--space-3)',
-        }}
-      >
         <span
-          className="data"
-          style={{
-            color: 'var(--color-text-secondary)',
-            fontSize: 'var(--text-caption)',
-            letterSpacing: '0.04em',
-          }}
-        >
-          {summary}
-        </span>
-        <span
-          className="data"
+          className="caption"
           style={{
             color: 'var(--color-text-disabled)',
-            fontSize: 'var(--text-caption)',
+            fontSize: '11px',
             letterSpacing: '0.04em',
             whiteSpace: 'nowrap',
           }}
         >
-          {relative(plan.created_at)}
+          {relative(plan.updated_at)}
         </span>
       </div>
     </button>
   );
 }
 
-// ─── DETAIL VIEW ────────────────────────────────────────────────────────────
+// ─── DETAIL VIEW — "the prescription slip" ──────────────────────────────────
 
 function PlanDetailView({
   planId,
   activeMealPlanId,
+  libraryCount,
   onBack,
   onEdit,
   onDuplicate,
-  onDeleted,
   onActivated,
 }: {
   planId: string;
   activeMealPlanId: string | null;
+  libraryCount: number;
   onBack: () => void;
   onEdit: (planId: string) => void;
   onDuplicate: (planId: string) => void;
-  onDeleted: () => void | Promise<void>;
   onActivated: () => void | Promise<void>;
 }) {
   const events = useEvents();
   const { toast } = useToast();
-  const { showUndo } = useUndoSnackbar();
 
   const [plan, setPlan] = useState<MealPlanRow | null>(null);
   const [adherence, setAdherence] = useState<MealPlanAdherence[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -564,31 +625,10 @@ function PlanDetailView({
     await onActivated();
   }
 
-  function requestDelete() {
-    setMenuOpen(false);
-    showUndo({
-      label: 'PLAN DELETED',
-      onUndo: () => {},
-      onCommit: async () => {
-        const res = await fetch(
-          `/api/mini-apps/calorie-lite/meal-plans/${planId}`,
-          { method: 'DELETE', credentials: 'same-origin' },
-        );
-        if (!res.ok) {
-          toast.error('Could not delete plan.');
-          return;
-        }
-        toast.success('Plan deleted.');
-        await onDeleted();
-      },
-      duration: 5000,
-    });
-  }
-
   if (loadErr) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <BackLink onBack={onBack} />
+        <BackRail onBack={onBack} libraryCount={libraryCount} />
         <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
           {loadErr}
         </p>
@@ -599,7 +639,7 @@ function PlanDetailView({
   if (!plan) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <BackLink onBack={onBack} />
+        <BackRail onBack={onBack} libraryCount={libraryCount} />
         <p className="caption">Loading…</p>
       </div>
     );
@@ -613,119 +653,121 @@ function PlanDetailView({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      {/* Header — back link + name + ACTIVE chip */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <BackLink onBack={onBack} />
+      {/* Back rail — mono, tracked, subordinate. Reads as breadcrumb, not a
+          button. */}
+      <BackRail onBack={onBack} libraryCount={libraryCount} />
+
+      {/* Prescription header — kicker, name+pushpin, tape ticker. This
+          replaces the v0.5.2 "PLAN · DIETA – … × DELETE / 2100 KCAL · P109…"
+          cramped strip. */}
+      <header style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-label)',
+              fontSize: 'var(--text-label)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            {rxStamp(plan.updated_at)}
+            <span style={{ color: 'var(--color-text-disabled)' }}>
+              {'  ·  updated '}
+              {relative(plan.updated_at)}
+            </span>
+          </span>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 'var(--space-3)',
+            }}
+          >
+            <h1
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-body)',
+                fontWeight: 500,
+                fontSize: 'var(--text-heading)',
+                lineHeight: 1.15,
+                letterSpacing: '-0.01em',
+                color: 'var(--color-text-display)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {plan.name}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+              <Pushpin active={isActive} size={14} ariaLabel={isActive ? 'Active plan' : 'Not active'} />
+            </div>
+          </div>
+        </div>
+
+        {/* MACRO TAPE — the signature. */}
+        {dt && (
+          <MacroTape
+            cells={[
+              { label: 'KCAL', value: dt.calories_kcal },
+              { label: 'P', value: dt.protein_g, suffix: 'g' },
+              { label: 'C', value: dt.carbs_g, suffix: 'g' },
+              { label: 'F', value: dt.fat_g, suffix: 'g' },
+            ]}
+            size="md"
+          />
+        )}
+
+        {/* Action row — one primary (only if inactive) + two text links.
+            No delete here; delete lives on the LIST swipe action. */}
         <div
           style={{
             display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 'var(--space-3)',
+            alignItems: 'center',
+            gap: 'var(--space-4)',
             flexWrap: 'wrap',
           }}
         >
-          <span
-            className="display-md"
-            style={{ fontSize: 'var(--text-heading)', lineHeight: 1 }}
-          >
-            {plan.name}
-          </span>
-          {isActive && (
-            <span
-              className="data"
-              style={{
-                color: 'var(--color-text-display)',
-                background: 'var(--color-accent)',
-                padding: '2px var(--space-2)',
-                borderRadius: 'var(--radius-compact)',
-                fontSize: 'var(--text-caption)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Active
-            </span>
-          )}
-        </div>
-        {dt && (
-          <span
-            className="data"
-            style={{
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.04em',
-            }}
-          >
-            {Math.round(dt.calories_kcal)} KCAL · P{Math.round(dt.protein_g)} · C{Math.round(dt.carbs_g)} · F{Math.round(dt.fat_g)}
-          </span>
-        )}
-      </div>
-
-      {/* Action row — SET ACTIVE / EDIT / DUPLICATE / ⋯ */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 'var(--space-2)',
-          flexWrap: 'wrap',
-          position: 'relative',
-        }}
-      >
-        {!isActive && (
-          <ActionChip primary onClick={() => void activate()}>
-            Set active
-          </ActionChip>
-        )}
-        <ActionChip onClick={() => onEdit(plan.id)}>Edit</ActionChip>
-        <ActionChip onClick={() => onDuplicate(plan.id)}>Duplicate</ActionChip>
-        <ActionChip
-          aria-label="More actions"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          ⋯
-        </ActionChip>
-        {menuOpen && (
-          <div
-            role="menu"
-            style={{
-              position: 'absolute',
-              top: 'calc(100% + var(--space-2))',
-              right: 0,
-              zIndex: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: 180,
-              background: 'var(--color-surface-raised)',
-              border: '1px solid var(--color-border-visible)',
-              borderRadius: 'var(--radius-compact)',
-              overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
-            }}
-          >
+          {!isActive && (
             <button
               type="button"
-              role="menuitem"
-              onClick={requestDelete}
+              onClick={() => void activate()}
               style={{
-                all: 'unset',
-                cursor: 'pointer',
-                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--color-accent)',
+                color: 'var(--color-text-display)',
+                border: 0,
+                borderRadius: 'var(--radius-compact)',
+                padding: 'var(--space-2) var(--space-4)',
                 fontFamily: 'var(--font-label)',
                 fontSize: 'var(--text-caption)',
-                letterSpacing: '0.08em',
+                letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: 'var(--color-accent)',
+                cursor: 'pointer',
               }}
             >
-              × Delete plan
+              Set active
             </button>
-          </div>
-        )}
-      </div>
+          )}
+          <TextLink onClick={() => onEdit(plan.id)}>Edit</TextLink>
+          <TextLink onClick={() => onDuplicate(plan.id)}>Duplicate</TextLink>
+          <span
+            style={{
+              marginLeft: 'auto',
+              fontFamily: 'var(--font-label)',
+              fontSize: '10px',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-disabled)',
+            }}
+          >
+            Delete via swipe on list
+          </span>
+        </div>
+      </header>
 
-      {/* Meals */}
+      {/* Meals — timeline rail */}
       {meals.length === 0 ? (
         <EmptyState
           icon="◐"
@@ -738,27 +780,36 @@ function PlanDetailView({
           }}
         />
       ) : (
-        meals.map((meal: PlanMeal) => (
-          <PlanMealCard
-            key={meal.id}
-            meal={meal}
-            mealPlanId={plan.id}
-            adherenceOption={adhByMeal.get(meal.id)?.option_selected ?? null}
-            onLogged={(res) => {
-              toast.info(
-                res.inserted > 0
-                  ? `Logged ${res.inserted} entries as option ${res.option_selected}.`
-                  : `Marked option ${res.option_selected} as eaten.`,
-              );
-              events.emit(EVENT_KINDS.calorie_entry_added, { at: new Date().toISOString() });
-              void load();
-            }}
-            onError={(m) => toast.error(m)}
-          />
-        ))
+        <TimelineRail>
+          {meals.map((meal, idx) => (
+            <TimelineStation
+              key={meal.id}
+              order={meal.order}
+              isLast={idx === meals.length - 1}
+            >
+              <PlanMealCard
+                meal={meal}
+                mealPlanId={plan.id}
+                adherenceOption={adhByMeal.get(meal.id)?.option_selected ?? null}
+                onLogged={(res) => {
+                  toast.info(
+                    res.inserted > 0
+                      ? `Logged ${res.inserted} entries as option ${res.option_selected}.`
+                      : `Marked option ${res.option_selected} as eaten.`,
+                  );
+                  events.emit(EVENT_KINDS.calorie_entry_added, {
+                    at: new Date().toISOString(),
+                  });
+                  void load();
+                }}
+                onError={(m) => toast.error(m)}
+              />
+            </TimelineStation>
+          ))}
+        </TimelineRail>
       )}
 
-      {/* Rules — collapsed by default (already the PlanRulesCard behavior) */}
+      {/* Rules — kept as-is (collapsed disclosure), quiet at bottom. */}
       <PlanRulesCard rules={plan.plan.rules ?? null} />
     </div>
   );
@@ -766,55 +817,70 @@ function PlanDetailView({
 
 // ─── UI primitives ──────────────────────────────────────────────────────────
 
-function BackLink({ onBack }: { onBack: () => void }) {
+function BackRail({
+  onBack,
+  libraryCount,
+}: {
+  onBack: () => void;
+  libraryCount: number;
+}) {
   return (
     <button
       type="button"
       onClick={onBack}
+      aria-label="Back to plans list"
       style={{
         all: 'unset',
         cursor: 'pointer',
-        color: 'var(--color-text-secondary)',
+        alignSelf: 'flex-start',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
         fontFamily: 'var(--font-label)',
-        fontSize: 'var(--text-caption)',
+        fontSize: 'var(--text-label)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        alignSelf: 'flex-start',
+        color: 'var(--color-text-secondary)',
       }}
-      aria-label="Back to plans list"
     >
-      ← Back to plans
+      <span aria-hidden>{'['}</span>
+      <span aria-hidden>{'← Plans'}</span>
+      <span
+        aria-hidden
+        style={{
+          color: 'var(--color-text-disabled)',
+        }}
+      >
+        / {String(libraryCount).padStart(2, '0')} in library
+      </span>
+      <span aria-hidden>{']'}</span>
     </button>
   );
 }
 
-function ActionChip({
-  primary,
+function TextLink({
   children,
   onClick,
-  ...rest
 }: {
-  primary?: boolean;
   children: React.ReactNode;
   onClick: () => void;
-} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children'>) {
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        background: primary ? 'var(--color-accent)' : 'transparent',
-        color: primary ? 'var(--color-text-display)' : 'var(--color-text-primary)',
-        border: primary ? 0 : '1px solid var(--color-border-visible)',
-        borderRadius: 'var(--radius-compact)',
-        padding: 'var(--space-2) var(--space-3)',
+        all: 'unset',
+        cursor: 'pointer',
         fontFamily: 'var(--font-label)',
         fontSize: 'var(--text-caption)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        cursor: 'pointer',
+        color: 'var(--color-text-primary)',
+        textDecoration: 'underline',
+        textUnderlineOffset: 3,
+        textDecorationColor: 'var(--color-border-visible)',
       }}
-      {...rest}
     >
       {children}
     </button>

@@ -1,17 +1,22 @@
 'use client';
 
 /**
- * PlanMealCard — one meal from the plan with its target macros, an option
- * selector, the selected option's ingredient list, and a LOG CTA that fires
- * POST /meal-plans/log-meal.
+ * PlanMealCard — one station on the prescription timeline rail.
  *
- * The selected option is stored in local state; when the user LOGs, we send
- * that option to the server which:
- *   1. Inserts one app_calorie_entries row per quantified ingredient
- *   2. Upserts a meal_plan_adherence row for TODAY (user, date, meal_id)
+ * v0.5.3 note: this used to be a self-contained card with its own border,
+ * background, and padding. It now renders *inside* a <TimelineStation>
+ * from PlanSignature.tsx — so the outer chrome is stripped and the meal
+ * name / options / log CTA flow as flat content within the rail's right
+ * column. The 6px AdherenceLED replaces the "already-logged / tap to
+ * re-log" prose from v0.5.2.
+ *
+ * Data flow unchanged: on LOG, POST /meal-plans/log-meal → server inserts
+ * one calorie_entry per quantified ingredient + upserts a plan_adherence
+ * row for TODAY.
  */
 import { useState } from 'react';
 import type { PlanMeal, PlanMealOption, Ingredient } from '@nothing/shared';
+import { AdherenceLED } from './PlanSignature.tsx';
 
 export interface PlanMealCardProps {
   meal: PlanMeal;
@@ -34,7 +39,6 @@ export function PlanMealCard({
   onLogged,
   onError,
 }: PlanMealCardProps) {
-  // Default to previously-logged option, else the first option.
   const [selected, setSelected] = useState<number>(
     adherenceOption ?? meal.options[0]?.option ?? 1,
   );
@@ -61,11 +65,13 @@ export function PlanMealCard({
       );
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        onError(body?.error === 'no_active_plan'
-          ? 'Activate this plan first.'
-          : body?.error === 'invalid_body'
-            ? 'Log payload invalid.'
-            : 'Could not log meal.');
+        onError(
+          body?.error === 'no_active_plan'
+            ? 'Activate this plan first.'
+            : body?.error === 'invalid_body'
+              ? 'Log payload invalid.'
+              : 'Could not log meal.',
+        );
         setLogging(false);
         return;
       }
@@ -88,46 +94,58 @@ export function PlanMealCard({
   }
 
   const title = meal.name_en ?? meal.name_es ?? meal.id.toUpperCase();
-  const isLoggedToday = adherenceOption === selected;
+  const isLoggedToday = adherenceOption != null;
+  const isThisOptionLogged = adherenceOption === selected;
 
-  // Compact single-line macro summary — replaces the previous verbose
-  // "PROTEIN 35G · CARBS 95G · FAT 15G · 650 KCAL" that ate an entire row.
-  const targetSummary = `P${Math.round(meal.targets.protein_g)}g · C${Math.round(meal.targets.carbs_g)}g · F${Math.round(meal.targets.fat_g)}g · ${Math.round(meal.targets.calories_kcal)} KCAL`;
+  // Space-Mono target line with tabular numerals.
+  const targetSummary = `${Math.round(meal.targets.calories_kcal)} KCAL  ·  P${Math.round(meal.targets.protein_g)}  C${Math.round(meal.targets.carbs_g)}  F${Math.round(meal.targets.fat_g)}`;
 
   return (
-    <section
+    <div
       aria-label={title}
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
-        border: '1px solid var(--color-border-visible)',
-        borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-4)',
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--space-3)',
       }}
     >
-      {/* Header — meal number + name on left, tiny target summary on right.
-          Previous version stacked target on its own row which cost vertical
-          real estate. */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: 'var(--space-3)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <span className="label label-strong">
-          {String(meal.order).padStart(2, '0')} · {title.toUpperCase()}
-        </span>
-        <span
-          className="data"
+      {/* Header row — LED, meal name (Grotesk), then target summary below.
+          No outer card border; the TimelineStation's gutter + hairline is
+          the whole separator. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+        <div
           style={{
-            color: 'var(--color-text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
+            <AdherenceLED lit={isLoggedToday} />
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontWeight: 500,
+                fontSize: 'var(--text-body)',
+                color: 'var(--color-text-display)',
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {title}
+            </span>
+          </div>
+        </div>
+        <span
+          style={{
+            fontFamily: 'var(--font-label)',
             fontSize: 'var(--text-caption)',
-            letterSpacing: '0.04em',
+            letterSpacing: '0.06em',
+            color: 'var(--color-text-secondary)',
+            fontVariantNumeric: 'tabular-nums',
           }}
         >
           {targetSummary}
@@ -142,27 +160,27 @@ export function PlanMealCard({
 
       {option && <IngredientList option={option} />}
 
-      {/* Compact LOG chip — was a full-width oversized red pill in v0.5.1.
-          Now sized like the +ADD MEAL / +NEW PLAN chips elsewhere. Also
-          the "already-logged" state renders as a ghost pill instead of a
-          second loud red bar. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+      {/* LOG chip — one compact affordance. When *this option* was already
+          logged today, the chip switches to a subdued outlined state that
+          still allows re-log; the AdherenceLED at the header is the primary
+          "yes, done" signal so the chip doesn't need to shout. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={submitLog}
           disabled={logging}
           style={{
-            background: isLoggedToday
+            background: isThisOptionLogged
               ? 'transparent'
               : logging
                 ? 'var(--color-surface-raised)'
                 : 'var(--color-accent)',
-            color: isLoggedToday
+            color: isThisOptionLogged
               ? 'var(--color-text-secondary)'
               : logging
                 ? 'var(--color-text-disabled)'
                 : 'var(--color-text-display)',
-            border: isLoggedToday
+            border: isThisOptionLogged
               ? '1px solid var(--color-border-visible)'
               : 0,
             borderRadius: 'var(--radius-compact)',
@@ -176,39 +194,25 @@ export function PlanMealCard({
         >
           {logging
             ? 'Logging…'
-            : isLoggedToday
-              ? `Logged · tap to re-log`
+            : isThisOptionLogged
+              ? 'Logged · re-log'
               : `+ Log option ${selected}`}
         </button>
-        {adherenceOption != null && !isLoggedToday && (
+        {isLoggedToday && !isThisOptionLogged && (
           <span
-            className="data"
             style={{
+              fontFamily: 'var(--font-label)',
+              fontSize: '10px',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
               color: 'var(--color-text-disabled)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.06em',
             }}
           >
-            Prev: option {adherenceOption}
+            Prev: opción {adherenceOption}
           </span>
         )}
       </div>
-    </section>
-  );
-}
-
-function TargetsLine({ targets }: { targets: PlanMeal['targets'] }) {
-  return (
-    <span
-      className="data"
-      style={{
-        color: 'var(--color-text-secondary)',
-        fontSize: 'var(--text-caption)',
-        letterSpacing: '0.04em',
-      }}
-    >
-      PROTEIN {targets.protein_g}G · CARBS {targets.carbs_g}G · FAT {targets.fat_g}G · {targets.calories_kcal} KCAL
-    </span>
+    </div>
   );
 }
 
@@ -229,7 +233,7 @@ function OptionChips({
         display: 'flex',
         gap: 'var(--space-2)',
         overflowX: 'auto',
-        paddingBottom: 'var(--space-2)',
+        paddingBottom: 'var(--space-1)',
         WebkitOverflowScrolling: 'touch',
       }}
     >
@@ -258,8 +262,10 @@ function OptionChips({
               flexShrink: 0,
             }}
           >
-            OPTION {o.option}
-            {label ? ` · ${label.toUpperCase()}` : ''}
+            <span style={{ color: isSel ? 'var(--color-accent)' : 'var(--color-text-disabled)', marginRight: 4 }}>
+              {String(o.option).padStart(2, '0')}
+            </span>
+            {label ? label.toUpperCase() : `OPCIÓN ${o.option}`}
           </button>
         );
       })}
@@ -268,9 +274,6 @@ function OptionChips({
 }
 
 function IngredientList({ option }: { option: PlanMealOption }) {
-  // CSS grid handles the 2-column-where-fits behavior via
-  // `repeat(auto-fill, minmax(...))`. At container widths <360px, one column;
-  // above that, two columns share the row. Zero JS breakpoint math.
   return (
     <ul
       style={{
@@ -320,10 +323,11 @@ function IngredientRow({ ing }: { ing: Ingredient }) {
         </div>
       </div>
       <span
-        className="data"
         style={{
           color: 'var(--color-text-display)',
+          fontFamily: 'var(--font-label)',
           fontSize: 'var(--text-body-sm)',
+          fontVariantNumeric: 'tabular-nums',
           whiteSpace: 'nowrap',
         }}
       >
@@ -336,14 +340,15 @@ function IngredientRow({ ing }: { ing: Ingredient }) {
 function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="label"
       style={{
+        fontFamily: 'var(--font-label)',
+        fontSize: '9px',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
         color: 'var(--color-text-secondary)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-compact)',
         padding: '2px var(--space-2)',
-        fontSize: '9px',
-        letterSpacing: '0.1em',
       }}
     >
       {children}

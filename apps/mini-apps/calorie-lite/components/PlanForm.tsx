@@ -23,6 +23,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { MealPlan, MealPlanInsert } from '@nothing/shared';
+import { MacroTape, SectionRule } from './PlanSignature.tsx';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -548,29 +549,67 @@ export function PlanForm({ initial, onCancel, onSaved, onError }: PlanFormProps)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      {/* Header with cancel + delete-if-editing */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span className="label label-strong">
-          {isEdit ? 'EDIT PLAN' : 'NEW PLAN'}
-        </span>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="btn btn-secondary"
+      {/* Back rail — mono, tracked. Matches the DETAIL back rail style. */}
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={saving}
+        aria-label="Cancel and go back"
+        style={{
+          all: 'unset',
+          cursor: 'pointer',
+          alignSelf: 'flex-start',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          fontFamily: 'var(--font-label)',
+          fontSize: 'var(--text-label)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        <span aria-hidden>{'['}</span>
+        <span aria-hidden>{'← Cancel'}</span>
+        <span aria-hidden>{']'}</span>
+      </button>
+
+      {/* Prescription-worksheet kicker — replaces the small "EDIT PLAN" label
+          that reads as a debug tag. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <span
           style={{
-            padding: 'var(--space-2) var(--space-4)',
-            fontSize: 'var(--text-caption)',
+            fontFamily: 'var(--font-label)',
+            fontSize: 'var(--text-label)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
+            color: 'var(--color-text-secondary)',
           }}
         >
-          Cancel
-        </button>
+          {isEdit ? 'Edit prescription' : 'New prescription'}
+          <span style={{ color: 'var(--color-text-disabled)' }}>
+            {'  ·  '}
+            {isEdit ? 'revising' : 'step 01'}
+          </span>
+        </span>
+        <h1
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-body)',
+            fontWeight: 500,
+            fontSize: 'var(--text-heading)',
+            lineHeight: 1.15,
+            letterSpacing: '-0.01em',
+            color: 'var(--color-text-display)',
+          }}
+        >
+          {isEdit ? draft.name || 'Untitled plan' : 'A fresh plan'}
+        </h1>
       </div>
 
-      {/* Plan name */}
-      <Field label="PLAN NAME">
+      {/* — NAME — */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <SectionRule label="Plan name" />
         <input
           className="input"
           type="text"
@@ -581,74 +620,86 @@ export function PlanForm({ initial, onCancel, onSaved, onError }: PlanFormProps)
           maxLength={120}
           style={INPUT_STYLE}
         />
-      </Field>
+      </div>
 
-      {/* Target kcal + CALCULATE helper */}
-      <Field
-        label="TARGET KCAL / DAY"
-        hint={
-          <button
-            type="button"
-            onClick={inlineEstimate}
-            className="data"
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              color: 'var(--color-accent)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.06em',
-              textDecoration: 'underline',
-              textUnderlineOffset: 2,
-            }}
-          >
-            CALCULATE FOR ME
-          </button>
-        }
-      >
-        <input
-          className="input"
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={20000}
-          value={draft.kcal}
-          onChange={(e) => updateDraft({ kcal: e.target.value })}
-          style={INPUT_STYLE}
-        />
-      </Field>
-
-      {/* Macro split — pill toggle */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <span className="label">MACRO SPLIT</span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-          {(Object.keys(MACRO_PRESETS) as Array<keyof typeof MACRO_PRESETS>).map((preset) => (
-            <PresetChip
-              key={preset}
-              active={draft.preset === preset}
-              onClick={() => updateDraft({ preset })}
+      {/* — DAILY TARGETS — kcal + preset stamp bar + live macro tape preview */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <SectionRule
+          label="Daily targets"
+          right={
+            <button
+              type="button"
+              onClick={inlineEstimate}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-label)',
+                fontSize: 'var(--text-label)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--color-accent)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
             >
-              {MACRO_PRESETS[preset].label}
-            </PresetChip>
-          ))}
-          <PresetChip
-            active={draft.preset === 'custom'}
-            onClick={() => updateDraft({ preset: 'custom' })}
-          >
-            CUSTOM
-          </PresetChip>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)' }}>
-          <span
-            className="data"
-            style={{
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: '0.04em',
-            }}
-          >
-            {macros.p}P · {macros.c}C · {macros.f}F  · {kcalNum} KCAL
+              Calculate for me
+            </button>
+          }
+        />
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+            Kcal / day
           </span>
+          <input
+            className="input"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={20000}
+            value={draft.kcal}
+            onChange={(e) => updateDraft({ kcal: e.target.value })}
+            style={{ ...INPUT_STYLE, fontFamily: 'var(--font-label)', fontSize: 'var(--text-subheading)' }}
+          />
+        </label>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+            Macro split
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+            {(Object.keys(MACRO_PRESETS) as Array<keyof typeof MACRO_PRESETS>).map((preset) => (
+              <PresetStamp
+                key={preset}
+                active={draft.preset === preset}
+                onClick={() => updateDraft({ preset })}
+              >
+                {MACRO_PRESETS[preset].label}
+              </PresetStamp>
+            ))}
+            <PresetStamp
+              active={draft.preset === 'custom'}
+              onClick={() => updateDraft({ preset: 'custom' })}
+            >
+              CUSTOM
+            </PresetStamp>
+          </div>
         </div>
+
+        {/* Live tape preview — same visual language as the detail header. */}
+        <div style={{ marginTop: 'var(--space-2)' }}>
+          <MacroTape
+            cells={[
+              { label: 'KCAL', value: kcalNum },
+              { label: 'P', value: macros.p, suffix: 'g' },
+              { label: 'C', value: macros.c, suffix: 'g' },
+              { label: 'F', value: macros.f, suffix: 'g' },
+            ]}
+            size="sm"
+            animate={false}
+          />
+        </div>
+
         {draft.preset === 'custom' && (
           <div
             style={{
@@ -684,19 +735,20 @@ export function PlanForm({ initial, onCancel, onSaved, onError }: PlanFormProps)
         )}
       </div>
 
-      {/* Meals */}
+      {/* — MEALS — */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span className="label">MEALS</span>
-          <button
-            type="button"
-            onClick={addMeal}
-            className="data"
-            style={ADD_CHIP_STYLE}
-          >
-            + ADD MEAL
-          </button>
-        </div>
+        <SectionRule
+          label={`Meals · ${String(draft.meals.length).padStart(2, '0')}`}
+          right={
+            <button
+              type="button"
+              onClick={addMeal}
+              style={ADD_CHIP_STYLE}
+            >
+              + ADD MEAL
+            </button>
+          }
+        />
 
         {draft.meals.map((meal) => (
           <MealEditor
@@ -718,15 +770,24 @@ export function PlanForm({ initial, onCancel, onSaved, onError }: PlanFormProps)
         ))}
       </div>
 
-      {/* Rules */}
-      <Field
-        label="RULES (OPTIONAL)"
-        hint={
-          <span className="caption" style={{ color: 'var(--color-text-disabled)' }}>
-            freeform notes · max 2000 chars
-          </span>
-        }
-      >
+      {/* — RULES — */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <SectionRule
+          label="Rules"
+          right={
+            <span
+              style={{
+                fontFamily: 'var(--font-label)',
+                fontSize: '10px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-disabled)',
+              }}
+            >
+              Optional · max 2000
+            </span>
+          }
+        />
         <textarea
           value={draft.rules}
           onChange={(e) => updateDraft({ rules: e.target.value.slice(0, 2000) })}
@@ -734,7 +795,7 @@ export function PlanForm({ initial, onCancel, onSaved, onError }: PlanFormProps)
           rows={4}
           style={{ ...INPUT_STYLE, resize: 'vertical', minHeight: 80 }}
         />
-      </Field>
+      </div>
 
       {validationError && (
         <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
@@ -1046,27 +1107,11 @@ function IngredientRowEditor({
 
 // ─── Primitives ─────────────────────────────────────────────────────────────
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span className="label">{label}</span>
-        {hint}
-      </div>
-      {children}
-    </label>
-  );
-}
-
-function PresetChip({
+/** PresetStamp — flat mono-typed stamp with 1px hairline, filled ember-red
+ *  when active. Reads like a rubber stamp in the worksheet, not a pill.
+ *  (v0.5.3 rename from PresetChip; visual switched from rounded-subtle to
+ *  a filled-red-block active state.) */
+function PresetStamp({
   active,
   onClick,
   children,
@@ -1081,14 +1126,14 @@ function PresetChip({
       onClick={onClick}
       aria-pressed={active}
       style={{
-        background: active ? 'var(--color-accent-subtle)' : 'transparent',
+        background: active ? 'var(--color-accent)' : 'transparent',
         color: active ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
         border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
-        borderRadius: 'var(--radius-compact)',
+        borderRadius: '2px',
         padding: 'var(--space-2) var(--space-3)',
         fontFamily: 'var(--font-label)',
-        fontSize: 'var(--text-caption)',
-        letterSpacing: '0.08em',
+        fontSize: 'var(--text-label)',
+        letterSpacing: '0.1em',
         textTransform: 'uppercase',
         cursor: 'pointer',
       }}
@@ -1109,15 +1154,18 @@ const INPUT_STYLE: CSSProperties = {
   width: '100%',
 };
 
+/** Add-something chip — mono, hairline border, ember-red text. Loud enough
+ *  to be found; quiet enough not to compete with the primary Save CTA. */
 const ADD_CHIP_STYLE: CSSProperties = {
   all: 'unset',
   cursor: 'pointer',
-  background: 'var(--color-accent)',
-  color: 'var(--color-text-display)',
-  borderRadius: 'var(--radius-compact)',
-  padding: 'var(--space-2) var(--space-3)',
+  background: 'transparent',
+  color: 'var(--color-accent)',
+  border: '1px solid var(--color-accent)',
+  borderRadius: '2px',
+  padding: '2px var(--space-2)',
   fontFamily: 'var(--font-label)',
-  fontSize: 'var(--text-caption)',
-  letterSpacing: '0.08em',
+  fontSize: 'var(--text-label)',
+  letterSpacing: '0.1em',
   textTransform: 'uppercase',
 };
