@@ -218,7 +218,10 @@ function deriveRefFromUrl(url) {
 function main() {
   const explicitProjectId = readEnv('SUPABASE_PROJECT_ID');
   const password = readEnv('SUPABASE_DB_PASSWORD');
-  const url = readEnv('SUPABASE_URL') || readEnv('NEXT_PUBLIC_SUPABASE_URL');
+  // NEXT_PUBLIC_SUPABASE_URL first because it's typically inline at workflow-
+  // env level (public value), whereas SUPABASE_URL is often a masked secret
+  // that stringifies to *** — and *** doesn't parse as a URL.
+  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL') || readEnv('SUPABASE_URL');
   const serviceKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
 
   // URL-derived ref is the source of truth when present — SUPABASE_URL is
