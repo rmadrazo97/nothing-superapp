@@ -43,6 +43,7 @@ import { REOPEN_ONBOARDING_EVENT } from './settings.tsx';
 import type { CalorieEntry, Meal } from '@nothing/shared';
 import { EVENT_KINDS } from '@nothing/shared';
 import { MacroCard } from './components/MacroCard.tsx';
+import { PixelBarChart, PixelCard, PixelMetricGrid } from '../../web/src/components/pixel-ui';
 import { Sparkline, type SparklineDay } from './components/Sparkline.tsx';
 import { FoodSearch } from './components/FoodSearch.tsx';
 import { CustomFoodList } from './components/CustomFoodList.tsx';
@@ -61,6 +62,7 @@ import {
   dailyTotals,
   toLocalDateKey,
 } from './lib/aggregate.ts';
+import { daySummary } from './lib/day-summary.ts';
 
 // v0.5.3 (#96): `water` removed. Order: today → add → weight → plan →
 // reports → history. WATER tab retired — the DB table remains, the tab does
@@ -242,6 +244,13 @@ export default function CalorieLitePage() {
     [entries, todayKey],
   );
 
+  // v0.5.12 hero: pure aggregation over today's rows for the PixelUI card.
+  // Recomputes only when entries or the kcal target shifts.
+  const summary = useMemo(
+    () => (entries === null ? null : daySummary(entries, { kcal: goalKcal })),
+    [entries, goalKcal],
+  );
+
   const progressPct = Math.min(1, goalKcal > 0 ? todayTotal / goalKcal : 0);
   const over = goalIsExplicit && todayTotal > goalKcal;
 
@@ -290,6 +299,7 @@ export default function CalorieLitePage() {
           fat={todayFat}
           loading={entries === null}
           activeMealPlanId={preferences.active_meal_plan_id}
+          summary={summary}
           onAdd={() => setView('add')}
           onEntriesChanged={loadEntries}
         />
@@ -587,6 +597,7 @@ function TodayView({
   fat,
   loading,
   activeMealPlanId,
+  summary,
   onAdd,
   onEntriesChanged,
 }: {
@@ -601,11 +612,69 @@ function TodayView({
   fat: number;
   loading: boolean;
   activeMealPlanId: string | null;
+  /** Pure aggregation for the PixelUI hero. `null` while entries load. */
+  summary: ReturnType<typeof daySummary> | null;
   onAdd: () => void;
   onEntriesChanged: () => void | Promise<void>;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+      {/* v0.5.12 — hero data card, PixelUI dogfood (matches Gym home).
+          Sits ABOVE the legacy TotalCard so the instrument-panel treatment is
+          the first thing the user sees. When today has zero entries we swap
+          in a compact CTA-style prompt instead of an empty chart. */}
+      {summary && !summary.is_empty ? (
+        <PixelCard title="TODAY · KCAL" meta={todayHeroMetaLabel()}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <PixelBarChart
+              kind="bar_chart"
+              xLabels={summary.kcal_by_hour_labels}
+              series={[{ label: 'kcal', values: summary.kcal_by_hour }]}
+              units="kcal"
+            />
+            <PixelMetricGrid
+              kind="metric_grid"
+              negativeDeltaTone="muted"
+              items={[
+                {
+                  label: 'KCAL',
+                  value: summary.hero_kpis.kcal.current,
+                  delta: summary.hero_kpis.kcal.delta || undefined,
+                  unit: `/ ${summary.hero_kpis.kcal.target.toLocaleString()}`,
+                },
+                {
+                  label: 'PROTEIN',
+                  unit: 'g',
+                  value: summary.hero_kpis.protein_g.current,
+                  delta: summary.hero_kpis.protein_g.delta || undefined,
+                },
+                {
+                  label: 'CARBS',
+                  unit: 'g',
+                  value: summary.hero_kpis.carbs_g.current,
+                  delta: summary.hero_kpis.carbs_g.delta || undefined,
+                },
+                {
+                  label: 'FAT',
+                  unit: 'g',
+                  value: summary.hero_kpis.fat_g.current,
+                  delta: summary.hero_kpis.fat_g.delta || undefined,
+                },
+              ]}
+            />
+          </div>
+        </PixelCard>
+      ) : summary && summary.is_empty ? (
+        <PixelCard title="TODAY · KCAL" meta={todayHeroMetaLabel()}>
+          <p
+            className="caption"
+            style={{ color: 'var(--color-text-secondary)', margin: 0 }}
+          >
+            Log your first meal — the chart will show up here.
+          </p>
+        </PixelCard>
+      ) : null}
+
       <TotalCard
         total={total}
         goal={goal}
@@ -663,6 +732,19 @@ function TodayView({
       </div>
     </div>
   );
+}
+
+/**
+ * Small date label for the hero PixelCard meta slot — matches the Gym
+ * "MON MAR 03" style so both mini-apps read as the same instrument family.
+ */
+function todayHeroMetaLabel(now: Date = new Date()): string {
+  const weekday = now
+    .toLocaleDateString(undefined, { weekday: 'short' })
+    .toUpperCase();
+  const month = now.toLocaleDateString(undefined, { month: 'short' }).toUpperCase();
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${weekday} · ${month} ${day}`;
 }
 
 function TotalCard({
