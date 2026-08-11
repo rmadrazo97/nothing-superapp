@@ -4,6 +4,32 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.9] — 2026-08-11 — Third safety net + security-advisor fixed + food coverage +60 queries
+
+Wave E — the "close every safety-net gap + widen food coverage" wave. Ships the third drift-safety-net script (RPCs), un-breaks the security-advisor CI workflow that had never actually run, and raises daily-log query coverage on food search.
+
+### Added
+- **`scripts/verify-rpcs-defined.mjs`** — third drift-safety-net script. Greps `.rpc('name'` calls from `apps/web/src` + `apps/mini-apps/**`, verifies each is defined in prod `pg_proc`. Currently 2 RPCs (both resolve_ingredient_*_fuzzy, both defined post mig-029). New CI job `verify-rpcs-defined` chained after `verify-migrations-applied`.
+- **Migration 030** — 62 en/es food aliases (`avena` → oats-rolled-dry, `pollo pechuga` → chicken-breast-cooked, `huevo` → egg-whole-raw, and more). Total `food_aliases` count: 18 → 80. Pass-1 exact alias resolution now works for the top Spanish daily-log queries.
+- **60 new canonical-foods.json entries** covering the top daily-log queries: oatmeal (repointed to "Oats, rolled, dry"), greek yogurt, peanut butter, almond butter, olive oil / EVOO, tuna, shrimp, lentils, black beans, chickpeas, quinoa, whole-wheat bread, brown rice, cottage cheese, pasta, broccoli, asparagus, kale, ground beef (93/85), ground turkey, turkey breast, pork chop, sirloin steak, whey protein, protein bars, plus Spanish variants (pechuga de pollo, huevo, avena, plátano, manzana). All 60 verified match a prod row; 100% hit rate. **Total canonical rows in prod: 60 → 274** (Δ = 4.5×).
+- **Audit script extended** (`scripts/audit-canonical-patterns.mjs`) — new "missed-demand check" that compares a 73-query curated daily-log list against the JSON + canonical rows.
+
+### Fixed
+- **`.github/workflows/security-advisor.yml`** — all 6 runs since v0.5.6 had died at workflow-parse time with "workflow file issue." Root cause via actionlint: `secrets` context isn't valid inside a step-level `if:` condition (only `env`, `github`, `inputs`, `job`, `matrix`, `needs`, `runner`, `steps`, `strategy`, `vars` are). Fix: promote the token to a step `env:` and gate on `[ -n "$SUPABASE_MANAGEMENT_TOKEN" ]` in the shell. Same behavior, valid YAML. Also hardened the `exit_code` shell against non-numeric input.
+
+### Meta
+- Sixth wave of parallel-worker discipline in a row: zero merge conflicts across 3 workers.
+- Migrations 029 + 030 both applied to prod during the wave (idempotent, safe).
+- **The three drift-safety-nets stack** now covers every class of prod schema divergence we know of:
+  1. Table/column/index DDL not applied ← `verify-migrations-applied.mjs` (v0.5.5)
+  2. Backfill script not run ← `verify-backfills-run.mjs` (v0.5.7)
+  3. RPC referenced but not defined ← `verify-rpcs-defined.mjs` (v0.5.9)
+
+### Deferred to v0.5.10
+- **`SUPABASE_DB_PASSWORD` GH secret** (user action #119) — once fixed, verify-migrations + verify-backfills + verify-rpcs all switch from SKIP to real coverage.
+- **`SUPABASE_MANAGEMENT_TOKEN` GH secret** — once set, security-advisor CI does real scans on every push + daily cron.
+- **`<PixelMetricGrid>` — `negativeDeltaTone` prop** so Gym PROGRESSION can drop its custom `KpiSummary`.
+
 ## [0.5.8] — 2026-08-11 — Gym PROGRESSION + PixelUI dogfood + short-query search + RPC drift closed
 
 Wave D — the "value + refactor" wave after 3 releases of correctness/safety-net work. Ships the first non-assistant use of PixelUI (Gym PROGRESSION tab), closes the last known food-search UX hole, discovers + fixes a third class of drift (RPCs missing from prod), and consolidates duplicated inline components.

@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.8';
+export const APP_VERSION = '0.5.9';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.9',
+    date: '2026-08-11',
+    highlights: [
+      'Food search now covers +60 more daily-log queries (oatmeal, greek yogurt, peanut butter, olive oil, quinoa, brown rice, ground beef/turkey, protein bars, and more) — all land on a canonical row. Total canonical rows in prod: 274 (was 60 24 hours ago). Migration 030 adds 62 en/es aliases (avena→Oats rolled, pollo pechuga→Chicken breast, huevo→Egg, etc). Pass-1 exact alias resolution now works for the top Spanish daily-log queries.',
+      'Third safety-net script — scripts/verify-rpcs-defined.mjs. Greps every `.rpc(\'name\'` call from the client, verifies each is defined in prod pg_proc. Chained after verify-migrations in CI. Would have caught the mig-029 latent-drift class in the release that introduced it.',
+      'Fixed security-advisor CI workflow — all 6 runs since v0.5.6 had failed with a "workflow file issue" (log endpoint 404\'d). Root cause: `secrets` context isn\'t allowed in step-level `if:` conditions. Replaced with an env-indirection + shell gate. Post-fix actionlint clean.',
+    ],
+  },
   {
     version: '0.5.8',
     date: '2026-08-11',
