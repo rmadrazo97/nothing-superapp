@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.9';
+export const APP_VERSION = '0.5.10';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,17 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.10',
+    date: '2026-08-11',
+    highlights: [
+      'DEPLOY PIPELINE FIXED — Vercel GitHub auto-deploy had silently disconnected between v0.5.1 and now, so 6 push notifications had fired for versions that never actually reached users. Owned the deploy path in CI: new deploy-prod job installs Vercel CLI + builds + deploys via VERCEL_TOKEN. verify-deploy job polls live sw.js for up to 4 min and fails if SW_VERSION doesn\'t match APP_VERSION. Broadcast now poll-gated with the same check — no more phantom notifications. All v0.5.2 through v0.5.9 client work is finally live in this release.',
+      'Assistant now MUST use render_* tools for numeric answers — system prompt upgraded from advisory ("prefer render_*") to directive ("REQUIRED"), with a 7-row decision matrix + explicit good/bad examples. Assistant empty state now shows 4 tappable example prompts (🥗 kcal left, 📊 weight trend, 🏋️ volume by muscle, 🍽️ lunch options) that pre-fill the composer.',
+      'Regression tests — new vitest setup at apps/web/vitest.config.ts + 32 tests covering food-search score sort (canonical tiebreaker, prefix boost, penalty ordering) and generative-UI payload coercer (live-stream + rehydrated shapes, all 7 render kinds). Extracted score-row helper to apps/web/src/lib/foods/score-row.ts.',
+      'PixelMetricGrid negativeDeltaTone prop — Gym PROGRESSION KPI grid now uses the shared component instead of a local KpiSummary duplicate (−130 LoC). Muted-graphite negatives coexist with the LED signature cluster.',
+      'Migration 031 — revoked EXECUTE on handle_new_user() from anon/authenticated/PUBLIC. Was SECURITY DEFINER + publicly callable via /rest/v1/rpc — anyone could POST to it and cause a privileged INSERT into public.profiles. Splinter findings 0028 + 0029 both closed. Also bumped password_min_length 6→8 + required lowercase/uppercase/digit.',
+    ],
+  },
   {
     version: '0.5.9',
     date: '2026-08-11',

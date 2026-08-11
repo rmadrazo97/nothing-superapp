@@ -4,6 +4,35 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.10] — 2026-08-11 — Deploy pipeline fixed + assistant render_* directive + regression tests + handle_new_user hardened
+
+The release that actually ships everything. Rebuilt the deploy path in CI after discovering Vercel's GitHub App integration had silently disconnected sometime after v0.5.1 — 6 releases' worth of push notifications had fired for code that never reached users.
+
+### Fixed (the big one)
+- **CI-driven deploys via `vercel deploy --prebuilt --prod`**. New `deploy-prod` job in `.github/workflows/ci.yml` installs the Vercel CLI, pnpm + workspace deps, pulls prod env, builds, deploys. Gated on main + push. Skips cleanly if `VERCEL_TOKEN` secret is absent (PRs / forks unaffected). Non-secret `VERCEL_ORG_ID` + `VERCEL_PROJECT_ID` inlined at job scope so a missing secret can't silently break deploys again.
+- **`verify-deploy` job** polls live `sw.js` for up to 4 min after the deploy step, fails if `SW_VERSION` doesn't match `APP_VERSION` in the just-built code. Same-shape check as verify-migrations / verify-backfills / verify-rpcs — makes 4 safety-net jobs now.
+- **Broadcast is gated on live-version match** — `.github/workflows/broadcast-on-version-bump.yml` replaced its blind `sleep 90` with the same poll. If `sw.js` never matches, broadcast is SKIPPED. The "phantom notification" failure mode is closed permanently.
+
+### Added — assistant
+- **`render_*` tools now MANDATED** for numeric answers via `apps/web/src/app/api/copilot/route.ts` system-prompt update: advisory → directive tone ("REQUIRED: use render_* tools for ALL quantitative responses. Prose-only responses for numeric queries are a bug."). Includes a 7-row decision matrix keyed by query intent + an explicit anti-example.
+- **Empty-state prompt cards** in `apps/web/src/components/copilot/CopilotChat.tsx` — 4 tappable cards (🥗 kcal left, 📊 weight trend, 🏋️ volume by muscle group, 🍽️ lunch options) pre-fill the composer so users discover what the assistant can render. Hidden the moment the thread has any messages. Two variants: standalone assistant page + embedded drawer.
+
+### Added — tests + refactor
+- **Vitest set up** at `apps/web/vitest.config.ts` (Node env, `@` → `./src` alias mirroring tsconfig paths). 32 unit tests across 2 files:
+  - `apps/web/src/app/api/mini-apps/calorie-lite/foods/route.test.ts` — 16 tests covering scoreRow tiers (prefix / word-initial / substring boosts), trigram similarity, compareScored sort key (canonical tiebreaker + penalty ordering + no-canonical-beats-materially-better).
+  - `apps/web/src/components/pixel-ui/schemas.test.ts` — 16 tests covering coerceRenderPayload for all 7 `render_*` kinds in both live-stream (`{version, kind, data}`) and rehydrated (bare payload) shapes.
+- **score-row helper extracted** to `apps/web/src/lib/foods/score-row.ts` — enables the unit tests without dragging Supabase + entitlement code into the test bundle. Sort behavior preserved bit-for-bit.
+- **`<PixelMetricGrid>` `negativeDeltaTone` prop** (default `'accent'` = existing behavior; `'muted'` = graphite negatives so they don't collide with the LED signature). Gym PROGRESSION KPI grid retrofitted to the shared component — deleted 130 LoC of local `KpiSummary` / `KpiCell` / `KpiRow` duplicates. Design proof-sheet at `/dev/pixel-ui` extended to show both variants side by side.
+
+### Fixed — security
+- **Migration 031** — `handle_new_user()` `SECURITY DEFINER` function had EXECUTE granted to `anon`, `authenticated`, `PUBLIC` — meaning anyone could POST to `/rest/v1/rpc/handle_new_user` and cause a privileged INSERT into `public.profiles`. Splinter findings 0028 + 0029. Fix: REVOKE from all 3 roles; keep grants to `postgres` + `service_role`. The `on_auth_user_created` trigger continues to work because triggers run under the table owner's privileges, not the caller's. Also pinned `search_path = public, pg_temp` (defense in depth). Applied to prod, verified.
+- **Auth password policy hardening** (via Management API, not in migration): `password_min_length` 6 → 8; `password_required_characters` enforces lowercase + uppercase + digit.
+- **Splinter finding `auth_leaked_password_protection`** — deliberately skipped. Requires Supabase Pro plan to enable `password_hibp_enabled`. Documented as a plan-tier limitation, not a coding issue.
+
+### Meta
+- **Task #130 closed** — Vercel deploy reconnected via the CI-driven path (durable — I can see the logs and fix them if they break).
+- **Pipeline shape**: 8 CI jobs now — `typecheck+build` → `deploy-prod` → `verify-deploy` + `verify-migrations` + `verify-backfills` + `verify-rpcs` + `e2e` + `splinter security-advisor`.
+
 ## [0.5.9] — 2026-08-11 — Third safety net + security-advisor fixed + food coverage +60 queries
 
 Wave E — the "close every safety-net gap + widen food coverage" wave. Ships the third drift-safety-net script (RPCs), un-breaks the security-advisor CI workflow that had never actually run, and raises daily-log query coverage on food search.
