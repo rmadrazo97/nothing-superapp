@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.5';
+export const APP_VERSION = '0.5.6';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,17 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.6',
+    date: '2026-08-11',
+    highlights: [
+      'pg_trgm extension moved from `public` to `extensions` schema (Splinter extension_in_public). Zero-downtime: ALTER EXTENSION preserves operator-class OIDs so the GIN trigram indexes on foods + food_aliases stayed valid without recreation. Food search verified working post-move.',
+      'Splinter security-advisor scan is now automated — runs on every push to main + a daily cron; posts findings as a commit status/comment. New scripts/security-advisor-scan.mjs + .github/workflows/security-advisor.yml. Every lint currently reports green.',
+      'Silent-catch sweep — 5 more client pages (Reminders home, Gym home + MEASUREMENTS, Fitness Pal home, MealPlanView) now surface API load failures as an inline error card with RELOAD, instead of silently rendering empty. Same ProfileLoadState pattern shipped for Settings in v0.5.5.',
+      'CI verify-migrations job — now derives project ref from SUPABASE_URL when SUPABASE_PROJECT_ID secret is empty/wrong. Stops the safety-net job from failing on the same class of misconfig it exists to catch.',
+      'Canonical foods whitelist backfilled — 60 canonical rows flagged in prod (rank-foods.mjs was written for v0.5.3 but never run against prod; caught while diagnosing food search post-migration 023 apply). 165 patterns still miss real USDA rows; pattern-audit queued for v0.5.7.',
+    ],
+  },
   {
     version: '0.5.5',
     date: '2026-08-11',

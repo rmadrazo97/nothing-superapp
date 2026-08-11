@@ -4,6 +4,34 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.6] — 2026-08-11 — pg_trgm move + automated security scan + silent-catch sweep + food canonical backfill
+
+The follow-through wave. v0.5.5 closed the "unapplied migration" hole; v0.5.6 closes the "silent-500" and "stale-lint" holes on top of it. Three parallel workers, all landed clean with disjoint file zones.
+
+### Added
+- **`scripts/security-advisor-scan.mjs`** + **`.github/workflows/security-advisor.yml`** — automated Splinter security-advisor scan on every push to main + a daily cron (06:00 UTC). Runs 6 well-known lints (`rls_disabled_in_public`, `rls_enabled_no_policy`, `security_definer_view`, `function_search_path_mutable`, `extension_in_public`, `auth_users_exposed`) via Management API `POST /database/query`. Exit codes: 0 for OK/INFO, 1 for WARN+/ERROR. Cleanly skips when `SUPABASE_MANAGEMENT_TOKEN` is absent. Local run currently reports **all 6 green**.
+- **Silent-catch sweep — 5 client pages upgraded** to the `ProfileLoadState` discriminated-union pattern from v0.5.5:
+  - `apps/mini-apps/reminders/components/RemindersView.tsx` (was ignoring `useResource().error` outright).
+  - `apps/mini-apps/gym-routine/measurements/page.tsx` (added RELOAD button to the existing error banner).
+  - `apps/mini-apps/gym-routine/page.tsx` (same).
+  - `apps/mini-apps/calorie-lite/page.tsx` (same, wired via `loadEntries` useCallback).
+  - `apps/mini-apps/calorie-lite/components/MealPlanView.tsx` (threaded `onReload={loadAll}` through `PlanListView`).
+  - The remaining sites in the audit were either already surfacing errors or intentionally graceful-degrade (accessory fetches with local fallback). Inventory in the W6 report at `services/growth/campaigns/nothing-superapp/ship-log/0.5.6.md`.
+
+### Fixed
+- **Migration 027 (`pg_trgm` → `extensions` schema)** — applied to prod. Splinter's `extension_in_public` WARN was the last un-cleared security-advisor finding. Zero-downtime move: `ALTER EXTENSION ... SET SCHEMA` preserves operator-class OIDs (`gin_trgm_ops`), so `foods_name_trgm_idx` (mig 014) + `food_aliases_alias_trgm_idx` (mig 018) stayed valid without recreation. Supabase-managed roles ship with `extensions` already in the search_path, so unqualified `similarity()` / `%` / `word_similarity()` continue to resolve.
+- **CI verify-migrations job** — derived project ref from `SUPABASE_URL` as a fallback when the `SUPABASE_PROJECT_ID` GH secret is empty/wrong. The v0.5.5 CI job had failed on prod itself because of exactly that misconfig (the very class of drift the safety net is supposed to catch, ironically).
+- **Canonical foods backfill** — `scripts/rank-foods.mjs` had been written for v0.5.3 (#97) but never actually run against prod. Ran it as part of the migration 023 rollout audit; flagged 60 canonical rows (out of 251 patterns in `packages/shared/canonical-foods.json` — 165 skipped because the pattern doesn't match any USDA SR Legacy name). Pattern-audit queued for v0.5.7.
+
+### Meta
+- **`chore(deps)`** — hoisted `@supabase/supabase-js` from `apps/web` to the root workspace so scripts under `scripts/` can `import { createClient }` without cd'ing into apps/web. Discovered when trying to run rank-foods from repo root.
+- **Ship-log** at `services/growth/campaigns/nothing-superapp/ship-log/0.5.6.md`.
+
+### Deferred / queued for v0.5.7+
+- Pattern audit on `canonical-foods.json` — align patterns with actual USDA naming to raise the 60/251 hit rate.
+- Hoist the `LoadErrorCard` inline duplicate from RemindersView + measurements into `@nothing/mini-apps-runtime` once every mini-app has it (W6 kept it local to avoid a cross-package edit under time pressure).
+- Splinter workflow needs a `SUPABASE_MANAGEMENT_TOKEN` secret on GH before the CI job does real work (currently skips cleanly).
+
 ## [0.5.5] — 2026-08-11 — Prod DB drift emergency fix + idempotency rollout + security-advisor cleanup
 
 Discovered during v0.5.4 CI: FIVE migrations (020, 021, 023, 024, 025) were committed to `supabase/migrations/` but never applied to prod Supabase — a silent multi-day drift that quietly broke body composition tracking, in-sub-app settings persistence, food-search ranking, TIMEZONE setting, and tool-call idempotency. Applied all 5 mid-flight + built the CI safety net that ensures this can never recur.
