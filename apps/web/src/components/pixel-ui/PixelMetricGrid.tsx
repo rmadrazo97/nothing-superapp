@@ -10,6 +10,11 @@ import type { MetricGridData } from './schemas';
  *
  * Deltas render as small ▲ / ▼ + value in green / cadmium — same rule as
  * the ticker delta chip, but tighter type so 4 cells fit in the bubble.
+ *
+ * The optional `negativeDeltaTone` prop lets callers route negative deltas
+ * to graphite (`--color-text-disabled`) instead of cadmium — useful inside
+ * a `<PixelCard>` whose LED signature is already cadmium (e.g. Gym
+ * PROGRESSION), so the negative chip doesn't collide with the cluster.
  */
 
 function fmtValue(v: number | string): string {
@@ -32,7 +37,15 @@ function fmtDelta(delta?: number): { text: string; positive: boolean } | null {
   return { text: `${positive ? '▲' : '▼'} ${body}`, positive };
 }
 
-export function PixelMetricGrid({ title, items }: MetricGridData) {
+export function PixelMetricGrid({
+  title,
+  items,
+  negativeDeltaTone = 'accent',
+}: MetricGridData) {
+  const negativeColor =
+    negativeDeltaTone === 'muted'
+      ? 'var(--color-text-disabled)'
+      : 'var(--color-accent)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
       {title && (
@@ -108,7 +121,7 @@ export function PixelMetricGrid({ title, items }: MetricGridData) {
                     style={{
                       fontFamily: 'var(--font-label)',
                       fontSize: 'var(--text-caption)',
-                      color: delta.positive ? 'var(--color-success)' : 'var(--color-accent)',
+                      color: delta.positive ? 'var(--color-success)' : negativeColor,
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >

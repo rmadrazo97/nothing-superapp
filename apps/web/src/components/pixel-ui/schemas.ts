@@ -123,6 +123,16 @@ export const metricGridSchema = z.object({
   kind: z.literal('metric_grid'),
   title: shortString.optional(),
   items: z.array(metricGridItemSchema).min(1).max(6),
+  /**
+   * How to color a negative delta chip.
+   *   - `'accent'` (default) — cadmium red (`--color-accent`). Existing
+   *     behavior; matches the ticker delta chip rule.
+   *   - `'muted'` — graphite (`--color-text-disabled`). Use inside a
+   *     `<PixelCard>` whose LED cluster is already cadmium so the negative
+   *     delta chip doesn't compete with the signature. This is the tone the
+   *     Gym PROGRESSION KPI grid uses.
+   */
+  negativeDeltaTone: z.enum(['accent', 'muted']).optional(),
 });
 export type MetricGridData = z.infer<typeof metricGridSchema>;
 

@@ -20,22 +20,22 @@
  * component just does a single GET on mount and renders.
  *
  * Design constraints (per the task PRD):
- *   - Cadmium accent for positive deltas; graphite for negative. The pixel-
- *     ui `<PixelMetricGrid>` uses `--color-success` (positive) / `--color-
- *     accent` (negative) by default — that COLLIDES with the LED signature
- *     (also cadmium). We render our own KPI grid instead of the shared one
- *     for exactly that reason and route negatives to `--color-text-disabled`
- *     so PRs-are-flat doesn't read as "danger".
+ *   - Cadmium accent for positive deltas; graphite for negative. The shared
+ *     `<PixelMetricGrid>` accepts `negativeDeltaTone="muted"` (v0.5.10) so
+ *     it routes negatives to `--color-text-disabled` instead of cadmium,
+ *     avoiding the collision with the LED signature (also cadmium). Zero
+ *     deltas are omitted (the shared grid drops them naturally when
+ *     `delta` is undefined; we pass `undefined` for zero to preserve the
+ *     "nothing to celebrate / nothing to worry about" beat).
  *   - Same 3px cell + 1px gap grid rhythm as the rest of PixelUI.
  *   - Per-exercise mini-charts stack 2×2 on mobile via CSS grid auto-fit.
  */
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { PixelCard, PixelLineChart } from '../../../web/src/components/pixel-ui';
+import { PixelCard, PixelLineChart, PixelMetricGrid } from '../../../web/src/components/pixel-ui';
 import type {
   ProgressionPayload,
-  KpiValue,
   TopExercise,
   VolumeBucket,
 } from '../lib/progression-query.ts';
@@ -134,14 +134,35 @@ export default function ProgressionPage() {
 
       {data && hasSignal && !error && (
         <>
-          <KpiSummary
-            kpis={[
-              { label: 'VOLUME', unit: 'KG', ...data.kpis.volume_kg },
-              { label: 'SETS', ...data.kpis.sets },
-              { label: 'PRS', ...data.kpis.prs },
-              { label: 'SESSIONS', ...data.kpis.sessions },
-            ]}
-          />
+          <PixelCard title="SUMMARY" meta="LAST 4W · THIS WEEK">
+            <PixelMetricGrid
+              kind="metric_grid"
+              negativeDeltaTone="muted"
+              items={[
+                {
+                  label: 'VOLUME',
+                  unit: 'KG',
+                  value: data.kpis.volume_kg.current,
+                  delta: data.kpis.volume_kg.delta || undefined,
+                },
+                {
+                  label: 'SETS',
+                  value: data.kpis.sets.current,
+                  delta: data.kpis.sets.delta || undefined,
+                },
+                {
+                  label: 'PRS',
+                  value: data.kpis.prs.current,
+                  delta: data.kpis.prs.delta || undefined,
+                },
+                {
+                  label: 'SESSIONS',
+                  value: data.kpis.sessions.current,
+                  delta: data.kpis.sessions.delta || undefined,
+                },
+              ]}
+            />
+          </PixelCard>
 
           <VolumeChartCard buckets={data.volume_by_week} />
 
@@ -150,127 +171,6 @@ export default function ProgressionPage() {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-// ─── KPI summary (locally rendered to route negative deltas away from red) ──
-
-interface KpiRow extends KpiValue {
-  label: string;
-  unit?: string;
-}
-
-function KpiSummary({ kpis }: { kpis: KpiRow[] }) {
-  return (
-    <PixelCard title="SUMMARY" meta="LAST 4W · THIS WEEK">
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-          rowGap: 'var(--space-3)',
-          columnGap: 0,
-        }}
-      >
-        {kpis.map((kpi, idx) => {
-          const isLeftCol = idx % 2 === 0;
-          const isLastRow = idx >= kpis.length - 2;
-          return (
-            <KpiCell
-              key={kpi.label}
-              kpi={kpi}
-              borderRight={isLeftCol}
-              borderBottom={!isLastRow}
-            />
-          );
-        })}
-      </div>
-    </PixelCard>
-  );
-}
-
-function KpiCell({
-  kpi,
-  borderRight,
-  borderBottom,
-}: {
-  kpi: KpiRow;
-  borderRight: boolean;
-  borderBottom: boolean;
-}) {
-  const deltaText = formatDelta(kpi.delta);
-  // Positive → cadmium accent (the "you levelled up" cue).
-  // Negative → graphite (`--color-text-disabled`) NOT `--color-accent`,
-  // because red also carries "danger / attention" weight and the LED cluster
-  // is already cadmium — a red delta would visually overwhelm the card.
-  // Zero → also graphite (nothing to celebrate, nothing to worry about).
-  const positive = kpi.delta > 0;
-  const deltaColor = positive
-    ? 'var(--color-accent)'
-    : 'var(--color-text-disabled)';
-
-  return (
-    <div
-      style={{
-        padding: '0 var(--space-3)',
-        borderRight: borderRight ? '1px solid var(--color-border)' : 'none',
-        borderBottom: borderBottom ? '1px solid var(--color-border)' : 'none',
-        paddingBottom: borderBottom ? 'var(--space-3)' : 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        {kpi.label}
-        {kpi.unit ? ` · ${kpi.unit}` : ''}
-      </span>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 'var(--font-display-weight)' as unknown as number,
-            fontSize: 24,
-            lineHeight: 1,
-            letterSpacing: '-0.02em',
-            color: 'var(--color-text-display)',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {formatKpiValue(kpi.current)}
-        </span>
-        {deltaText && (
-          <span
-            style={{
-              fontFamily: 'var(--font-label)',
-              fontSize: 'var(--text-caption)',
-              color: deltaColor,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {deltaText}
-          </span>
-        )}
-      </div>
-      <span
-        style={{
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-caption)',
-          color: 'var(--color-text-disabled)',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-        }}
-      >
-        vs {kpi.period === 'this week' ? 'LAST WEEK' : 'PRIOR 4W'}
-      </span>
     </div>
   );
 }
@@ -430,36 +330,6 @@ function ErrorCard({
 }
 
 // ─── formatting helpers ────────────────────────────────────────────────────
-
-/** Compact KPI value formatter — same rule the shared PixelMetricGrid uses. */
-function formatKpiValue(v: number): string {
-  if (!Number.isFinite(v)) return '—';
-  if (Math.abs(v) >= 10000) {
-    return new Intl.NumberFormat('en-US', {
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(v);
-  }
-  return Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(1);
-}
-
-/** Signed delta chip label. Zero → `—` (visually distinct from an actual 0). */
-function formatDelta(delta: number): string | null {
-  if (!Number.isFinite(delta)) return null;
-  if (delta === 0) return '—';
-  const arrow = delta > 0 ? '▲' : '▼';
-  const abs = Math.abs(delta);
-  const body =
-    abs >= 10000
-      ? new Intl.NumberFormat('en-US', {
-          notation: 'compact',
-          maximumFractionDigits: 1,
-        }).format(abs)
-      : Number.isInteger(abs)
-        ? abs.toString()
-        : abs.toFixed(1);
-  return `${arrow} ${body}`;
-}
 
 /** ISO week "2026-W28" → "W28" (chart axis; the year is in the card meta). */
 function weekShortLabel(week: string): string {

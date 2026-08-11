@@ -22,6 +22,12 @@ const inputSchema = z.object({
     .min(1)
     .max(6)
     .describe('1–6 items. 2 items = 2×1, 4 items = 2×2, 6 items = 2×3.'),
+  negativeDeltaTone: z
+    .enum(['accent', 'muted'])
+    .optional()
+    .describe(
+      'Color for negative delta chips. "accent" (default) = cadmium red. "muted" = graphite, for use inside cards whose LED signature is already cadmium so the negative chip does not compete.',
+    ),
 });
 
 type Input = z.infer<typeof inputSchema>;

@@ -174,6 +174,23 @@ export default function PixelUiPreviewPage() {
             />
           </PixelCard>
         </div>
+
+        {/* 7b. Metric grid — muted negative deltas (Gym PROGRESSION variant) */}
+        <SectionLabel>7b · render_metric_grid · negativeDeltaTone=&quot;muted&quot;</SectionLabel>
+        <div style={{ maxWidth: '92%' }}>
+          <PixelCard title="SUMMARY" meta="LAST 4W · THIS WEEK">
+            <PixelMetricGrid
+              kind="metric_grid"
+              negativeDeltaTone="muted"
+              items={[
+                { label: 'Volume', unit: 'KG', value: 18420, delta: 1240 },
+                { label: 'Sets', value: 96, delta: -8 },
+                { label: 'PRs', value: 3, delta: 1 },
+                { label: 'Sessions', value: 4, delta: -1 },
+              ]}
+            />
+          </PixelCard>
+        </div>
       </div>
     </div>
   );
