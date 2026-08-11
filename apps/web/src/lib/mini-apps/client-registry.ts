@@ -64,6 +64,10 @@ const MINI_APP_COMPONENTS: Record<string, MiniAppLoader> = {
     import('@nothing-mini-apps/habits/page') as Promise<{
       default: ComponentType;
     }>,
+  journal: () =>
+    import('@nothing-mini-apps/journal/page') as Promise<{
+      default: ComponentType;
+    }>,
   pomodoro: () =>
     import('@nothing-mini-apps/pomodoro/page') as Promise<{
       default: ComponentType;

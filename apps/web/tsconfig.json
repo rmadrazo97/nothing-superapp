@@ -43,6 +43,8 @@
       "@nothing-mini-apps/gym-routine/lib/progression-query": ["../mini-apps/gym-routine/lib/progression-query.ts"],
       "@nothing-mini-apps/habits/manifest": ["../mini-apps/habits/manifest.ts"],
       "@nothing-mini-apps/habits/page": ["../mini-apps/habits/page.tsx"],
+      "@nothing-mini-apps/journal/manifest": ["../mini-apps/journal/manifest.ts"],
+      "@nothing-mini-apps/journal/page": ["../mini-apps/journal/page.tsx"],
       "@nothing-mini-apps/pomodoro/manifest": ["../mini-apps/pomodoro/manifest.ts"],
       "@nothing-mini-apps/pomodoro/page": ["../mini-apps/pomodoro/page.tsx"],
       "@nothing-mini-apps/reminders/manifest": ["../mini-apps/reminders/manifest.ts"],

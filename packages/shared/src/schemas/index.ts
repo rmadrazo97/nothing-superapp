@@ -24,6 +24,11 @@ export * from './reminders.ts';
 // habitCompletionSchema, habitCompletionToggleSchema + all types.
 export * from './habits.ts';
 
+// journal entries + mood tag (migration 033 — see ./journal.ts).
+// Re-exports include: journalEntrySchema, journalEntryInsertSchema,
+// journalEntryUpdateSchema, journalMoodEnum + all types.
+export * from './journal.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([
