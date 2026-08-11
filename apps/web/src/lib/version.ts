@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.7';
+export const APP_VERSION = '0.5.8';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,16 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.8',
+    date: '2026-08-11',
+    highlights: [
+      'Gym PROGRESSION tab — new instrument panel showing 4 KPIs (volume / sets / PRs / sessions with 4-week deltas), volume-per-week trend line, and top-4 exercise progression charts. First use of the PixelUI library outside the assistant — 2×2 cadmium LED cluster + 3px grid make it read as one instrument suite with the rest of the app.',
+      'Short-query food search fixed — new ILIKE-canonical pre-pass in resolve-ingredient handles queries like "egg", "salt", "oil", "rice" that were falling below pg_trgm\'s default 0.3 similarity threshold. 4/5 tested short queries now resolve to their canonical row.',
+      'Migration 029 — resolve_ingredient_alias_fuzzy + resolve_ingredient_food_fuzzy RPCs. Client code has been calling them since v0.4.x but they never existed in any migration; ingredient resolution was silently falling to a kcal-DESC ILIKE fallback. Third class of drift discovered + fixed: RPCs referenced but not defined.',
+      'Refactor: LoadErrorCard hoisted to @nothing/mini-apps-runtime — 6 nearly-identical inline copies replaced with 1 shared component. Zero visual drift (reconciled minor differences: 44px min-height everywhere, single body-copy phrasing, thingLabel overrides for natural grammar).',
+    ],
+  },
   {
     version: '0.5.7',
     date: '2026-08-11',

@@ -4,6 +4,27 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.8] — 2026-08-11 — Gym PROGRESSION + PixelUI dogfood + short-query search + RPC drift closed
+
+Wave D — the "value + refactor" wave after 3 releases of correctness/safety-net work. Ships the first non-assistant use of PixelUI (Gym PROGRESSION tab), closes the last known food-search UX hole, discovers + fixes a third class of drift (RPCs missing from prod), and consolidates duplicated inline components.
+
+### Added
+- **Gym PROGRESSION tab** (`/app/gym-routine/progression`) — new instrument panel that answers "am I actually getting stronger?" without the user having to reason about it. Top: 4-KPI grid (volume, sets, PRs, sessions — each with a 4-week delta chip). Middle: volume-per-week trend line for the last 8 weeks. Below: top-4 most-frequently-logged exercises with 8-session top-set progression each.
+- **First non-assistant PixelUI use.** `<PixelCard>` chrome + `<PixelLineChart>` bodies + shared 3px grid + 2×2 cadmium LED signature — same visual atoms as the assistant's `render_*` panels. Reads as ONE instrument suite across the app.
+- **Migration 029** — `resolve_ingredient_alias_fuzzy(needle text)` + `resolve_ingredient_food_fuzzy(needle text)` RPCs. Both `SECURITY INVOKER`, `SET search_path = public, extensions, pg_temp`. `_food_fuzzy` sort order matches v0.5.7 route.ts JS re-rank (`is_canonical desc, rank_penalty asc, similarity desc`). Applied to prod + smoke-tested; the fuzzy passes 3+4 in `resolve-ingredient.ts` are now real code paths for the first time.
+
+### Fixed
+- **Short-query food search** — queries like `egg`, `salt`, `oil`, `rice` fell below pg_trgm's default 0.3 similarity threshold when using the `%` operator, so canonical rows never entered the candidate set. New ILIKE-canonical pre-pass in `resolve-ingredient.ts` (queries < 8 chars, filter to `is_canonical=true`, prefix ILIKE). Verified against 5 test queries: 4/5 now resolve to the correct canonical row (`oatmeal` still misses because its canonical row is "Oats, rolled, dry" — pattern-alias seed for v0.5.9).
+- **RPC drift class discovered + fixed** — investigating W12's short-query bug surfaced that both `resolve_ingredient_alias_fuzzy` and `resolve_ingredient_food_fuzzy` were referenced by the client (`apps/web/src/lib/foods/resolve-ingredient.ts:153,174`) since v0.4.x, but had never existed in any migration + were missing from prod's schema cache. Passes 3 + 4 have been silent no-ops for months; the pass-4 catch-fallthrough ILIKE was carrying the whole flow (ordered by kcal DESC — nonsense). Migration 029 defines both RPCs; passes 3+4 are now actually functional. This is a **third class of drift** beyond v0.5.5 (unapplied migrations) and v0.5.7 (unapplied backfills): **RPCs referenced but not defined**.
+
+### Refactor
+- **`LoadErrorCard` hoisted to `@nothing/mini-apps-runtime`** — 6 nearly-identical inline copies (settings, calorie-lite home, gym-routine home + measurements, reminders, meal-plans) replaced with one import. Reconciled minor drift during the extract: everyone gets 44px min-height RELOAD buttons (was 36 in some), a consistent "Couldn't load `<thing>`: `<msg>`. This usually means a backend hiccup — try again?" body copy, and `thingLabel` overrides for natural grammar ("your workouts" instead of "your gym").
+
+### Deferred to v0.5.9
+- **RPC-verifier safety net** (mirror of `verify-migrations-applied` but introspecting `pg_proc` for RPCs referenced by `supabase.rpc('...')` calls in the client). Would have caught the mig-029 drift earlier.
+- **`SUPABASE_MANAGEMENT_TOKEN` GH secret + fix the security-advisor CI workflow** — all 6 runs of `.github/workflows/security-advisor.yml` have failed since it landed in v0.5.6. GH reports "workflow file issue" but the log endpoint 404s. Task #123.
+- **`SUPABASE_DB_PASSWORD` GH secret fix** — user action (#119). Once fixed, verify-migrations + verify-backfills re-enable automatically.
+
 ## [0.5.7] — 2026-08-11 — Food search leads with the right row + backfill safety net + rehydration verified
 
 The correctness wave. v0.5.5+v0.5.6 fixed the schema-and-safety-net story; v0.5.7 closes the last known "shipped feature quietly doesn't actually work" hole — food search's canonical ranking. Also lands the third safety-net script (backfill-run) so the "committed but not applied" class of drift is now covered from both ends.
