@@ -85,6 +85,101 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
+  deploy-prod:
+    name: deploy to prod (Vercel)
+    runs-on: ubuntu-latest
+    needs: typecheck-build
+    timeout-minutes: 15
+    # Only pushes to main deploy. PRs stay preview-less here (Vercel's own
+    # PR previews still work via its GitHub App if that's re-connected).
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      # Non-secret Vercel identifiers (they were in .vercel/project.json).
+      # Inline so a missing VERCEL_ORG_ID / VERCEL_PROJECT_ID secret can't
+      # silently break the deploy.
+      VERCEL_ORG_ID: team_1lVzz4pk3K8bD7picPjnDEwg
+      VERCEL_PROJECT_ID: prj_GHklnwhVvjxsZjAlfHZyRL1IkBCg
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: preflight — skip cleanly if VERCEL_TOKEN missing
+        id: pre
+        shell: bash
+        run: |
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "[SKIP] VERCEL_TOKEN secret not set — deploy step is a no-op. Add it in Settings → Secrets → Actions."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.pre.outputs.skip != '1'
+      - uses: actions/setup-node@v4
+        if: steps.pre.outputs.skip != '1'
+        with:
+          node-version: 22
+      - name: install vercel CLI
+        if: steps.pre.outputs.skip != '1'
+        run: npm i -g vercel@latest
+      - name: pull env
+        if: steps.pre.outputs.skip != '1'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: build
+        if: steps.pre.outputs.skip != '1'
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+      - name: deploy
+        if: steps.pre.outputs.skip != '1'
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed: $url"
+
+  verify-deploy:
+    name: verify live SW_VERSION matches APP_VERSION
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    timeout-minutes: 5
+    # Same gate — main + push only. Polls the live sw.js until SW_VERSION
+    # matches the APP_VERSION in the code being deployed, or times out.
+    # This is the "no more phantom broadcasts" closure — if this job is
+    # red, broadcast should NOT fire. See broadcast-on-version-bump.yml
+    # for the mirror check.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: parse APP_VERSION
+        id: version
+        shell: bash
+        run: |
+          v=$(grep -Eo "APP_VERSION[[:space:]]*=[[:space:]]*'[^']+'" apps/web/src/lib/version.ts | head -n1 | sed -E "s/.*'([^']+)'.*/\1/")
+          if [ -z "$v" ]; then
+            echo "[ERR] could not parse APP_VERSION"
+            exit 1
+          fi
+          echo "app_version=$v" >> "$GITHUB_OUTPUT"
+          echo "Expected SW_VERSION on live: v$v"
+      - name: poll live sw.js
+        env:
+          EXPECTED: v${{ steps.version.outputs.app_version }}
+        shell: bash
+        run: |
+          set -e
+          for i in $(seq 1 24); do
+            live=$(curl -s --max-time 10 \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605.1.15" \
+              https://nothing-superapp.vercel.app/sw.js \
+              | grep -Eo "SW_VERSION[[:space:]]*=[[:space:]]*'[^']+'" \
+              | head -n1 | sed -E "s/.*'([^']+)'.*/\1/" || echo "")
+            echo "attempt $i/24 · live='$live' expected='$EXPECTED'"
+            if [ "$live" = "$EXPECTED" ]; then
+              echo "✅ MATCH — deploy verified."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "❌ TIMEOUT — live SW_VERSION still '$live' after 4 min. Deploy likely failed or edge cache didn't flush. Broadcast will be skipped."
+          exit 1
+
   verify-migrations-applied:
     name: verify migrations applied to prod
     runs-on: ubuntu-latest

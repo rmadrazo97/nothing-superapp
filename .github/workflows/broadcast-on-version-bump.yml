@@ -56,13 +56,34 @@ jobs:
         with:
           node-version: 22
 
-      # Give Vercel a minute to finish the deploy that shares this git SHA.
-      # If we broadcast before the new build is live, the notification body
-      # would still be current-changelog but pointing at the previous UX
-      # for anyone who clicks in during those first few seconds. Cheap wait.
-      - name: wait for deploy
+      # Poll live sw.js until SW_VERSION matches the new APP_VERSION, or
+      # give up after ~4 min and skip the broadcast entirely. Prevents the
+      # "phantom broadcast" failure mode from the v0.5.4-v0.5.9 wave, where
+      # 6 push notifications fired for versions that never actually landed
+      # because Vercel auto-deploy was silently disconnected. This mirrors
+      # the verify-deploy job in ci.yml — belt + suspenders.
+      - name: wait for deploy (poll live sw.js)
         if: steps.detect.outputs.changed == '1'
-        run: sleep 90
+        env:
+          EXPECTED: v${{ steps.detect.outputs.curr }}
+        shell: bash
+        run: |
+          set -e
+          for i in $(seq 1 24); do
+            live=$(curl -s --max-time 10 \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605.1.15" \
+              https://nothing-superapp.vercel.app/sw.js \
+              | grep -Eo "SW_VERSION[[:space:]]*=[[:space:]]*'[^']+'" \
+              | head -n1 | sed -E "s/.*'([^']+)'.*/\1/" || echo "")
+            echo "attempt $i/24 · live='$live' expected='$EXPECTED'"
+            if [ "$live" = "$EXPECTED" ]; then
+              echo "✅ Live matches — proceeding with broadcast."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "❌ TIMEOUT — live SW_VERSION still '$live' after 4 min. Skipping broadcast so users don't get a push notification for a version that isn't live."
+          exit 1
 
       - name: broadcast release
         if: steps.detect.outputs.changed == '1'
