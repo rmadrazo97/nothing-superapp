@@ -203,14 +203,39 @@ async function applyCanonical() {
 
 async function main() {
   console.log('rank-foods: applying demotion patterns');
-  const demoted = await applyDemotions();
-  console.log(`rank-foods: demotion pass done — ${demoted} rows adjusted\n`);
+  const totalDemoted = await applyDemotions();
+  console.log(`rank-foods: demotion pass done — ${totalDemoted} rows adjusted\n`);
 
   console.log('rank-foods: applying canonical whitelist');
-  const { flagged, missing } = await applyCanonical();
-  console.log(`rank-foods: canonical pass done — flagged=${flagged}, missing=${missing}\n`);
+  const { flagged: canonicalFlagged, missing: missingCount } = await applyCanonical();
+  console.log(
+    `rank-foods: canonical pass done — flagged=${canonicalFlagged}, missing=${missingCount}\n`,
+  );
 
   console.log('rank-foods: complete.');
+
+  // Record the run — verify-backfills-run.mjs uses this to enforce
+  // "if a migration promises a one-time script, that script ran."
+  // Wrapped in try/catch — a failed log write should not fail the whole
+  // script (the actual work above already committed to `foods`).
+  try {
+    const { error: logErr } = await supabase
+      .from('backfill_log')
+      .insert({
+        script_name: 'rank-foods',
+        rows_affected: canonicalFlagged + totalDemoted,
+        notes: `canonical=${canonicalFlagged}; demoted=${totalDemoted}; missing_patterns=${missingCount}`,
+      });
+    if (logErr) {
+      console.warn(
+        `rank-foods: backfill_log insert failed (non-fatal): ${logErr.message}`,
+      );
+    } else {
+      console.log('rank-foods: logged to backfill_log.');
+    }
+  } catch (err) {
+    console.warn(`rank-foods: backfill_log insert threw (non-fatal): ${err?.message ?? err}`);
+  }
 }
 
 main().catch((err) => {
