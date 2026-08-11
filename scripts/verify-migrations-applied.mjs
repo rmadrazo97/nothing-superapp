@@ -204,19 +204,40 @@ function fetchPresentIndexes(dbUrl, names) {
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
+function deriveRefFromUrl(url) {
+  // https://<ref>.supabase.co → <ref>
+  if (!url) return null;
+  try {
+    const host = new URL(url).host;
+    return host.split('.')[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 function main() {
-  const projectId = readEnv('SUPABASE_PROJECT_ID');
+  let projectId = readEnv('SUPABASE_PROJECT_ID');
   const password = readEnv('SUPABASE_DB_PASSWORD');
-  const url = readEnv('SUPABASE_URL');
+  const url = readEnv('SUPABASE_URL') || readEnv('NEXT_PUBLIC_SUPABASE_URL');
   const serviceKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
 
-  // Cred check — prefer PROJECT_ID + PASSWORD (psql path). URL + service key
-  // alone are not enough because we're not using REST here. If none are set,
-  // skip cleanly so CI doesn't fail on PRs without secrets.
+  // Fallback: if PROJECT_ID isn't in env directly, derive it from SUPABASE_URL
+  // (which is public and safe to have in more places). Common CI setup where
+  // NEXT_PUBLIC_SUPABASE_URL is wired but the ref-only secret isn't.
+  if (!projectId && url) {
+    projectId = deriveRefFromUrl(url);
+    if (projectId) {
+      console.log(`[INFO] derived project ref from SUPABASE_URL: ${projectId}`);
+    }
+  }
+
+  // Cred check — need PROJECT_ID (or derivable from URL) + PASSWORD for
+  // the psql path. If either is missing, skip cleanly so CI doesn't fail
+  // on PRs without secrets.
   if (!projectId || !password) {
     const hint =
-      !url && !serviceKey
-        ? 'SUPABASE_PROJECT_ID and SUPABASE_DB_PASSWORD'
+      !projectId
+        ? 'SUPABASE_PROJECT_ID or SUPABASE_URL (to derive the ref)'
         : 'SUPABASE_DB_PASSWORD (required for the pooler URL)';
     console.log(`[SKIP] missing prod credentials (${hint}); script is a no-op in this env`);
     process.exit(0);
