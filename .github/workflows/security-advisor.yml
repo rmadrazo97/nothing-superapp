@@ -1,0 +1,149 @@
+name: security-advisor
+
+# Runs the Splinter security-lint suite (github.com/supabase/splinter) via the
+# Supabase Management API. Fires on every push to main + daily at 06:00 UTC so
+# we catch any NEW WARN/ERROR-level finding within 24h of it landing.
+#
+# History: lesson #4 from ship-log/0.5.5.md — "security-advisor scans are cheap
+# and worth doing at every release; if they had been running at every push, all
+# three of the v0.5.5 findings would have been caught the day their migration
+# introduced them." This is that CI.
+#
+# On failure, the job posts a commit comment with the summary + reproduces the
+# raw JSON as an artifact so triage doesn't require re-running locally.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 06:00 UTC daily — after most human commits, before EU standup.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Needed by the failure-comment step to POST to /repos/{owner}/{repo}/commits/{sha}/comments.
+  # `contents: write` is the correct scope for commit comments (not `issues`).
+  # See: https://docs.github.com/en/rest/commits/comments
+  # Enabling this at the workflow level keeps the token permissions least-priv.
+  # (default GITHUB_TOKEN can still create the comment.)
+  # If a hardened org policy blocks this, set at repo settings → Actions → Workflow permissions.
+  # Falls back gracefully — the script has already exited by then; comment is best-effort.
+  # ---
+  # Also: statuses:write would let us set a commit status, but a comment is more legible.
+
+jobs:
+  splinter-scan:
+    name: splinter security-advisor scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: mask management token in logs
+        # Extra belt-and-suspenders: GitHub already masks values from `secrets.*`,
+        # but if the token ever gets echoed via a subprocess env dump, this adds
+        # a second registration so the mask survives child-process propagation.
+        if: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN != '' }}
+        run: echo "::add-mask::${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}"
+
+      - name: run splinter scan (JSON output)
+        id: scan
+        continue-on-error: true
+        env:
+          SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          NO_COLOR: '1'
+        run: |
+          # Capture both streams. --json writes summary to stdout, per-lint status
+          # to stderr. Keep both in the log; only the JSON gets parsed later.
+          set +e
+          node scripts/security-advisor-scan.mjs --json > scan.json 2> scan.log
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          echo '--- scan.log ---'
+          cat scan.log
+          echo '--- scan.json (first 4KB) ---'
+          head -c 4096 scan.json
+
+      - name: upload scan artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: splinter-scan-${{ github.sha }}
+          path: |
+            scan.json
+            scan.log
+          retention-days: 30
+
+      - name: post commit comment on findings
+        # Only comment on failure paths + only for push events (schedule/dispatch
+        # have no meaningful commit to attach to beyond the default branch tip,
+        # which would create noise on every daily run).
+        if: steps.scan.outputs.exit_code != '0' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+        run: |
+          # Build a compact markdown summary from the JSON. `jq` ships preinstalled
+          # on ubuntu-latest — no need to install anything.
+          if [ ! -s scan.json ]; then
+            echo "no scan.json to report from — skipping comment"
+            exit 0
+          fi
+
+          # Skipped scan (missing creds) — don't spam comments.
+          if jq -e '.skipped == true' scan.json > /dev/null 2>&1; then
+            echo "scan was skipped (missing secrets) — no comment"
+            exit 0
+          fi
+
+          summary=$(jq -r '
+            "Splinter security-advisor scan — \(.hardFailures) WARN+ lints, \(.totalFindings) total findings",
+            "",
+            (.results[] | select(.findings | length > 0) |
+              "- **\(.level)** `\(.name)` — \(.findings | length) finding(s)"
+            ),
+            ""
+          ' scan.json)
+
+          body=$(cat <<EOF
+          ### Splinter security-advisor: findings detected
+
+          Commit: \`${COMMIT_SHA}\`
+          Run: ${RUN_URL}
+          Exit code: \`${EXIT_CODE}\`
+
+          ${summary}
+
+          Full JSON is attached as the \`splinter-scan-${COMMIT_SHA}\` workflow artifact.
+
+          _This is an automated post from \`.github/workflows/security-advisor.yml\`._
+          EOF
+          )
+
+          # POST the comment via gh api. gh handles JSON escaping via --raw-field.
+          gh api \
+            --method POST \
+            "repos/${REPO}/commits/${COMMIT_SHA}/comments" \
+            --raw-field body="$body"
+
+      - name: fail the job if scan failed
+        # Re-raise the scan's exit code AFTER the artifact + comment steps have
+        # had a chance to run. Without this, `continue-on-error: true` above
+        # would swallow the failure entirely.
+        if: steps.scan.outputs.exit_code != '0'
+        run: |
+          echo "splinter-scan exited with ${{ steps.scan.outputs.exit_code }}"
+          exit ${{ steps.scan.outputs.exit_code }}

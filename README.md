@@ -183,6 +183,25 @@ CI runs this automatically on every push to `main` (job `verify-migrations-appli
 
 Requires `psql` on PATH (preinstalled on `ubuntu-latest`; `brew install libpq` on macOS).
 
+### 6. Splinter security-advisor scan
+
+The Supabase Studio "Security Advisor" runs the [Splinter](https://github.com/supabase/splinter) lint suite (RLS-disabled tables, mutable `search_path` functions, extensions in `public`, `auth.users` leakage, etc.). The CLI doesn't ship the scan, so we invoke the same lints via the Management API:
+
+```bash
+node scripts/security-advisor-scan.mjs           # pretty output
+node scripts/security-advisor-scan.mjs --json    # CI-parseable summary on stdout
+```
+
+Reads `SUPABASE_MANAGEMENT_TOKEN` + `SUPABASE_PROJECT_ID` from the shell (or falls back to `apps/web/.env.local`). The management token is a personal access token (starts `sbp_...`) from https://supabase.com/dashboard/account/tokens — **not** the service-role JWT. On macOS the `supabase` CLI stashes yours in the login keychain:
+
+```bash
+export SUPABASE_MANAGEMENT_TOKEN=$(security find-generic-password -s "Supabase CLI" -w | sed 's/^go-keyring-base64://' | base64 -d)
+```
+
+Exits `1` on any WARN or ERROR-level finding (ERROR = RLS off, security-definer view, auth.users exposed; WARN = mutable search_path, extension in public). INFO findings (e.g. RLS-on with zero policies) do not fail. Missing secrets → `[SKIP]` + exit `0`.
+
+CI runs this on every push to `main` and daily at 06:00 UTC (`.github/workflows/security-advisor.yml`). On failure it posts a commit comment with the finding summary and uploads the full JSON as an artifact. Required GitHub secrets: `SUPABASE_MANAGEMENT_TOKEN`, `SUPABASE_PROJECT_ID`.
+
 ---
 
 ## Architecture
