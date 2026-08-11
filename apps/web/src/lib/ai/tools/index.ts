@@ -40,6 +40,13 @@ import { makeCreateReminderTool } from './create-reminder';
 import { makeListRemindersTool } from './list-reminders';
 import { makeToggleReminderTool } from './toggle-reminder';
 import { makeTriggerReminderNowTool } from './trigger-reminder-now';
+// habits mini-app (add-only, v0.5.13) — semantic aliases for
+// habits_habits_* + habits_habit_completions_* framework CRUD. Habits ship in
+// v0.5.12 without any copilot surface; these give the model a natural way to
+// add / list / check-off habits from chat.
+import { makeCreateHabitTool } from './create-habit';
+import { makeListHabitsTool } from './list-habits';
+import { makeToggleHabitCompletionTool } from './toggle-habit-completion';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
 // hand-written wins on semantic clarity ("log_calorie_entry"), framework fills
@@ -85,6 +92,10 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     list_reminders: makeListRemindersTool(userId, supabase),
     toggle_reminder: makeToggleReminderTool(userId, supabase),
     trigger_reminder_now: makeTriggerReminderNowTool(userId, supabase),
+    // habits (add-only, v0.5.13) — alphabetized within the block
+    create_habit: makeCreateHabitTool(userId, supabase),
+    list_habits: makeListHabitsTool(userId, supabase),
+    toggle_habit_completion: makeToggleHabitCompletionTool(userId, supabase),
     // generative UI (v0.5.4) — render_* tools return payloads the client
     // mounts as pixel-panel components. No userId/supabase args — pure
     // pass-through. Registered as a discrete block so future workers can
