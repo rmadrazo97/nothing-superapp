@@ -51,18 +51,22 @@ function getBrowserTimezone(): string | null {
  * transport-agnostic beyond the /api/copilot endpoint.
  */
 
+// v0.5.10 — prompts nudge users toward queries that trigger the render_*
+// tools (progress_dots, line_chart, bar_chart, data_table). Prod audit
+// showed zero render_* invocations because users never asked the shape of
+// question that fires them; example cards teach the surface.
 const DEFAULT_SUGGESTED_PROMPTS = [
-  '◐ Log what I ate today',
-  '◐ Suggest a meal that fits my macros',
-  '◐ Analyze this photo of my plate',
-  '◐ Show me my week',
+  '🥗 How many kcal do I have left today?',
+  '📊 Show my weight trend for the last 4 weeks',
+  '🏋️ Compare my volume by muscle group this month',
+  '🍽️ Which lunch option should I pick from my active plan?',
 ] as const;
 
 const EMBEDDED_SUGGESTED_PROMPTS = [
-  '◐ Log what I just ate',
-  '◐ What can I still eat today?',
-  '◐ Swap this meal for something lighter',
-  '◐ How am I tracking this week?',
+  '🥗 How many kcal do I have left today?',
+  '📊 Show my macros for this week',
+  '🍽️ Which option from my plan fits what\'s left?',
+  '🏋️ How am I tracking this week?',
 ] as const;
 
 const TAB_BAR_CLEARANCE = 92;
@@ -766,7 +770,16 @@ function EmptyState({
             key={prompt}
             type="button"
             disabled={disabled}
-            onClick={() => onPick(prompt.replace(/^◐\s*/, ''))}
+            onClick={() =>
+              // Strip the leading accent glyph OR emoji + whitespace so the
+              // composer receives the clean query. The emoji is chrome — it
+              // lives on the card, not in the message sent to the model.
+              onPick(
+                prompt
+                  .replace(/^◐\s*/, '')
+                  .replace(/^\p{Extended_Pictographic}[️‍\p{Extended_Pictographic}]*\s*/u, ''),
+              )
+            }
             className="nsa-prompt-card"
           >
             {prompt}
