@@ -386,25 +386,20 @@ export default function MeasurementsPage() {
       </Link>
 
       {error && (
-        <div
-          role="alert"
-          className="caption"
-          style={{
-            color: 'var(--color-accent)',
-            padding: 'var(--space-3) var(--space-4)',
-            border: '1px solid var(--color-accent)',
-            borderRadius: 'var(--radius-card)',
-          }}
-        >
-          {error}
-        </div>
+        // v0.5.5 lesson 2: don't just render a red string — give the user
+        // an explicit RELOAD so a transient 5xx isn't confused with "empty".
+        <LoadErrorCard
+          kicker="MEASUREMENTS · LOAD FAILED"
+          message={`Couldn't load your measurements: ${error}. Try again?`}
+          onReload={() => void refetch()}
+        />
       )}
 
       {isLoading ? (
         <p className="caption">Loading…</p>
-      ) : isEmpty ? (
+      ) : isEmpty && !error ? (
         <EmptyState onNew={openNew} />
-      ) : (
+      ) : !error ? (
         <section
           aria-label="Measurements table"
           style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
@@ -556,7 +551,7 @@ export default function MeasurementsPage() {
             })}
           </div>
         </section>
-      )}
+      ) : null}
 
       {/* Bottom sheet — new entry OR edit an existing one. */}
       <BottomSheet
@@ -579,6 +574,52 @@ export default function MeasurementsPage() {
 }
 
 // ─── sub-components ─────────────────────────────────────────────────────────
+
+/**
+ * LoadErrorCard — inline "couldn't load, try again" surface. Matches the
+ * v0.5.5 settings/page.tsx pattern so every mini-app renders the same shape
+ * on API failure instead of silently rendering an empty list.
+ */
+function LoadErrorCard({
+  kicker,
+  message,
+  onReload,
+}: {
+  kicker: string;
+  message: string;
+  onReload: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)',
+        padding: 'var(--space-4)',
+        border: '1px solid var(--color-warning, var(--color-accent))',
+        borderRadius: 'var(--radius-card)',
+        background: 'rgba(0, 0, 0, 0.35)',
+      }}
+    >
+      <span
+        className="label"
+        style={{ color: 'var(--color-warning, var(--color-accent))' }}
+      >
+        {kicker}
+      </span>
+      <span
+        className="caption"
+        style={{ color: 'var(--color-text-primary)' }}
+      >
+        {message}
+      </span>
+      <button type="button" onClick={onReload} style={{ ...ghostButtonStyle, alignSelf: 'flex-start' }}>
+        RELOAD
+      </button>
+    </div>
+  );
+}
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (

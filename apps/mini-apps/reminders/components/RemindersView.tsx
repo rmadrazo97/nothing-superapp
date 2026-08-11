@@ -87,14 +87,27 @@ export default function RemindersView({ view }: { view: View }) {
   if (view === 'history') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        {runs.isLoading && <Muted>Loading history…</Muted>}
-        {!runs.isLoading && (runs.data ?? []).length === 0 && (
-          <Muted>No fires yet. Create a reminder to see history here.</Muted>
+        {runs.error ? (
+          // v0.5.5 lesson 2: don't render "no history yet" when the fetch
+          // actually failed — that empty state is indistinguishable from
+          // "server 500'd for hours". Surface the error + a RELOAD.
+          <LoadErrorCard
+            kicker="HISTORY · LOAD FAILED"
+            message={`Couldn't load history: ${runs.error}. Try again?`}
+            onReload={() => void runs.refetch()}
+          />
+        ) : (
+          <>
+            {runs.isLoading && <Muted>Loading history…</Muted>}
+            {!runs.isLoading && (runs.data ?? []).length === 0 && (
+              <Muted>No fires yet. Create a reminder to see history here.</Muted>
+            )}
+            <HistoryList
+              runs={runs.data ?? []}
+              reminders={reminders.data ?? []}
+            />
+          </>
         )}
-        <HistoryList
-          runs={runs.data ?? []}
-          reminders={reminders.data ?? []}
-        />
       </div>
     );
   }
@@ -114,6 +127,14 @@ export default function RemindersView({ view }: { view: View }) {
         >
           {msg}
         </div>
+      )}
+
+      {reminders.error && (
+        <LoadErrorCard
+          kicker="REMINDERS · LOAD FAILED"
+          message={`Couldn't load your reminders: ${reminders.error}. Try again?`}
+          onReload={() => void reminders.refetch()}
+        />
       )}
 
       {/* v0.5.3 (task #107): dashed-outline explainer for the two-in-one
@@ -150,7 +171,7 @@ export default function RemindersView({ view }: { view: View }) {
       {formOpen && <NewReminderForm onSubmit={onCreate} onCancel={() => setFormOpen(false)} />}
 
       {reminders.isLoading && <Muted>Loading…</Muted>}
-      {!reminders.isLoading && rows.length === 0 && (
+      {!reminders.isLoading && !reminders.error && rows.length === 0 && (
         <Muted>No reminders yet. Tap “+ NEW REMINDER” to start.</Muted>
       )}
 
@@ -178,5 +199,71 @@ function Muted({ children }: { children: React.ReactNode }) {
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * LoadErrorCard — shared inline card for API load failures. Matches the
+ * pattern established in `apps/web/src/app/app/settings/page.tsx` (v0.5.5
+ * lesson 2): kicker + one-line body + RELOAD button, sitting where the
+ * data would have been so the user knows it failed instead of guessing
+ * from an empty list.
+ */
+function LoadErrorCard({
+  kicker,
+  message,
+  onReload,
+}: {
+  kicker: string;
+  message: string;
+  onReload: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)',
+        padding: 'var(--space-4)',
+        border: '1px solid var(--color-warning, var(--color-accent))',
+        borderRadius: 'var(--radius-card)',
+        background: 'rgba(0, 0, 0, 0.35)',
+      }}
+    >
+      <span
+        className="label"
+        style={{ color: 'var(--color-warning, var(--color-accent))' }}
+      >
+        {kicker}
+      </span>
+      <span
+        className="caption"
+        style={{ color: 'var(--color-text-primary)' }}
+      >
+        {message}
+      </span>
+      <button
+        type="button"
+        onClick={onReload}
+        style={{
+          alignSelf: 'flex-start',
+          background: 'transparent',
+          color: 'var(--color-accent)',
+          border: '1px solid var(--color-accent)',
+          padding: 'var(--space-2) var(--space-4)',
+          borderRadius: 'var(--radius-button)',
+          fontFamily: 'var(--font-label)',
+          fontSize: 'var(--text-label)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          height: 36,
+          lineHeight: 1,
+        }}
+      >
+        RELOAD
+      </button>
+    </div>
   );
 }

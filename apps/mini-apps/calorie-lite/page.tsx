@@ -265,17 +265,53 @@ export default function CalorieLitePage() {
       />
 
       {loadError && (
+        // v0.5.5 lesson 2: pair the message with an explicit RELOAD so the
+        // user isn't left staring at a mysteriously empty log after a 5xx.
         <div
           role="alert"
-          className="caption"
           style={{
-            color: 'var(--color-accent)',
-            padding: 'var(--space-3) var(--space-4)',
-            border: '1px solid var(--color-accent)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-4)',
+            border: '1px solid var(--color-warning, var(--color-accent))',
             borderRadius: 'var(--radius-card)',
+            background: 'rgba(0, 0, 0, 0.35)',
           }}
         >
-          {loadError}
+          <span
+            className="label"
+            style={{ color: 'var(--color-warning, var(--color-accent))' }}
+          >
+            CALORIE-LITE · LOAD FAILED
+          </span>
+          <span
+            className="caption"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            {loadError} Try again?
+          </span>
+          <button
+            type="button"
+            onClick={() => void loadEntries()}
+            style={{
+              alignSelf: 'flex-start',
+              background: 'transparent',
+              color: 'var(--color-accent)',
+              border: '1px solid var(--color-accent)',
+              padding: 'var(--space-2) var(--space-4)',
+              borderRadius: 'var(--radius-button)',
+              fontFamily: 'var(--font-label)',
+              fontSize: 'var(--text-label)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              height: 36,
+              lineHeight: 1,
+            }}
+          >
+            RELOAD
+          </button>
         </div>
       )}
 

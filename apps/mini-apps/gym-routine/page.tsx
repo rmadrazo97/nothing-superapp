@@ -128,17 +128,42 @@ export default function GymHomePage() {
       </div>
 
       {error && (
+        // v0.5.5 lesson 2: pair the message with an explicit RELOAD so a
+        // transient network hiccup isn't confused with "no workouts". Skip
+        // the button while an early startEmpty() is in flight — the page
+        // is about to navigate anyway.
         <div
           role="alert"
-          className="caption"
           style={{
-            color: 'var(--color-accent)',
-            padding: 'var(--space-3) var(--space-4)',
-            border: '1px solid var(--color-accent)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-4)',
+            border: '1px solid var(--color-warning, var(--color-accent))',
             borderRadius: 'var(--radius-card)',
+            background: 'rgba(0, 0, 0, 0.35)',
           }}
         >
-          {error}
+          <span
+            className="label"
+            style={{ color: 'var(--color-warning, var(--color-accent))' }}
+          >
+            GYM · LOAD FAILED
+          </span>
+          <span
+            className="caption"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            {error} Try again?
+          </span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={starting}
+            style={{ ...ghostButtonStyle, alignSelf: 'flex-start' }}
+          >
+            RELOAD
+          </button>
         </div>
       )}
 

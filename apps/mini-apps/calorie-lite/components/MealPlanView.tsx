@@ -204,6 +204,7 @@ export function MealPlanView({
     <PlanListView
       plans={plans}
       loadErr={loadErr}
+      onReload={loadAll}
       activeMealPlanId={activeMealPlanId}
       onCreate={() => setMode({ view: 'form', kind: 'create' })}
       onOpen={(id) => setMode({ view: 'detail', planId: id })}
@@ -223,6 +224,7 @@ export function MealPlanView({
 function PlanListView({
   plans,
   loadErr,
+  onReload,
   activeMealPlanId,
   onCreate,
   onOpen,
@@ -232,6 +234,7 @@ function PlanListView({
 }: {
   plans: MealPlanRow[] | null;
   loadErr: string | null;
+  onReload: () => void | Promise<void>;
   activeMealPlanId: string | null;
   onCreate: () => void;
   onOpen: (planId: string) => void;
@@ -328,21 +331,57 @@ function PlanListView({
       </div>
 
       {loadErr && (
+        // v0.5.5 lesson 2: replace the bare red string with kicker + body
+        // + RELOAD so a transient 5xx isn't misread as "you have no plans".
         <div
           role="alert"
-          className="caption"
           style={{
-            color: 'var(--color-accent)',
-            padding: 'var(--space-3) var(--space-4)',
-            border: '1px solid var(--color-accent)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-4)',
+            border: '1px solid var(--color-warning, var(--color-accent))',
             borderRadius: 'var(--radius-card)',
+            background: 'rgba(0, 0, 0, 0.35)',
           }}
         >
-          {loadErr}
+          <span
+            className="label"
+            style={{ color: 'var(--color-warning, var(--color-accent))' }}
+          >
+            PLANS · LOAD FAILED
+          </span>
+          <span
+            className="caption"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            Couldn&apos;t load your meal plans: {loadErr} Try again?
+          </span>
+          <button
+            type="button"
+            onClick={() => void onReload()}
+            style={{
+              alignSelf: 'flex-start',
+              background: 'transparent',
+              color: 'var(--color-accent)',
+              border: '1px solid var(--color-accent)',
+              padding: 'var(--space-2) var(--space-4)',
+              borderRadius: 'var(--radius-button)',
+              fontFamily: 'var(--font-label)',
+              fontSize: 'var(--text-label)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              height: 36,
+              lineHeight: 1,
+            }}
+          >
+            RELOAD
+          </button>
         </div>
       )}
 
-      {plans === null ? (
+      {loadErr ? null : plans === null ? (
         <p className="caption">Loading…</p>
       ) : plans.length === 0 ? (
         <EmptyState
