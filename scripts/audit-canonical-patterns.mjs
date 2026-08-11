@@ -100,8 +100,59 @@ for (let i = 0; i < entries.length; i++) {
 
 console.error(`\nDone: ${hits} hits / ${misses} misses / ${entries.length} total`);
 
+// ── Missed-demand check (v0.5.9 W15) ────────────────────────────────────
+//
+// Beyond "does every JSON entry hit a row?", we also want to catch the
+// inverse: common daily-log queries a user would plausibly type that we
+// have NO canonical entry for. Absent real query analytics, we compare a
+// curated list of common food nouns to the current entry set — if a
+// candidate query isn't already covered (by exact match on the `query`
+// field OR by a canonical-flagged row whose name starts with the
+// candidate), we flag it as missed demand.
+//
+// Extend this list whenever the app grows a new must-log food. Keeping it
+// in-script (rather than a separate file) means the audit output stays
+// self-contained.
+const COMMON_DAILY_LOG_QUERIES = [
+  'oatmeal', 'greek yogurt', 'peanut butter', 'almond butter', 'olive oil',
+  'tuna', 'shrimp', 'lentils', 'black beans', 'chickpeas', 'garbanzos',
+  'quinoa', 'whole wheat bread', 'brown rice', 'cottage cheese', 'pasta',
+  'broccoli', 'asparagus', 'kale', 'blueberries', 'strawberries',
+  'ground beef', 'ground turkey', 'turkey breast', 'pork chop', 'steak',
+  'sirloin', 'protein powder', 'protein bar', 'chicken breast', 'eggs',
+  'rice', 'milk', 'yogurt', 'cheese', 'butter', 'bread', 'salmon',
+  'banana', 'apple', 'avocado', 'spinach', 'tomato', 'onion', 'garlic',
+  'potato', 'sweet potato', 'carrot', 'almonds', 'walnuts', 'honey',
+  'coffee', 'tea', 'water',
+  // Spanish common terms
+  'pollo', 'huevo', 'arroz', 'leche', 'queso', 'avena', 'pan',
+  'yogur', 'atun', 'salmon', 'aguacate', 'platano', 'manzana',
+  'lentejas', 'garbanzos', 'brocoli', 'espinaca', 'tomate', 'cebolla',
+];
+
+const queryExists = new Set(entries.map((e) => e.query.toLowerCase()));
+const missedQueries = [];
+for (const cand of COMMON_DAILY_LOG_QUERIES) {
+  if (queryExists.has(cand.toLowerCase())) continue;
+  // Second chance: is there ANY canonical-flagged row whose lowercased name
+  // starts with the candidate? If so, the search path will still land on
+  // a good row via prefix ranking — not urgent to add.
+  const covered = parseInt(
+    psql(
+      `select count(*) from foods where is_canonical=true and lower(name) like lower('${esc(cand)}%');`,
+    ),
+    10,
+  );
+  if (covered > 0) continue;
+  // Note likely target so the reader can copy-paste a name_pattern.
+  const suggestion = psql(
+    `select name from foods where lower(name) like lower('${esc(cand)}%') order by is_canonical desc nulls last, rank_penalty asc nulls last, name asc limit 1;`,
+  );
+  missedQueries.push({ query: cand, suggestion: suggestion || '(no candidate)' });
+}
+
 // Emit markdown table
-console.log(`# Canonical foods audit (v0.5.7)`);
+console.log(`# Canonical foods audit (v0.5.9)`);
 console.log(``);
 console.log(`Total: ${entries.length}, hits: ${hits}, misses: ${misses}`);
 console.log(``);
@@ -113,3 +164,26 @@ for (const r of rows) {
   const c = r.candidates.replace(/\|/g, '\\|');
   console.log(`| ${q} | ${p} | ${r.hitCount} | ${c} |`);
 }
+
+console.log(``);
+console.log(`## Missed-demand check`);
+console.log(``);
+console.log(
+  `Common daily-log queries not covered by any canonical entry (${missedQueries.length} of ${COMMON_DAILY_LOG_QUERIES.length} candidates):`,
+);
+console.log(``);
+if (missedQueries.length === 0) {
+  console.log(`All curated demand candidates are already covered.`);
+} else {
+  console.log(`| missed_query | suggested canonical row |`);
+  console.log(`|---|---|`);
+  for (const m of missedQueries) {
+    const q = m.query.replace(/\|/g, '\\|');
+    const s = m.suggestion.replace(/\|/g, '\\|');
+    console.log(`| ${q} | ${s} |`);
+  }
+}
+
+console.error(
+  `Missed-demand: ${missedQueries.length}/${COMMON_DAILY_LOG_QUERIES.length} candidates uncovered.`,
+);
