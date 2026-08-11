@@ -113,18 +113,34 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.pre.outputs.skip != '1'
+      # pnpm must be on PATH BEFORE `vercel build` — it invokes the repo's
+      # install command (`pnpm install`) as a subshell.
+      - uses: pnpm/action-setup@v4
+        if: steps.pre.outputs.skip != '1'
       - uses: actions/setup-node@v4
         if: steps.pre.outputs.skip != '1'
         with:
           node-version: 22
+          cache: pnpm
+      - name: install workspace deps
+        if: steps.pre.outputs.skip != '1'
+        run: pnpm install --frozen-lockfile
       - name: install vercel CLI
         if: steps.pre.outputs.skip != '1'
         run: npm i -g vercel@latest
       - name: pull env
         if: steps.pre.outputs.skip != '1'
+        env:
+          # Build-time public env — Vercel usually injects these from the
+          # dashboard, but we're building locally so pass them explicitly.
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: build
         if: steps.pre.outputs.skip != '1'
+        env:
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
         run: vercel build --prod --token="$VERCEL_TOKEN"
       - name: deploy
         if: steps.pre.outputs.skip != '1'
