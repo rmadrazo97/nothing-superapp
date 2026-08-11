@@ -18,7 +18,7 @@ import {
   mealSlotIdToMfpSlot,
   type Ingredient,
 } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 const inputSchema = z
@@ -115,7 +115,13 @@ export function makeLogMealFromPlanTool(userId: string, supabase: SupabaseClient
       "Log a meal from the user's meal plan. Provide meal_id (plan slug like 'desayuno') and option_selected (1-based). Inserts one app_calorie_entries row per quantified ingredient (free items are skipped; unresolved ones land at kcal=0 with a TODO breadcrumb) and upserts a meal_plan_adherence row for today. Uses the user's active plan when meal_plan_id is omitted. All inserted rows share a `meal_group_id` and carry a `meal_group_label` so the client renders them as one collapsible card and the user can delete the whole meal in one gesture. TODO: a `delete_meal_group` tool would let the copilot undo a whole logged meal directly; for now delete rows individually via calorie_lite_entries_delete.",
     inputSchema,
     async execute(input: Input): Promise<LogMealFromPlanResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'log_meal_from_plan', input } as const;
+      const idempotencyKey = computeIdempotencyKey('log_meal_from_plan', input, userId);
+      const auditBase = { supabase, userId, toolName: 'log_meal_from_plan', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as LogMealFromPlanResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

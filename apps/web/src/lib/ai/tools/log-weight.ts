@@ -6,7 +6,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 const inputSchema = z.object({
@@ -32,7 +32,13 @@ export function makeLogWeightTool(userId: string, supabase: SupabaseClient) {
     description: 'Log a body-weight datapoint (in kg) for the current user.',
     inputSchema,
     async execute(input: Input): Promise<LogWeightResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'log_weight', input } as const;
+      const idempotencyKey = computeIdempotencyKey('log_weight', input, userId);
+      const auditBase = { supabase, userId, toolName: 'log_weight', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as LogWeightResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

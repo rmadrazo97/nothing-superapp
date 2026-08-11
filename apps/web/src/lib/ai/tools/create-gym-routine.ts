@@ -11,7 +11,7 @@
 import { tool } from 'ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { routineV2InsertSchema, type RoutineV2Insert } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 export interface CreateGymRoutineResult {
@@ -42,7 +42,13 @@ export function makeCreateGymRoutineTool(userId: string, supabase: SupabaseClien
     description: DESCRIPTION,
     inputSchema: routineV2InsertSchema,
     async execute(input: RoutineV2Insert): Promise<CreateGymRoutineResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'create_gym_routine', input } as const;
+      const idempotencyKey = computeIdempotencyKey('create_gym_routine', input, userId);
+      const auditBase = { supabase, userId, toolName: 'create_gym_routine', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as CreateGymRoutineResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

@@ -10,7 +10,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Reminder } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 import { supabaseService } from '@/lib/supabase/service';
 import { fireReminder } from '@/lib/ai/agent-loops';
@@ -40,7 +40,14 @@ export function makeTriggerReminderNowTool(userId: string, supabase: SupabaseCli
       "Fire a reminder immediately. For notify: sends the push now. For agent_loop: runs the copilot prompt now and returns the agent's response inline. Great for 'run my weekly review now' — the user gets an instant answer + it's logged to reminder_runs.",
     inputSchema,
     async execute(input: Input): Promise<TriggerReminderNowResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'trigger_reminder_now', input } as const;
+      const idempotencyKey = computeIdempotencyKey('trigger_reminder_now', input, userId);
+      const auditBase = { supabase, userId, toolName: 'trigger_reminder_now', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as TriggerReminderNowResult;
+      }
+
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {
         await insertToolAudit({ ...auditBase, status: 'rate_limited', errorMessage: budget.error });

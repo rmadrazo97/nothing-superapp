@@ -11,7 +11,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 const modeEnum = z.enum(['focus', 'short_break', 'long_break']);
@@ -48,7 +48,13 @@ export function makeStartPomodoroTool(userId: string, supabase: SupabaseClient) 
       'Prepare a pomodoro session for the user. Returns an action-intent the app renders as a "Start focus →" chip that deep-links into /app/pomodoro with the requested mode + duration.',
     inputSchema,
     async execute(input: Input): Promise<StartPomodoroResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'start_pomodoro', input } as const;
+      const idempotencyKey = computeIdempotencyKey('start_pomodoro', input, userId);
+      const auditBase = { supabase, userId, toolName: 'start_pomodoro', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as StartPomodoroResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

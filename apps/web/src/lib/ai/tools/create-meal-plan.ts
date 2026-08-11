@@ -10,7 +10,7 @@
 import { tool } from 'ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mealPlanInsertSchema, type MealPlanInsert } from '@nothing/shared';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 export interface CreateMealPlanResult {
@@ -42,7 +42,13 @@ export function makeCreateMealPlanTool(userId: string, supabase: SupabaseClient)
     description: DESCRIPTION,
     inputSchema: mealPlanInsertSchema,
     async execute(input: MealPlanInsert): Promise<CreateMealPlanResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'create_meal_plan', input } as const;
+      const idempotencyKey = computeIdempotencyKey('create_meal_plan', input, userId);
+      const auditBase = { supabase, userId, toolName: 'create_meal_plan', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as CreateMealPlanResult;
+      }
 
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {

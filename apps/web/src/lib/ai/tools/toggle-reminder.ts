@@ -5,7 +5,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { insertToolAudit } from './_audit';
+import { checkIdempotency, computeIdempotencyKey, insertToolAudit } from './_audit';
 import { assertEntitled, assertWriteBudget } from './_gate';
 
 const inputSchema = z.object({
@@ -28,7 +28,14 @@ export function makeToggleReminderTool(userId: string, supabase: SupabaseClient)
       'Pause or resume a reminder. Use active=false to pause (won\'t fire), active=true to resume.',
     inputSchema,
     async execute(input: Input): Promise<ToggleReminderResult | ToolError> {
-      const auditBase = { supabase, userId, toolName: 'toggle_reminder', input } as const;
+      const idempotencyKey = computeIdempotencyKey('toggle_reminder', input, userId);
+      const auditBase = { supabase, userId, toolName: 'toggle_reminder', input, idempotencyKey } as const;
+
+      const prior = await checkIdempotency(supabase, userId, idempotencyKey);
+      if (prior.hit && prior.output && typeof prior.output === 'object' && 'ok' in prior.output) {
+        return prior.output as ToggleReminderResult;
+      }
+
       const budget = assertWriteBudget(userId);
       if (!budget.ok) {
         await insertToolAudit({ ...auditBase, status: 'rate_limited', errorMessage: budget.error });
