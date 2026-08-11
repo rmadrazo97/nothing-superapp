@@ -19,7 +19,6 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import Link from 'next/link';
 import { LoadErrorCard } from '@nothing/mini-apps-runtime';
 import type { JournalEntry, JournalMood } from '@nothing/shared';
 import { useToast } from '../../web/src/lib/toast/context';
@@ -621,11 +620,11 @@ export default function JournalHomePage() {
         )}
       </BottomSheet>
 
-      <Link href="/app" style={{ textDecoration: 'none' }}>
+      <a href="/app" style={{ textDecoration: 'none' }}>
         <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
           ← BACK TO LAUNCHER
         </span>
-      </Link>
+      </a>
     </div>
   );
 }
