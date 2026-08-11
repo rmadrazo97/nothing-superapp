@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.13';
+export const APP_VERSION = '0.5.14';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,16 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.14',
+    date: '2026-08-12',
+    highlights: [
+      'Launcher TODAY card — new cross-app KPI grid at the top of /app showing your daily status at a glance: KCAL vs target, WORKOUT ✓, HABITS done, JOURNAL ✓. First cross-mini-app instrument surface. Hides silently for fresh users so an empty account stays uncluttered.',
+      'Assistant learns Journal — 3 new copilot tools: create_journal_entry, list_journal_entries, get_todays_mood. Ask "save this as today\'s journal" or "how was I feeling yesterday" and it just works.',
+      'Habits polish — edit-habit BottomSheet (long-press or swipe), 3 example-habit CTAs in the empty state (🧘 meditate, 💧 water, 📖 read), "ALL DONE ✓" cadmium celebration state when every active habit is checked today.',
+      'Journal polish — every keystroke autosaves to localStorage as a same-day draft (restored on next visit if no server entry yet), word count appears below the textarea at 400+ chars, and mood-only saves are allowed for days you just want to tag a feeling.',
+    ],
+  },
   {
     version: '0.5.13',
     date: '2026-08-12',
