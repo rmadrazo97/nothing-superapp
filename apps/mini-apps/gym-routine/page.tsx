@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { EmptyState, useEvents } from '@nothing/mini-apps-runtime';
+import { EmptyState, LoadErrorCard, useEvents } from '@nothing/mini-apps-runtime';
 // Relative reach into the host app — same module instance as the shell's
 // <ToastProvider>, so toasts show up in the visible container.
 import { useToast } from '../../web/src/lib/toast/context';
@@ -128,43 +128,17 @@ export default function GymHomePage() {
       </div>
 
       {error && (
-        // v0.5.5 lesson 2: pair the message with an explicit RELOAD so a
-        // transient network hiccup isn't confused with "no workouts". Skip
-        // the button while an early startEmpty() is in flight — the page
-        // is about to navigate anyway.
-        <div
-          role="alert"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-            padding: 'var(--space-4)',
-            border: '1px solid var(--color-warning, var(--color-accent))',
-            borderRadius: 'var(--radius-card)',
-            background: 'rgba(0, 0, 0, 0.35)',
-          }}
-        >
-          <span
-            className="label"
-            style={{ color: 'var(--color-warning, var(--color-accent))' }}
-          >
-            GYM · LOAD FAILED
-          </span>
-          <span
-            className="caption"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {error} Try again?
-          </span>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={starting}
-            style={{ ...ghostButtonStyle, alignSelf: 'flex-start' }}
-          >
-            RELOAD
-          </button>
-        </div>
+        // v0.5.5 lesson 2 → v0.5.8: shared LoadErrorCard from
+        // @nothing/mini-apps-runtime. Same kicker + body + RELOAD shape as
+        // every other silent-catch site (measurements, reminders, meals,
+        // profile). The `starting` disable is dropped: if startEmpty() is
+        // mid-flight, the page is about to navigate anyway.
+        <LoadErrorCard
+          section="GYM"
+          message={error}
+          thingLabel="your workouts"
+          onReload={() => void load()}
+        />
       )}
 
       {live && (

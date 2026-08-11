@@ -22,6 +22,7 @@ import { useEntitlement } from '@/lib/hooks/use-entitlement';
 import { useToast } from '@/lib/toast/context';
 import { PushSettingsSection } from '@/components/push/PushSettingsSection';
 import type { PushTopic } from '@nothing/shared';
+import { LoadErrorCard } from '@nothing/mini-apps-runtime';
 import {
   APP_VERSION,
   APP_RELEASE_DATE,
@@ -439,40 +440,13 @@ export default function SettingsPage() {
           // Inline error card — REPLACES the form (not overlaid) so the user
           // isn't tricked into typing into a form that never had server data
           // to reconcile against. RELOAD re-runs the fetch in place.
-          <div
-            role="alert"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-4)',
-              border: '1px solid var(--color-warning, var(--color-accent))',
-              borderRadius: 'var(--radius-compact)',
-              background: 'rgba(0, 0, 0, 0.35)',
-            }}
-          >
-            <p
-              style={{
-                ...KICKER_STYLE,
-                color: 'var(--color-warning, var(--color-accent))',
-              }}
-            >
-              PROFILE · LOAD FAILED
-            </p>
-            <p style={STATUS_MSG_STYLE}>
-              Couldn&apos;t load your profile: {profileLoad.message}. This usually means
-              a backend hiccup — try again?
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                void loadProfile();
-              }}
-              style={SECONDARY_BTN_STYLE}
-            >
-              RELOAD
-            </button>
-          </div>
+          // v0.5.8: hoisted to @nothing/mini-apps-runtime so all 6 silent-
+          // catch sites share one visual shape.
+          <LoadErrorCard
+            section="PROFILE"
+            message={profileLoad.message}
+            onReload={() => void loadProfile()}
+          />
         ) : (
         <form
           onSubmit={saveProfile}

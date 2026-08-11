@@ -38,7 +38,7 @@
  * elsewhere in the shell.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { useEvents, EmptyState } from '@nothing/mini-apps-runtime';
+import { useEvents, EmptyState, LoadErrorCard } from '@nothing/mini-apps-runtime';
 import { EVENT_KINDS } from '@nothing/shared';
 import type { MealPlan, MealPlanAdherence, PlanMeal } from '@nothing/shared';
 import { PlanRulesCard } from './PlanRulesCard.tsx';
@@ -331,54 +331,15 @@ function PlanListView({
       </div>
 
       {loadErr && (
-        // v0.5.5 lesson 2: replace the bare red string with kicker + body
-        // + RELOAD so a transient 5xx isn't misread as "you have no plans".
-        <div
-          role="alert"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-            padding: 'var(--space-4)',
-            border: '1px solid var(--color-warning, var(--color-accent))',
-            borderRadius: 'var(--radius-card)',
-            background: 'rgba(0, 0, 0, 0.35)',
-          }}
-        >
-          <span
-            className="label"
-            style={{ color: 'var(--color-warning, var(--color-accent))' }}
-          >
-            PLANS · LOAD FAILED
-          </span>
-          <span
-            className="caption"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Couldn&apos;t load your meal plans: {loadErr} Try again?
-          </span>
-          <button
-            type="button"
-            onClick={() => void onReload()}
-            style={{
-              alignSelf: 'flex-start',
-              background: 'transparent',
-              color: 'var(--color-accent)',
-              border: '1px solid var(--color-accent)',
-              padding: 'var(--space-2) var(--space-4)',
-              borderRadius: 'var(--radius-button)',
-              fontFamily: 'var(--font-label)',
-              fontSize: 'var(--text-label)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              height: 36,
-              lineHeight: 1,
-            }}
-          >
-            RELOAD
-          </button>
-        </div>
+        // v0.5.5 lesson 2 → v0.5.8: shared LoadErrorCard from
+        // @nothing/mini-apps-runtime — same shape across every silent-catch
+        // site so a transient 5xx isn't misread as "you have no plans".
+        <LoadErrorCard
+          section="PLANS"
+          message={loadErr}
+          thingLabel="your meal plans"
+          onReload={() => void onReload()}
+        />
       )}
 
       {loadErr ? null : plans === null ? (

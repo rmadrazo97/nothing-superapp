@@ -7,7 +7,7 @@
  * directly.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { useResource } from '@nothing/mini-apps-runtime';
+import { LoadErrorCard, useResource } from '@nothing/mini-apps-runtime';
 import type { Reminder, ReminderRun } from '@nothing/shared';
 import NewReminderForm from './NewReminderForm.tsx';
 import ReminderRow from './ReminderRow.tsx';
@@ -92,8 +92,8 @@ export default function RemindersView({ view }: { view: View }) {
           // actually failed — that empty state is indistinguishable from
           // "server 500'd for hours". Surface the error + a RELOAD.
           <LoadErrorCard
-            kicker="HISTORY · LOAD FAILED"
-            message={`Couldn't load history: ${runs.error}. Try again?`}
+            section="HISTORY"
+            message={runs.error}
             onReload={() => void runs.refetch()}
           />
         ) : (
@@ -131,8 +131,8 @@ export default function RemindersView({ view }: { view: View }) {
 
       {reminders.error && (
         <LoadErrorCard
-          kicker="REMINDERS · LOAD FAILED"
-          message={`Couldn't load your reminders: ${reminders.error}. Try again?`}
+          section="REMINDERS"
+          message={reminders.error}
           onReload={() => void reminders.refetch()}
         />
       )}
@@ -202,68 +202,3 @@ function Muted({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * LoadErrorCard — shared inline card for API load failures. Matches the
- * pattern established in `apps/web/src/app/app/settings/page.tsx` (v0.5.5
- * lesson 2): kicker + one-line body + RELOAD button, sitting where the
- * data would have been so the user knows it failed instead of guessing
- * from an empty list.
- */
-function LoadErrorCard({
-  kicker,
-  message,
-  onReload,
-}: {
-  kicker: string;
-  message: string;
-  onReload: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-4)',
-        border: '1px solid var(--color-warning, var(--color-accent))',
-        borderRadius: 'var(--radius-card)',
-        background: 'rgba(0, 0, 0, 0.35)',
-      }}
-    >
-      <span
-        className="label"
-        style={{ color: 'var(--color-warning, var(--color-accent))' }}
-      >
-        {kicker}
-      </span>
-      <span
-        className="caption"
-        style={{ color: 'var(--color-text-primary)' }}
-      >
-        {message}
-      </span>
-      <button
-        type="button"
-        onClick={onReload}
-        style={{
-          alignSelf: 'flex-start',
-          background: 'transparent',
-          color: 'var(--color-accent)',
-          border: '1px solid var(--color-accent)',
-          padding: 'var(--space-2) var(--space-4)',
-          borderRadius: 'var(--radius-button)',
-          fontFamily: 'var(--font-label)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          height: 36,
-          lineHeight: 1,
-        }}
-      >
-        RELOAD
-      </button>
-    </div>
-  );
-}

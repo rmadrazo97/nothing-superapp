@@ -30,3 +30,8 @@ export {
   type UseResourceOptions,
   type UseResourceResult,
 } from './useResource.ts';
+
+export {
+  LoadErrorCard,
+  type LoadErrorCardProps,
+} from './LoadErrorCard.tsx';
