@@ -4,6 +4,36 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.5] — 2026-08-11 — Prod DB drift emergency fix + idempotency rollout + security-advisor cleanup
+
+Discovered during v0.5.4 CI: FIVE migrations (020, 021, 023, 024, 025) were committed to `supabase/migrations/` but never applied to prod Supabase — a silent multi-day drift that quietly broke body composition tracking, in-sub-app settings persistence, food-search ranking, TIMEZONE setting, and tool-call idempotency. Applied all 5 mid-flight + built the CI safety net that ensures this can never recur.
+
+### Fixed (prod DB emergency)
+- **Migration 020 (`mini_app_settings` table)** — applied. Every mini-app that read/wrote its own scoped settings via `useMiniAppSettings()` was silently 500'ing since v0.5.2 shipped. The Fitness Pal ⚙ sheet, Reminders info-banner-dismissed persistence, Gym unit prefs — all invisible to the DB layer.
+- **Migration 021 (`body_metrics` table)** — applied. The MEASUREMENTS tab in Gym (Glutes / Waist / Chest / Thighs / Biceps / Weight weekly entries) has been raising 500s on every save since v0.5.2.
+- **Migration 023 (`foods.rank_penalty` + `foods.is_canonical` + 2 indexes + 429 rows updated)** — applied. Food search was serving raw USDA sort ("Sweet potato" led with babyfood variants) instead of the curated canonical-first ranking the v0.5.3 changelog claimed.
+- **Migration 024 (`profiles.timezone`)** — applied. `/api/profile` GET was silently 500'ing, Settings page rendered empty email/name fields for every user for ~4 hours.
+- **Migration 025 (`copilot_tool_calls.idempotency_key` + partial unique index)** — applied. The v0.5.3 idempotency helper had nowhere to store its key.
+- **Client-side silent-swallow eliminated** — `apps/web/src/app/app/settings/page.tsx` no longer catches `/api/profile` fetch errors into an empty state. New `ProfileLoadState` discriminated union renders an inline error card with a RELOAD button when the fetch fails. Same pattern will be rolled out to other similar catch-and-flip sites in v0.5.6+.
+
+### Added (safety nets so this can't recur)
+- **`scripts/verify-migrations-applied.mjs`** — introspects every SQL file under `supabase/migrations/`, extracts expected DDL (CREATE TABLE / ALTER ADD COLUMN / CREATE INDEX / CREATE UNIQUE INDEX with `if not exists` guards), and queries prod `pg_class` + `information_schema.columns` + `pg_indexes` to confirm the objects exist. Prints `[OK]` / `[MISS]`; exits 1 if any missing. Cleanly skips (`[SKIP]`, exit 0) when prod creds are absent (PR builds).
+- **CI wiring** — new `verify-migrations-applied` job in `.github/workflows/ci.yml`, `needs: typecheck-build`, `if: github.ref == 'refs/heads/main' && github.event_name == 'push'`. Post-merge, any migration file committed without being applied fails the release step. Would have caught the v0.5.3 timezone incident in the same PR that introduced it.
+- **README §5 "Verifying migrations are applied to prod"** — documents the script + the GH secrets it needs (`SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`).
+
+### Added (assistant hardening)
+- **Idempotency guard extended to 7 more write tools** — `log_weight`, `create_gym_routine`, `create_meal_plan`, `log_meal_from_plan`, `start_pomodoro`, `toggle_reminder`, `trigger_reminder_now`. Same 30-second-bucket dedupe from v0.5.3's `create_reminder` + `log_calorie_entry`. Two identical invocations within a 30s window collide on the partial unique index → the second returns the cached prior output. Task #108 → done.
+
+### Added (Supabase Security Advisor pass)
+- **Migration 026** — pulled the safe fixes from Splinter's security lints (via Management-API `POST /v1/projects/{ref}/database/query`, since this CLI version doesn't ship `supabase inspect advisor`):
+  - **`set_updated_at()` search_path pinned to `public, pg_temp`** — trigger functions with a mutable search_path are a classic privilege-escalation vector; matches standard PG hardening + what Supabase's own auth triggers do.
+  - **Explicit "no direct access" restrictive policies on `push_broadcasts` + `push_deliveries`** — both tables had RLS enabled with 0 policies (correct behavior: service-role-only), but Splinter flagged as `rls_enabled_no_policy` INFO because the intent wasn't documented in-schema. Now it is.
+- **Deferred to v0.5.6:** move `pg_trgm` extension from `public` to `extensions` schema (Splinter WARN `extension_in_public`). Requires DROP + CREATE on the trigram GIN indexes on `foods` — too risky to bundle with an emergency fix release.
+
+### Meta
+- **v0.5.4 ship-log** gained lesson 6 covering the migration-incident diagnosis (`services/growth/campaigns/nothing-superapp/ship-log/0.5.4.md`).
+- **Memory:** `~/.claude/.../memory/feedback_worker_briefs_apply_migrations.md` — worker briefs that touch `supabase/migrations/` must have a distinct "apply to prod" step.
+
 ## [0.5.4] — 2026-08-10 — Generative UI: the assistant renders instruments, not paragraphs
 
 Headline: the copilot no longer answers quantitative questions with markdown tables and bullet lists. It calls `render_*` tools that emit structured payloads, and the client hydrates them into a pixel-panel component library sharing one unified grid + one signature element. The loading state (`<PixelLoader>`, v0.5.3) IS the design language of the answer — the pixel-dot idiom now runs from "the model is thinking" all the way through to "here is your weight trend."

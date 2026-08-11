@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.4';
-export const APP_RELEASE_DATE = '2026-08-10'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.5.5';
+export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,17 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.5',
+    date: '2026-08-11',
+    highlights: [
+      'Prod DB drift fixed — 5 migrations (020 mini_app_settings, 021 body_metrics, 023 food_search_ranking, 024 profile_timezone, 025 tool_idempotency) were committed to the tree but never applied to prod Supabase. Body composition tracker, in-sub-app settings persistence, food-search ranking, TIMEZONE field, and tool-call idempotency were ALL silently broken until this release. Applied all 5 by hand + shipped scripts/verify-migrations-applied.mjs so the drift can never recur.',
+      'Assistant tool idempotency extended — the 30-second-bucket dedupe from v0.5.3 now guards 7 more write tools (log_weight, create_gym_routine, create_meal_plan, log_meal_from_plan, start_pomodoro, toggle_reminder, trigger_reminder_now). No more accidental doubles when the model retries a tool call mid-turn.',
+      'Settings profile — /api/profile failures now surface as an inline error card with a RELOAD button, instead of silently rendering empty fields. Root cause of the v0.5.3 latent-500 was that the useEffect catch flipped profileLoaded=true unconditionally.',
+      'CI safety net — new scripts/verify-migrations-applied.mjs introspects every migration file against prod on every push to main. Any DDL committed but not applied fails the release step. Would have caught the v0.5.3 timezone incident in the same PR.',
+      'Supabase Security Advisor cleanup — migration 026 pins set_updated_at() search_path (privilege-escalation guard), adds explicit "no access" policies to push_broadcasts + push_deliveries (rls_enabled_no_policy → clean).',
+    ],
+  },
   {
     version: '0.5.4',
     date: '2026-08-10',
