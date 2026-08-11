@@ -183,6 +183,8 @@ CI runs this automatically on every push to `main` (job `verify-migrations-appli
 
 Requires `psql` on PATH (preinstalled on `ubuntu-latest`; `brew install libpq` on macOS).
 
+**Sibling check — RPC definitions** (`scripts/verify-rpcs-defined.mjs`): the migrations-applied check only introspects tables/columns/indexes. It cannot catch client code that calls `supabase.rpc('foo', …)` where `foo` was never defined in any migration (v0.5.8 lesson 1 — passes 3+4 of the food resolver were silent no-ops for months). This script greps `apps/web/src` + `apps/mini-apps/**` for `.rpc(<literal>, …)` call-sites, then queries prod `pg_proc` for each name and reports `[OK]` / `[MISS]`. Same skip-on-missing-creds behaviour; wired as a chained CI job (`verify-rpcs-defined`) after `verify-migrations-applied`.
+
 ### 6. Splinter security-advisor scan
 
 The Supabase Studio "Security Advisor" runs the [Splinter](https://github.com/supabase/splinter) lint suite (RLS-disabled tables, mutable `search_path` functions, extensions in `public`, `auth.users` leakage, etc.). The CLI doesn't ship the scan, so we invoke the same lints via the Management API:

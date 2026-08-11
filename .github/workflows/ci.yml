@@ -133,3 +133,28 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: node scripts/verify-backfills-run.mjs
+
+  verify-rpcs-defined:
+    name: verify RPCs defined in prod pg_proc
+    runs-on: ubuntu-latest
+    needs: verify-migrations-applied
+    timeout-minutes: 5
+    # Chained after verify-migrations because it uses the same psql +
+    # pooler path; if the schema-level check can't even reach prod,
+    # this one won't either. Catches the third class of drift found in
+    # v0.5.8 lesson 1 — client code calling `supabase.rpc('foo', …)`
+    # where `foo` was never defined in any migration and is absent
+    # from prod's pg_proc, causing PostgREST to silently return no
+    # rows. Same skip-cleanly-on-missing-secrets pattern.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: verify RPCs defined
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: node scripts/verify-rpcs-defined.mjs
