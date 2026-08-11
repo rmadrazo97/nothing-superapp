@@ -69,6 +69,13 @@ const CHIP_INACTIVE: CSSProperties = {
   color: 'var(--color-text-secondary)',
 };
 
+// Example habits shown as tap-to-create CTAs when the user has no habits yet.
+const EXAMPLE_HABITS: { name: string; emoji: string }[] = [
+  { name: 'Meditate 10 min', emoji: '🧘' },
+  { name: 'Drink 8 glasses of water', emoji: '💧' },
+  { name: 'Read for 20 min', emoji: '📖' },
+];
+
 export default function HabitsHomePage() {
   const [habits, setHabits] = useState<Habit[] | null>(null);
   const [completions, setCompletions] = useState<HabitCompletion[] | null>(null);
@@ -78,6 +85,10 @@ export default function HabitsHomePage() {
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('');
   const [newTarget, setNewTarget] = useState(7);
+  // Edit-sheet state. `editing` is the habit being edited (null when the
+  // sheet is for creating a new one). Shares the sheet visual with +NEW.
+  const [editing, setEditing] = useState<Habit | null>(null);
+  const [seedingExample, setSeedingExample] = useState<string | null>(null);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -219,6 +230,72 @@ export default function HabitsHomePage() {
     [load, toast],
   );
 
+  const openEdit = useCallback((h: Habit) => {
+    setEditing(h);
+    setNewName(h.name);
+    setNewEmoji(h.emoji ?? '');
+    setNewTarget(h.target_days_per_week);
+    setSheetOpen(true);
+  }, []);
+
+  const openCreate = useCallback(() => {
+    setEditing(null);
+    setNewName('');
+    setNewEmoji('');
+    setNewTarget(7);
+    setSheetOpen(true);
+  }, []);
+
+  const submitEdit = useCallback(async () => {
+    if (!editing || !newName.trim()) return;
+    setCreating(true);
+    try {
+      await api.updateHabit(editing.id, {
+        name: newName.trim(),
+        emoji: newEmoji.trim() || null,
+        target_days_per_week: newTarget,
+      });
+      setSheetOpen(false);
+      setEditing(null);
+      setNewName('');
+      setNewEmoji('');
+      setNewTarget(7);
+      await load();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : 'Update failed.';
+      toast.error(msg);
+    } finally {
+      setCreating(false);
+    }
+  }, [editing, newName, newEmoji, newTarget, load, toast]);
+
+  const createExample = useCallback(
+    async (ex: { name: string; emoji: string }) => {
+      setSeedingExample(ex.name);
+      try {
+        await api.createHabit({
+          name: ex.name,
+          emoji: ex.emoji,
+          target_days_per_week: 7,
+        });
+        await load();
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : 'Create failed.';
+        toast.error(msg);
+      } finally {
+        setSeedingExample(null);
+      }
+    },
+    [load, toast],
+  );
+
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    setEditing(null);
+  }, []);
+
+  const allDone = activeHabits.length > 0 && doneToday === activeHabits.length;
+
   return (
     <div
       style={{
@@ -272,21 +349,88 @@ export default function HabitsHomePage() {
           <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
             TODAY
           </span>
-          <span className="data" style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}>
-            {doneToday} / {activeHabits.length} DONE
+          <span
+            className="data"
+            style={{
+              color: allDone ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              fontSize: 'var(--text-caption)',
+            }}
+          >
+            {allDone ? 'ALL DONE ✓' : `${doneToday} / ${activeHabits.length} DONE`}
           </span>
         </div>
 
         {habits === null ? (
           <p className="caption">Loading…</p>
         ) : activeHabits.length === 0 ? (
-          <div style={{ ...CARD_STYLE }}>
+          <div style={{ ...CARD_STYLE, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
               NO HABITS YET
             </span>
-            <p style={{ margin: 'var(--space-2) 0 0 0', color: 'var(--color-text-secondary)' }}>
-              Track a daily habit. Meditate. Water. Reading. No sugar.
+            <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
+              Tap to start with one of these — or make your own below.
             </p>
+            <ul
+              style={{
+                listStyle: 'none',
+                margin: 0,
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-2)',
+              }}
+            >
+              {EXAMPLE_HABITS.map((ex) => {
+                const busy = seedingExample === ex.name;
+                return (
+                  <li key={ex.name}>
+                    <button
+                      type="button"
+                      onClick={() => void createExample(ex)}
+                      disabled={seedingExample !== null}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: '1px solid var(--color-border-visible)',
+                        borderRadius: 'var(--radius-card)',
+                        padding: 'var(--space-3) var(--space-4)',
+                        color: 'inherit',
+                        cursor: seedingExample !== null ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-3)',
+                        opacity: seedingExample !== null && !busy ? 0.5 : 1,
+                        minHeight: 44,
+                      }}
+                    >
+                      <span aria-hidden style={{ fontSize: 18, flexShrink: 0 }}>
+                        {ex.emoji}
+                      </span>
+                      <span
+                        style={{
+                          color: 'var(--color-text-display)',
+                          fontSize: 'var(--text-body)',
+                          flex: 1,
+                        }}
+                      >
+                        {ex.name}
+                      </span>
+                      <span
+                        className="data"
+                        style={{
+                          color: 'var(--color-text-secondary)',
+                          fontSize: 'var(--text-caption)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {busy ? 'ADDING…' : '+ ADD'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -299,6 +443,11 @@ export default function HabitsHomePage() {
                   <SwipeableRow
                     ariaLabel={h.name}
                     actions={[
+                      {
+                        label: 'Edit',
+                        kind: 'primary',
+                        onSelect: () => openEdit(h),
+                      },
                       {
                         label: 'Delete',
                         kind: 'destructive',
@@ -381,7 +530,7 @@ export default function HabitsHomePage() {
 
         <button
           type="button"
-          onClick={() => setSheetOpen(true)}
+          onClick={openCreate}
           style={{
             alignSelf: 'flex-start',
             background: 'transparent',
@@ -400,14 +549,18 @@ export default function HabitsHomePage() {
         </button>
       </section>
 
-      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} ariaLabel="New habit">
+      <BottomSheet
+        open={sheetOpen}
+        onClose={closeSheet}
+        ariaLabel={editing ? 'Edit habit' : 'New habit'}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div>
             <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-              NEW HABIT
+              {editing ? 'EDIT HABIT' : 'NEW HABIT'}
             </span>
             <h2 className="display-md" style={{ margin: 'var(--space-2) 0 0 0' }}>
-              Build a routine
+              {editing ? 'Tune it up' : 'Build a routine'}
             </h2>
           </div>
 
@@ -460,7 +613,7 @@ export default function HabitsHomePage() {
 
           <button
             type="button"
-            onClick={() => void submitNew()}
+            onClick={() => (editing ? void submitEdit() : void submitNew())}
             disabled={creating || !newName.trim()}
             style={{
               background: creating || !newName.trim() ? 'transparent' : 'var(--color-accent)',
@@ -476,7 +629,13 @@ export default function HabitsHomePage() {
               opacity: creating || !newName.trim() ? 0.5 : 1,
             }}
           >
-            {creating ? 'CREATING…' : 'CREATE HABIT'}
+            {creating
+              ? editing
+                ? 'SAVING…'
+                : 'CREATING…'
+              : editing
+                ? 'SAVE CHANGES'
+                : 'CREATE HABIT'}
           </button>
         </div>
       </BottomSheet>

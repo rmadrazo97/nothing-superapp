@@ -301,7 +301,10 @@ export default function JournalHomePage() {
 
   const recent = useMemo(() => entries?.slice(0, 8) ?? [], [entries]);
   const trimmedBody = body.trim();
-  const canSave = trimmedBody.length > 0 && !saving;
+  // Save allowed when EITHER a note is written OR a mood is tagged.
+  const canSave = (trimmedBody.length > 0 || mood !== null) && !saving;
+  const wordCount = useMemo(() => countWords(body), [body]);
+  const showWordCount = trimmedBody.length >= WORD_COUNT_MIN_CHARS;
 
   return (
     <div
@@ -367,11 +370,45 @@ export default function JournalHomePage() {
 
         <textarea
           value={body}
-          onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}
+          onChange={(e) => {
+            setBody(e.target.value.slice(0, BODY_MAX));
+            // Once the user starts typing, drop the "restored" caption —
+            // they're now editing, not looking at a restored draft.
+            if (draftRestored) setDraftRestored(false);
+          }}
           placeholder="What happened today?"
           style={TEXTAREA_STYLE}
           aria-label="Journal entry for today"
         />
+
+        {(showWordCount || draftRestored) && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginTop: 'calc(-1 * var(--space-2))',
+            }}
+          >
+            <span
+              className="caption"
+              style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+            >
+              {draftRestored ? 'DRAFT · RESTORED' : ''}
+            </span>
+            {showWordCount && (
+              <span
+                className="data"
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  fontSize: 'var(--text-caption)',
+                }}
+              >
+                {wordCount} {wordCount === 1 ? 'WORD' : 'WORDS'}
+              </span>
+            )}
+          </div>
+        )}
 
         <div>
           <span
@@ -392,7 +429,10 @@ export default function JournalHomePage() {
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setMood(active ? null : m)}
+                  onClick={() => {
+                    setMood(active ? null : m);
+                    if (draftRestored) setDraftRestored(false);
+                  }}
                   style={active ? CHIP_ACTIVE : CHIP_INACTIVE}
                   aria-pressed={active}
                 >
