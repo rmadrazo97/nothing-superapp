@@ -24,6 +24,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getEntitlement, isEntitled } from '@/lib/entitlement';
+import { rankFoodRows } from '@/lib/foods/score-row';
 import { foodCategoryEnum } from '@nothing/shared';
 
 export const dynamic = 'force-dynamic';
@@ -38,54 +39,9 @@ const FOOD_COLUMNS =
 const CUSTOM_FOOD_COLUMNS =
   'id, user_id, name, brand, serving_g, serving_label, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, cholesterol_mg, created_at';
 
-/**
- * Cheap trigram-like similarity between the query and a food name. Not a
- * true pg_trgm — a fast Jaccard-on-3grams approximation that's stable + fast
- * enough for a 200-row post-fetch sort. Returns a number in [0, 3+] once the
- * boost multiplier is applied by `scoreRow`.
- */
-function trigrams(s: string): Set<string> {
-  const padded = `  ${s}  `;
-  const out = new Set<string>();
-  for (let i = 0; i < padded.length - 2; i += 1) {
-    out.add(padded.slice(i, i + 3));
-  }
-  return out;
-}
-
-function similarity(a: string, b: string): number {
-  const ta = trigrams(a);
-  const tb = trigrams(b);
-  if (ta.size === 0 || tb.size === 0) return 0;
-  let intersect = 0;
-  for (const g of tb) if (ta.has(g)) intersect += 1;
-  const union = ta.size + tb.size - intersect;
-  return union === 0 ? 0 : intersect / union;
-}
-
-/**
- * Score a food row against a lowercased query string.
- *   3× — query is a prefix of the (lowercased) name.
- *   2× — any whitespace/comma-delimited word in the name starts with the query.
- *   1× — plain substring / trigram match (base weight).
- * Multiplied by trigram similarity so tighter matches always outscore loose
- * ones within a boost bucket. `is_canonical` rows get a small additive
- * bonus so a canonical row wins ties (e.g. "chicken breast, cooked" vs
- * "chicken breast, raw" — assuming the raw one isn't canonical).
- */
-function scoreRow(name: string, qLower: string): number {
-  const nameLower = name.toLowerCase();
-  let boost = 1;
-  if (nameLower.startsWith(qLower)) {
-    boost = 3;
-  } else {
-    // Word-initial match: split on spaces/commas/hyphens.
-    const words = nameLower.split(/[\s,\-]+/);
-    if (words.some((w) => w.startsWith(qLower))) boost = 2;
-  }
-  const sim = similarity(nameLower, qLower);
-  return sim * boost;
-}
+// Ranking helpers (`scoreRow`, `similarity`, `trigrams`, `rankFoodRows`) live
+// in `@/lib/foods/score-row` so they're unit-testable without pulling in this
+// whole Next.js route module.
 
 const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
@@ -194,28 +150,7 @@ export async function GET(request: Request) {
   // without pulling in a full pg_trgm client.
   if (hasQuery) {
     const qLower = q!.toLowerCase();
-    publicRows = publicRows
-      .map((r) => ({
-        row: r,
-        score: scoreRow(String(r.name), qLower),
-        canonical: r.is_canonical === true,
-        penalty: Number(r.rank_penalty ?? 0),
-      }))
-      .sort((a, b) => {
-        // Bucket scores at 1 decimal so near-ties (e.g. 0.62 vs 0.58) let
-        // is_canonical break the tie instead of nose-diving because of
-        // fractional similarity noise. This makes canonical rows win
-        // ergonomically-tied matches without ever beating a materially
-        // better non-canonical hit.
-        const aBucket = Math.round(a.score * 10);
-        const bBucket = Math.round(b.score * 10);
-        if (bBucket !== aBucket) return bBucket - aBucket;
-        if (a.canonical !== b.canonical) return a.canonical ? -1 : 1;
-        if (a.penalty !== b.penalty) return a.penalty - b.penalty;
-        if (b.score !== a.score) return b.score - a.score;
-        return String(a.row.name).localeCompare(String(b.row.name));
-      })
-      .map((s) => s.row);
+    publicRows = rankFoodRows(publicRows, qLower);
   }
 
   if (!includeCustom) {
