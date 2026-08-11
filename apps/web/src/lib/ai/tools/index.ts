@@ -19,6 +19,10 @@ import { makeLogCalorieEntryTool } from './log-calorie-entry';
 // water_entries table + get_daily_summary reads stay in place.
 import { makeLogWeightTool } from './log-weight';
 import { makeStartPomodoroTool } from './start-pomodoro';
+// pomodoro read tools (add-only, v0.5.15) — semantic reads alongside the
+// existing start_pomodoro action-intent. Alphabetized as a pair.
+import { makeGetPomodoroFocusTodayTool } from './get-pomodoro-focus-today';
+import { makeListPomodoroSessionsTool } from './list-pomodoro-sessions';
 // v2 gym routines — coach-grade structured multi-day plans (migration 011)
 import { makeCreateGymRoutineTool } from './create-gym-routine';
 import { makeGetGymRoutineTool } from './get-gym-routine';
@@ -81,6 +85,9 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     // log_water removed in v0.5.3 (#96) — see import block above.
     log_weight: makeLogWeightTool(userId, supabase),
     start_pomodoro: makeStartPomodoroTool(userId, supabase),
+    // pomodoro read tools (add-only, v0.5.15) — alphabetized within the pair
+    get_pomodoro_focus_today: makeGetPomodoroFocusTodayTool(userId, supabase),
+    list_pomodoro_sessions: makeListPomodoroSessionsTool(userId, supabase),
     // gym v2 (add-only)
     create_gym_routine: makeCreateGymRoutineTool(userId, supabase),
     get_gym_routine: makeGetGymRoutineTool(userId, supabase),

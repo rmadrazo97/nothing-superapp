@@ -32,7 +32,12 @@ import { useUser } from '@nothing/mini-apps-runtime';
 // Relative reach into the host app — same module instance as the shell's
 // <ToastProvider>, so we push into the same visible container.
 import { useToast } from '../../web/src/lib/toast/context';
+// Relative reach into the host app for the pixel-ui hero components. The
+// pomodoro package doesn't declare `next` or the pixel-ui path alias, so
+// we import by relative path — same convention habits + journal use.
+import { PixelCard, PixelMetricGrid } from '../../web/src/components/pixel-ui';
 import type { PomodoroSession } from '@nothing/shared';
+import { weekSummary } from './lib/week-summary.ts';
 import { TimerRing, type RingTone } from './components/TimerRing.tsx';
 import { PhaseLabel } from './components/PhaseLabel.tsx';
 import { ControlBar } from './components/ControlBar.tsx';
@@ -260,6 +265,12 @@ export default function PomodoroPage() {
     [user.id, timerState.running, controls, cycle.currentPhase],
   );
 
+  // ─── THIS WEEK hero summary ──────────────────────────────────────
+  // Aggregate the loaded sessions into the 4 KPIs. Falls back to empty
+  // shell (isEmpty === true) when there's nothing to show yet — the
+  // caller hides the card entirely in that case.
+  const week = useMemo(() => weekSummary(sessions ?? []), [sessions]);
+
   const todayWorkCompleted = useMemo(() => {
     const today = new Date();
     const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -300,6 +311,30 @@ export default function PomodoroPage() {
         >
           {loadError}
         </div>
+      )}
+
+      {view === 'timer' && !week.isEmpty && (
+        <PixelCard title="THIS WEEK" meta={week.weekLabel}>
+          <PixelMetricGrid
+            kind="metric_grid"
+            negativeDeltaTone="muted"
+            items={[
+              {
+                label: 'FOCUS',
+                value: week.minutesThisWeek,
+                unit: 'min',
+                delta: week.minutesThisWeek - week.minutesLastWeek,
+              },
+              {
+                label: 'CYCLES',
+                value: week.cyclesThisWeek,
+                delta: week.cyclesThisWeek - week.cyclesLastWeek,
+              },
+              { label: 'STREAK', value: week.dailyStreakDays, unit: 'd' },
+              { label: 'AVG DAY', value: week.avgMinutesPerActiveDay, unit: 'min' },
+            ]}
+          />
+        </PixelCard>
       )}
 
       {view === 'timer' && (
