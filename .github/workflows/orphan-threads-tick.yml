@@ -1,0 +1,48 @@
+name: orphan-threads-tick
+
+# Defensive hourly sweep for empty copilot_threads rows ("orphans"). The
+# v0.5.2/v0.5.3 first-message race that created them is fixed, but this cron
+# guarantees any regression stays capped at ~1 hour of drift instead of
+# accumulating silently in the drawer.
+#
+# See scripts/cleanup-orphan-threads.mjs for the safety rules (5-min grace
+# window, only 0-message threads get deleted).
+#
+# Offset from reminders-tick (`*/5`) and security-advisor (`0 6`) so the three
+# crons don't collide on the free GitHub Actions runner pool.
+
+on:
+  schedule:
+    - cron: '17 * * * *' # hourly at :17
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: install script deps
+        # The script only needs @supabase/supabase-js. Install it standalone
+        # rather than running a full monorepo install — faster + smaller
+        # blast radius if some other package breaks.
+        run: npm install --no-save --no-audit --no-fund @supabase/supabase-js@^2
+
+      - name: sweep orphan threads
+        env:
+          # NEXT_PUBLIC_SUPABASE_URL is the URL the script expects first;
+          # SUPABASE_URL is a fallback. Either works — repo secrets can be
+          # named whichever is convenient.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/cleanup-orphan-threads.mjs

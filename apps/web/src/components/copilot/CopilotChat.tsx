@@ -649,9 +649,22 @@ function RenderedMessage({
  * wrapped in a `<PixelCard>`. Returns null if the payload doesn't
  * validate — the caller falls back to `<ToolCallCard>` in that case.
  *
- * The switch is exhaustive over the discriminated union; adding a new
- * `render_*` tool means (1) extending schemas.ts's union, (2) writing
- * the component, (3) adding a case here.
+ * IMPORTANT: this runs on BOTH the LIVE stream and REHYDRATED history.
+ *
+ *   - Live stream: `output` is whatever the tool's execute() returned,
+ *     wrapped by the AI SDK. For render_* tools that's
+ *     `{ version: 1, kind: '...', data: {...} }`.
+ *   - Rehydrated history: the server-side `normalizeAssistantContent` in
+ *     /api/copilot/route.ts stores tool-result `output` verbatim on the
+ *     matching `tool-<name>` part, so the shape is identical.
+ *
+ * `coerceRenderPayload` accepts BOTH the wrapped envelope (peels `.data`)
+ * and a bare `RenderPayload`, so this callsite is robust to either. If
+ * you ever add a new render_* tool: (1) extend schemas.ts's union,
+ * (2) write the component, (3) add a case here — the persistence path
+ * needs no changes.
+ *
+ * The switch is exhaustive over the discriminated union.
  */
 function renderPixelPayload(output: unknown, key: string): ReactElement | null {
   const data = coerceRenderPayload(output);
