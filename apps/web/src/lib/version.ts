@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.6';
+export const APP_VERSION = '0.5.7';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,17 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.7',
+    date: '2026-08-11',
+    highlights: [
+      'Food search actually leads with the right row. canonical-foods.json audit rewrote 60/251 broken patterns; 300/300 patterns now hit real USDA rows and prod is_canonical count went from 60 → 270 (4.5×). Client-side sort now respects is_canonical as a tiebreaker within score buckets. "Sweet potato" → Sweet potato, baked, 1 medium; "chicken breast" → Chicken breast, cooked; "banana" → Banana, medium.',
+      'Backfill-run safety net — new backfill_log table (migration 028) + scripts/verify-backfills-run.mjs + CI job that catches "migration ran but paired backfill script didn\'t." Retroactively logged the rank-foods run. Closes v0.5.6 lesson 1.',
+      'Assistant tool-card rehydration verified — coerceRenderPayload already handled both live-stream and history-reload shapes; audited + documented the LIVE-vs-REHYDRATED contract in CopilotChat.tsx.',
+      'Orphan copilot threads swept — 4 legacy orphans from the v0.5.2 race deleted. New scripts/cleanup-orphan-threads.mjs + hourly cron so any future strays get cleaned within an hour.',
+      'CI safety nets hardened — verify-migrations + verify-backfills now SKIP cleanly on auth failure / bad secret / DNS glitch instead of clogging PR status red. Both derive project ref from the public NEXT_PUBLIC_SUPABASE_URL when SUPABASE_PROJECT_ID secret is empty or wrong.',
+    ],
+  },
   {
     version: '0.5.6',
     date: '2026-08-11',
