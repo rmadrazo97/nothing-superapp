@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.14';
+export const APP_VERSION = '0.5.15';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.15',
+    date: '2026-08-12',
+    highlights: [
+      'Pomodoro finally gets its THIS WEEK card — FOCUS min / CYCLES / STREAK / AVG DAY inside a PixelCard, matching every other mini-app\'s home hero. Every mini-app now has one; the design language is complete.',
+      'Assistant learns Pomodoro state — 2 new copilot tools: list_pomodoro_sessions + get_pomodoro_focus_today. Ask "how many minutes did I focus today?" and it just knows.',
+      'PWA install prompt on launcher — Chromium (Chrome/Edge desktop + Android) wires the browser\'s native install prompt via beforeinstallprompt; iOS Safari gets a 3-step "Add to Home Screen" instruction card. Auto-hides once installed or dismissed. Retention play — daily-return apps convert 5-10× better when installed vs. viewed in a tab.',
+    ],
+  },
   {
     version: '0.5.14',
     date: '2026-08-12',
