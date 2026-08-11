@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.12';
+export const APP_VERSION = '0.5.13';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.13',
+    date: '2026-08-12',
+    highlights: [
+      'NEW mini-app — JOURNAL 📓. Daily entries with mood tag (great/good/neutral/low/bad). THIS WEEK hero (entries / streak / words / mood avg). Text-area + SAVE/UPDATE for today, RECENT ENTRIES list below. Second new mini-app in a row (after Habits in v0.5.12). Migration 033.',
+      'Assistant learns Habits — 3 new copilot tools: create_habit, list_habits, toggle_habit_completion. Ask the assistant "add a meditation habit" or "check off water today" and it just works. Same idempotency + entitlement gates as every other write tool.',
+      'First-run onboarding modal for new signups — 3-step welcome (product intro / 5 mini-apps grid / assistant tour) shown once on first /app visit. Dismissible via SKIP or GOT IT ✓. Sales-critical polish now that the deploy pipeline is durable.',
+    ],
+  },
   {
     version: '0.5.12',
     date: '2026-08-12',
