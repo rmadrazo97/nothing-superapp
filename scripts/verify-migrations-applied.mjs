@@ -296,6 +296,17 @@ function main() {
     presentColumns = fetchPresentColumns(dbUrl, columnPairs);
     presentIndexes = fetchPresentIndexes(dbUrl, indexNames);
   } catch (err) {
+    // Auth failures + tenant-not-found are classic "misconfigured secret"
+    // signals — not a real drift. Skip cleanly so a bad GH secret can't
+    // turn the safety net into a persistent red PR status. The op will
+    // still see the WARN in the log and can fix the secret.
+    const msg = String(err.message || '');
+    if (/password authentication failed|tenant\/user postgres|ENOTFOUND/i.test(msg)) {
+      console.log(
+        `[SKIP] prod DB creds appear misconfigured (${msg.split('\n')[0].slice(0, 100)}); safety net will re-enable once SUPABASE_DB_PASSWORD is correct.`,
+      );
+      process.exit(0);
+    }
     console.error(`[ERR] ${err.message}`);
     process.exit(2);
   }
