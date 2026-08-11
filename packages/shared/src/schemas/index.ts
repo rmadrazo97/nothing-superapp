@@ -19,6 +19,11 @@ export * from './copilot-thread.ts';
 // reminderUpdateSchema, reminderRunSchema, agentTaskSchema + all enums + types.
 export * from './reminders.ts';
 
+// habits + daily-checkbox completions (migration 032 — see ./habits.ts).
+// Re-exports include: habitSchema, habitInsertSchema, habitUpdateSchema,
+// habitCompletionSchema, habitCompletionToggleSchema + all types.
+export * from './habits.ts';
+
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
 export const subscriptionStatusEnum = z.enum([

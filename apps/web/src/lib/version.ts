@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.11';
+export const APP_VERSION = '0.5.12';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,18 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.12',
+    date: '2026-08-12',
+    highlights: [
+      'NEW mini-app — HABITS 🌱. Daily-checkbox habit tracker with per-habit streak counter. THIS WEEK PixelUI hero (DONE / STREAK / ACTIVE / RATE), tap-to-toggle habit rows, swipe-to-delete, BottomSheet + NEW HABIT form (name + emoji + days/week). Migration 032 adds `habits` + `habit_completions` tables with owner-only RLS. First new mini-app since v0.5.0 (Reminders).',
+      'Fitness Pal TODAY got a hero — new PixelCard at the top with a kcal-by-hour bar chart + KCAL/P/C/F metric grid vs your daily target. Delta chips show how many more kcal / grams you can still eat today. Muted-graphite negatives so the LED signature stays primary.',
+      'Reminders home got a hero — THIS WEEK PixelCard with fires-by-day bar chart + ACTIVE/TASKS/NEXT FIRE metric grid. Next-fire relative time formats as 18m / 2h / 4d / NOW / —.',
+      'Copilot no longer drops mid-answer — maxDuration = 300 on /api/copilot so Vercel doesn\'t 60s-timeout mid-stream. Reasoning "…" replaced with the PixelLoader idiom + "Thinking for Ns" → "Thought for Ns" wall-clock. Orphan-threads cron un-broken (supabase-js ws dep).',
+      'Gym HISTORY — swipe-to-delete cluttered/failed sessions + EDIT mode on ENDED sessions (unlocks all set inputs to fix missed data).',
+      'DB security — migration 031 revokes public EXECUTE on handle_new_user() (Splinter 0028/0029); password policy tightened (min 8 chars, must have lowercase+uppercase+digit).',
+    ],
+  },
   {
     version: '0.5.11',
     date: '2026-08-11',

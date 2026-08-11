@@ -1,6 +1,6 @@
 {
   "name": "@nothing/web",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -20,6 +20,7 @@
     "@nothing-mini-apps/calorie-lite": "workspace:*",
     "@nothing-mini-apps/coming-soon": "workspace:*",
     "@nothing-mini-apps/gym-routine": "workspace:*",
+    "@nothing-mini-apps/habits": "workspace:*",
     "@nothing-mini-apps/pomodoro": "workspace:*",
     "@nothing-mini-apps/reminders": "workspace:*",
     "@nothing/mini-apps-runtime": "workspace:*",
