@@ -35,6 +35,16 @@ type SaveStatus =
   | { kind: 'saved' }
   | { kind: 'error'; message: string };
 
+/**
+ * Profile fetch state. Replaces the old boolean `profileLoaded` so a silent
+ * fetch failure (e.g. the `profiles.timezone` outage on 2026-08-10) surfaces
+ * as an inline error card rather than an empty form the user can't diagnose.
+ */
+type ProfileLoadState =
+  | { kind: 'loading' }
+  | { kind: 'ready' }
+  | { kind: 'error'; message: string };
+
 // ─── shared inline styles (design-system tokens only) ─────────────────────
 
 const CARD_STYLE: CSSProperties = {
@@ -175,8 +185,9 @@ export default function SettingsPage() {
   const [email, setEmail] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('');
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileLoad, setProfileLoad] = useState<ProfileLoadState>({ kind: 'loading' });
   const [profileStatus, setProfileStatus] = useState<SaveStatus>({ kind: 'idle' });
+  const profileLoaded = profileLoad.kind === 'ready';
 
   // Preferences state — nutrition + body-profile fields moved to the
   // calorie-lite ⚙ sheet. What lives here is the truly-global stuff:
@@ -201,37 +212,51 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   // ── initial loads ──
+  // Extracted so the RELOAD button in the error card can re-invoke it.
+  // Note: this runs without a cancellation token when called from the button
+  // (the reload path is user-initiated and short-lived). The mount-time
+  // caller wraps it with a `cancelled` flag to avoid post-unmount setState.
+  const loadProfile = useCallback(async (isCancelled?: () => boolean) => {
+    setProfileLoad({ kind: 'loading' });
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) throw new Error(`${res.status}_${res.statusText || 'fetch_failed'}`);
+      const body = (await res.json()) as {
+        profile: { display_name: string | null; timezone: string | null } | null;
+        email: string | null;
+      };
+      if (isCancelled?.()) return;
+      setEmail(body.email ?? '');
+      setDisplayName(body.profile?.display_name ?? '');
+      // Timezone: prefer the persisted value; fall back to the browser's
+      // IANA zone so a first-time visitor sees the correct guess and can
+      // save it verbatim. Empty string means "unknown → detect on save".
+      const persistedTz = body.profile?.timezone ?? null;
+      setTimezone(persistedTz ?? detectBrowserTimezone() ?? '');
+      setProfileLoad({ kind: 'ready' });
+    } catch (err) {
+      if (isCancelled?.()) return;
+      const message =
+        err instanceof TypeError
+          ? 'network unreachable'
+          : err instanceof Error
+            ? err.message
+            : 'unknown_error';
+      setProfileLoad({ kind: 'error', message });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/profile', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'same-origin',
-        });
-        if (!res.ok) throw new Error('profile fetch failed');
-        const body = (await res.json()) as {
-          profile: { display_name: string | null; timezone: string | null } | null;
-          email: string | null;
-        };
-        if (cancelled) return;
-        setEmail(body.email ?? '');
-        setDisplayName(body.profile?.display_name ?? '');
-        // Timezone: prefer the persisted value; fall back to the browser's
-        // IANA zone so a first-time visitor sees the correct guess and can
-        // save it verbatim. Empty string means "unknown → detect on save".
-        const persistedTz = body.profile?.timezone ?? null;
-        setTimezone(persistedTz ?? detectBrowserTimezone() ?? '');
-        setProfileLoaded(true);
-      } catch {
-        if (!cancelled) setProfileLoaded(true);
-      }
-    })();
+    void loadProfile(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -410,6 +435,45 @@ export default function SettingsPage() {
           </h2>
         </div>
 
+        {profileLoad.kind === 'error' ? (
+          // Inline error card — REPLACES the form (not overlaid) so the user
+          // isn't tricked into typing into a form that never had server data
+          // to reconcile against. RELOAD re-runs the fetch in place.
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+              padding: 'var(--space-4)',
+              border: '1px solid var(--color-warning, var(--color-accent))',
+              borderRadius: 'var(--radius-compact)',
+              background: 'rgba(0, 0, 0, 0.35)',
+            }}
+          >
+            <p
+              style={{
+                ...KICKER_STYLE,
+                color: 'var(--color-warning, var(--color-accent))',
+              }}
+            >
+              PROFILE · LOAD FAILED
+            </p>
+            <p style={STATUS_MSG_STYLE}>
+              Couldn&apos;t load your profile: {profileLoad.message}. This usually means
+              a backend hiccup — try again?
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void loadProfile();
+              }}
+              style={SECONDARY_BTN_STYLE}
+            >
+              RELOAD
+            </button>
+          </div>
+        ) : (
         <form
           onSubmit={saveProfile}
           style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
@@ -506,6 +570,7 @@ export default function SettingsPage() {
             </p>
           ) : null}
         </form>
+        )}
       </section>
 
       {/* ── Preferences ── */}
