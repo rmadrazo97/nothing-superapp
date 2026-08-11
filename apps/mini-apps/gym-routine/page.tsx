@@ -253,6 +253,9 @@ export default function GymHomePage() {
         <Link href="/app/gym-routine/measurements" style={{ textDecoration: 'none' }}>
           <span style={ghostButtonStyle}>Measurements</span>
         </Link>
+        <Link href="/app/gym-routine/progression" style={{ textDecoration: 'none' }}>
+          <span style={ghostButtonStyle}>Progression</span>
+        </Link>
       </div>
 
       {/* Recent sessions */}

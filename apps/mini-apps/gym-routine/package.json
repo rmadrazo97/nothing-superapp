@@ -14,7 +14,9 @@
     "./pages/routine-editor": "./pages/routine-editor.tsx",
     "./pages/session": "./pages/session.tsx",
     "./pages/history": "./pages/history.tsx",
-    "./measurements/page": "./measurements/page.tsx"
+    "./measurements/page": "./measurements/page.tsx",
+    "./progression/page": "./progression/page.tsx",
+    "./lib/progression-query": "./lib/progression-query.ts"
   },
   "dependencies": {
     "@nothing/mini-apps-runtime": "workspace:*",
