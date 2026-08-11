@@ -169,6 +169,20 @@ Set the env vars from your `.env.local` into Vercel's project settings. `NEXT_PU
 - Auth redirect URLs (Settings → Auth → URL Configuration) should include your production domain
 - Storage buckets: none in v0.3
 
+### 5. Verifying migrations are applied to prod
+
+Every `.sql` file in `supabase/migrations/` uses `IF NOT EXISTS` guards, which means the SQL happily runs on a stale prod without complaint even if a migration was never applied. To catch that drift, run:
+
+```bash
+node scripts/verify-migrations-applied.mjs
+```
+
+The script parses each migration for `CREATE TABLE`, `ALTER TABLE ... ADD COLUMN`, and `CREATE INDEX` statements, then queries prod via `psql` and reports `[OK]` / `[MISS]` per object. Exits `1` on any miss. Reads `apps/web/.env.local` for `SUPABASE_PROJECT_ID` + `SUPABASE_DB_PASSWORD`, or takes them from the shell env.
+
+CI runs this automatically on every push to `main` (job `verify-migrations-applied` in `.github/workflows/ci.yml`) — required secrets: `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`. Missing secrets → the script no-ops with `[SKIP]` and exits `0`, so it never blocks a legitimate ship.
+
+Requires `psql` on PATH (preinstalled on `ubuntu-latest`; `brew install libpq` on macOS).
+
 ---
 
 ## Architecture

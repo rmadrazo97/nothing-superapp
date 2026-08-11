@@ -84,3 +84,28 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  verify-migrations-applied:
+    name: verify migrations applied to prod
+    runs-on: ubuntu-latest
+    needs: typecheck-build
+    timeout-minutes: 5
+    # Only runs on main pushes (post-merge deploy verification), not on
+    # PRs. PRs frequently include brand-new migration files that haven't
+    # been applied yet — running there would guarantee a false failure.
+    # `psql` is preinstalled on ubuntu-latest; no `apt install` needed.
+    # The script itself no-ops with a [SKIP] if any of the required
+    # secrets are missing, so this job can never block a legit ship.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: verify migrations applied
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: node scripts/verify-migrations-applied.mjs
