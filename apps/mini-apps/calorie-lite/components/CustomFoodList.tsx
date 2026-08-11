@@ -459,7 +459,7 @@ function CustomFoodQuantityPicker({
             type="number"
             inputMode="decimal"
             min={0.01}
-            step={0.1}
+            step="any"
             value={qty}
             onChange={(e) => setQty(e.target.value)}
             autoFocus
