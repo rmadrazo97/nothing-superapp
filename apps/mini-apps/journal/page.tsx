@@ -85,6 +85,14 @@ const CHIP_INACTIVE: CSSProperties = {
 };
 
 const BODY_MAX = 20000;
+// Show word count once the user has typed a "real" amount. Under ~400 chars
+// the number just adds noise; past that it signals "you wrote a page."
+const WORD_COUNT_MIN_CHARS = 400;
+// Placeholder body used when the user only tags a mood (no note). Keeps the
+// server schema happy (body min-length 1) without asking them to type.
+const MOOD_ONLY_BODY = '(no note)';
+const DRAFT_KEY_PREFIX = 'nsa.journal.draft.';
+const draftKey = (iso: string) => `${DRAFT_KEY_PREFIX}${iso}`;
 
 function weekdayLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map((s) => Number.parseInt(s, 10));
@@ -106,6 +114,9 @@ export default function JournalHomePage() {
   const [mood, setMood] = useState<JournalMood | null>(null);
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<JournalEntry | null>(null);
+  // True when the composer was pre-filled from a localStorage draft (no
+  // server entry yet for today). Shown as a small "DRAFT · restored" caption.
+  const [draftRestored, setDraftRestored] = useState(false);
   const { toast } = useToast();
 
   const today = todayLocal();
@@ -148,15 +159,42 @@ export default function JournalHomePage() {
   // us (initial load, after a save). Only prefill when the composer body is
   // empty OR still matches the entry we last saw — avoids clobbering an
   // in-progress edit from a background refetch.
+  //
+  // If no server entry exists for today, try to restore an autosaved draft
+  // from localStorage (key: `nsa.journal.draft.<yyyy-mm-dd>`). Draft loses
+  // to a server entry — as soon as the user saves today, the draft is cleared
+  // and the composer switches to editing that entry.
   const [prefilledFromId, setPrefilledFromId] = useState<string | null>(null);
   useEffect(() => {
+    if (entries === null) return; // wait for the first load
     if (!todaysEntry) {
-      // No entry for today — leave the composer as-is if the user is
-      // typing, otherwise reset it.
       if (prefilledFromId != null) {
+        // A previously-prefilled server entry was deleted — reset composer.
         setBody('');
         setMood(null);
         setPrefilledFromId(null);
+        setDraftRestored(false);
+        return;
+      }
+      // First-ever load with no server entry: try to hydrate from a draft.
+      if (typeof window === 'undefined') return;
+      try {
+        const raw = window.localStorage.getItem(draftKey(today));
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            body?: string;
+            mood?: JournalMood | null;
+          };
+          const draftBody = typeof parsed.body === 'string' ? parsed.body : '';
+          const draftMood = parsed.mood ?? null;
+          if (draftBody || draftMood) {
+            setBody(draftBody);
+            setMood(draftMood);
+            setDraftRestored(true);
+          }
+        }
+      } catch {
+        // Corrupt draft — ignore, nothing to restore.
       }
       return;
     }
@@ -164,8 +202,30 @@ export default function JournalHomePage() {
       setBody(todaysEntry.body);
       setMood(todaysEntry.mood ?? null);
       setPrefilledFromId(todaysEntry.id);
+      setDraftRestored(false);
     }
-  }, [todaysEntry, prefilledFromId]);
+  }, [entries, todaysEntry, prefilledFromId, today]);
+
+  // Autosave draft — only while there's no server entry for today. Once the
+  // user saves, we clear the draft and switch to edit-mode against the row.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (todaysEntry) return; // saved entry takes over — no draft needed
+    const key = draftKey(today);
+    if (!body && !mood) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        /* storage full / disabled — no-op */
+      }
+      return;
+    }
+    try {
+      window.localStorage.setItem(key, JSON.stringify({ body, mood }));
+    } catch {
+      /* quota / disabled — best-effort */
+    }
+  }, [body, mood, today, todaysEntry]);
 
   const entryDatesSet = useMemo(() => {
     const set = new Set<string>();
@@ -187,14 +247,28 @@ export default function JournalHomePage() {
 
   const submit = useCallback(async () => {
     const trimmed = body.trim();
-    if (!trimmed) return;
+    // Mood-only entries are allowed — some days people just want to tag
+    // how they feel. We store a placeholder body so the server schema
+    // (min-length 1) is satisfied without asking the user to type.
+    if (!trimmed && !mood) return;
+    const effectiveBody = trimmed || MOOD_ONLY_BODY;
     setSaving(true);
     try {
       if (todaysEntry) {
-        await api.updateEntry(todaysEntry.id, { body: trimmed, mood: mood ?? null });
+        await api.updateEntry(todaysEntry.id, { body: effectiveBody, mood: mood ?? null });
       } else {
-        await api.createEntry({ body: trimmed, mood: mood ?? null });
+        await api.createEntry({ body: effectiveBody, mood: mood ?? null });
       }
+      // Draft is superseded by the saved row — clear it so we don't rehydrate
+      // stale text if the entry is later deleted.
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(draftKey(today));
+        } catch {
+          /* no-op */
+        }
+      }
+      setDraftRestored(false);
       await load();
       toast.success(todaysEntry ? "Today's entry updated." : 'Entry saved.');
     } catch (e) {
@@ -203,7 +277,7 @@ export default function JournalHomePage() {
     } finally {
       setSaving(false);
     }
-  }, [body, mood, todaysEntry, load, toast]);
+  }, [body, mood, todaysEntry, load, toast, today]);
 
   const removeEntry = useCallback(
     async (entry: JournalEntry) => {
