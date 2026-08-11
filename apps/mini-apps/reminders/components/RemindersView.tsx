@@ -6,7 +6,7 @@
  * generic REST via `useResource` — the mini-app never talks to Supabase
  * directly.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LoadErrorCard, useResource } from '@nothing/mini-apps-runtime';
 import type { Reminder, ReminderRun } from '@nothing/shared';
 import NewReminderForm from './NewReminderForm.tsx';
@@ -16,7 +16,18 @@ import InfoBanner from './InfoBanner.tsx';
 
 type View = 'upcoming' | 'all' | 'history';
 
-export default function RemindersView({ view }: { view: View }) {
+/**
+ * v0.5.12: `onRemindersLoaded` lets the page render a THIS WEEK hero data
+ * card above the list using the same fetched rows — avoids a duplicate
+ * fetch to the same resource endpoint (useResource is not deduped).
+ */
+export default function RemindersView({
+  view,
+  onRemindersLoaded,
+}: {
+  view: View;
+  onRemindersLoaded?: (reminders: Reminder[]) => void;
+}) {
   const reminders = useResource<Reminder>('reminders', 'reminders', {
     params: { limit: 100 },
     enabled: view === 'upcoming' || view === 'all',
@@ -35,6 +46,13 @@ export default function RemindersView({ view }: { view: View }) {
     if (view === 'upcoming') return all.filter((r) => r.active);
     return all;
   }, [reminders.data, view]);
+
+  // Hoist the fetched reminders up so the page can render a hero summary
+  // above the list without a second GET.
+  useEffect(() => {
+    if (!onRemindersLoaded) return;
+    if (reminders.data) onRemindersLoaded(reminders.data);
+  }, [reminders.data, onRemindersLoaded]);
 
   const onCreate = useCallback(
     async (body: Record<string, unknown>) => {
