@@ -4,6 +4,18 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.11] — 2026-08-11 — Gym day picker + sticky rest timer + quantity input fix
+
+The direct-user-feedback wave. Three reported issues from live prod screenshots, all fixed in one small release.
+
+### Fixed
+- **Gym — starting a v2 routine flattened every day into one session.** Tapping START on `Plan de entrenamiento` (a 4-day split) created a session with all 40 exercises from every day, so the user had no way to focus on today's training. New `<BottomSheet>` opens on START for any routine with `plan.days.length > 1`, showing each day as a tap target (day number + name + focus tags + exercise count). Single-day v2 routines skip the sheet; v1 flat routines unchanged. Session name reads `<Routine> — <Day name>` so the thread history is legible.
+- **Gym — REST timer scrolled out of view.** The rest-countdown card now `position: sticky; top: var(--space-2); z-index: 20`. Canvas-colored background so exercise cards don't peek through as they scroll under it. Timer stays visible for the "wait 90s then next set" loop, which is the whole reason the timer exists.
+- **Fitness Pal — QUANTITY input rejected value "1".** `<input type="number" min={0.01} step={0.1}>` means valid values are `0.01 + N×0.1` → 0.01, 0.11, ..., 0.91, 1.01. Integer "1" doesn't fit that grid, so the browser rejects it with "The two nearest valid values are 0.91 and 1.01." Fix: `step="any"` removes the grid. Quantity is naturally continuous. Same fix applied to CustomFoodList's local quantity picker.
+
+### Refactor
+- Extracted the v2-day → v1-session-entries flattener into `apps/mini-apps/gym-routine/lib/session-from-day.ts` so both `routines.tsx` (this release's new day-picker path) and `routine-editor.tsx` (existing startV2Day) use one code path. Deleted 40 duplicate lines from routine-editor.
+
 ## [0.5.10] — 2026-08-11 — Deploy pipeline fixed + assistant render_* directive + regression tests + handle_new_user hardened
 
 The release that actually ships everything. Rebuilt the deploy path in CI after discovering Vercel's GitHub App integration had silently disconnected sometime after v0.5.1 — 6 releases' worth of push notifications had fired for code that never reached users.

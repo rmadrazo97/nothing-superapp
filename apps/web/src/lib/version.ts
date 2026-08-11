@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.10';
+export const APP_VERSION = '0.5.11';
 export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.11',
+    date: '2026-08-11',
+    highlights: [
+      'Gym — day picker for multi-day routines. Tap START on a v2 routine with >1 day and a bottom sheet opens showing each day (day number + name + focus tags + exercise count). Pick the day you\'re actually training and the session includes ONLY that day\'s exercises — no more flattening a 4-day split into one 40-exercise workout. Single-day and v1 routines skip the sheet.',
+      'Gym — REST timer stays visible while you scroll. The rest-countdown card is now sticky at the top of the session view so you can log sets further down the list without losing sight of the timer. Canvas-colored background so exercise cards don\'t peek through as they scroll under.',
+      'Fitness Pal — ADD MEAL quantity now accepts any positive number. Was rejecting "1" with "the two nearest valid values are 0.91 and 1.01" because min={0.01} + step={0.1} defined an arbitrary grid. step="any" removes the grid; quantity is naturally continuous.',
+    ],
+  },
   {
     version: '0.5.10',
     date: '2026-08-11',

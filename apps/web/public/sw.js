@@ -15,7 +15,7 @@
  * Bump SW_VERSION on any material change so browsers pick up the new
  * install script and the activate event clears the old registration.
  */
-const SW_VERSION = 'v0.5.10';
+const SW_VERSION = 'v0.5.11';
 
 self.addEventListener('install', () => {
   // Skip waiting — this is a pass-through SW, no cache to warm up.
