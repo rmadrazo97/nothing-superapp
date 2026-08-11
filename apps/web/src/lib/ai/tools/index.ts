@@ -47,6 +47,13 @@ import { makeTriggerReminderNowTool } from './trigger-reminder-now';
 import { makeCreateHabitTool } from './create-habit';
 import { makeListHabitsTool } from './list-habits';
 import { makeToggleHabitCompletionTool } from './toggle-habit-completion';
+// journal mini-app (add-only, v0.5.14) — semantic surface on top of the
+// journal_entries table from migration 033. Journal shipped in v0.5.13
+// without any copilot tools; these let the model save entries, browse
+// recent ones, and read today's mood tag from chat.
+import { makeCreateJournalEntryTool } from './create-journal-entry';
+import { makeGetTodaysMoodTool } from './get-todays-mood';
+import { makeListJournalEntriesTool } from './list-journal-entries';
 // Framework-generated CRUD tools — every mini-app's declared resources get
 // list/get/create/update/delete for free. Coexists with hand-written tools:
 // hand-written wins on semantic clarity ("log_calorie_entry"), framework fills
@@ -96,6 +103,10 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     create_habit: makeCreateHabitTool(userId, supabase),
     list_habits: makeListHabitsTool(userId, supabase),
     toggle_habit_completion: makeToggleHabitCompletionTool(userId, supabase),
+    // journal (add-only, v0.5.14) — alphabetized within the block
+    create_journal_entry: makeCreateJournalEntryTool(userId, supabase),
+    get_todays_mood: makeGetTodaysMoodTool(userId, supabase),
+    list_journal_entries: makeListJournalEntriesTool(userId, supabase),
     // generative UI (v0.5.4) — render_* tools return payloads the client
     // mounts as pixel-panel components. No userId/supabase args — pure
     // pass-through. Registered as a discrete block so future workers can
