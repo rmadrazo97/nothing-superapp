@@ -9,6 +9,7 @@ import { loadInstalledMiniApps } from '@/lib/mini-apps/registry';
 import { HomeGrid } from '@/components/home/HomeGrid';
 import { FirstRunHint } from '@/components/home/FirstRunHint';
 import { RequestAppLink } from '@/components/home/RequestAppLink';
+import { FirstRunGate } from '@/components/onboarding/FirstRunModal';
 import { createClient } from '@/lib/supabase/server';
 
 // Dynamic because loadInstalledMiniApps() uses node:fs — safer to opt out
@@ -64,6 +65,7 @@ export default async function HomePage() {
       <HomeGrid miniApps={miniApps} />
       <RequestAppLink />
       <FirstRunHint />
+      <FirstRunGate />
     </div>
   );
 }
