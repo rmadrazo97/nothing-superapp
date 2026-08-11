@@ -198,11 +198,21 @@ export async function GET(request: Request) {
       .map((r) => ({
         row: r,
         score: scoreRow(String(r.name), qLower),
+        canonical: r.is_canonical === true,
         penalty: Number(r.rank_penalty ?? 0),
       }))
       .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
+        // Bucket scores at 1 decimal so near-ties (e.g. 0.62 vs 0.58) let
+        // is_canonical break the tie instead of nose-diving because of
+        // fractional similarity noise. This makes canonical rows win
+        // ergonomically-tied matches without ever beating a materially
+        // better non-canonical hit.
+        const aBucket = Math.round(a.score * 10);
+        const bBucket = Math.round(b.score * 10);
+        if (bBucket !== aBucket) return bBucket - aBucket;
+        if (a.canonical !== b.canonical) return a.canonical ? -1 : 1;
         if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+        if (b.score !== a.score) return b.score - a.score;
         return String(a.row.name).localeCompare(String(b.row.name));
       })
       .map((s) => s.row);
