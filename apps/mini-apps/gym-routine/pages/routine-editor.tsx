@@ -24,6 +24,7 @@ import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../
 import { PlanDayCard } from '../components/PlanDayCard.tsx';
 import { PlanConventionsCard } from '../components/PlanConventionsCard.tsx';
 import { PlanCardioCard } from '../components/PlanCardioCard.tsx';
+import { dayLabel, sessionFromDay } from '../lib/session-from-day.ts';
 
 export default function RoutineEditorPage({
   params,
@@ -201,58 +202,14 @@ export default function RoutineEditorPage({
       setStarting(true);
       setError(null);
       try {
-        // Flatten the day's exercises into v1-shape session entries so the
-        // existing session UI can log against them. superset components
-        // become sibling entries; top_set / backoff blocks flatten into a
-        // single entry with concatenated sets sized to reps.max as a
-        // starting target.
-        const entries: Array<{ exercise_id: string; name: string; sets: Array<{ reps: number; weight_kg: number | null; completed_at: null }> }> = [];
-        for (const ex of day.exercises) {
-          if (ex.structure === 'superset') {
-            for (const c of ex.components) {
-              entries.push({
-                exercise_id: c.exercise_id ?? `${ex.id}.c${c.order}`,
-                name: c.name_en ?? c.name_es ?? '(component)',
-                sets: Array.from({ length: c.sets }, () => ({
-                  reps: c.reps.max,
-                  weight_kg: null,
-                  completed_at: null,
-                })),
-              });
-            }
-          } else {
-            const flat = ex.blocks.flatMap((b) =>
-              Array.from({ length: b.sets }, () => ({
-                reps: b.reps.max,
-                weight_kg: null,
-                completed_at: null,
-              })),
-            );
-            entries.push({
-              exercise_id: ex.exercise_id ?? ex.id,
-              name: ex.name_en ?? ex.name_es ?? '(exercise)',
-              sets: flat,
-            });
-          }
-        }
-        // Pick a representative block_role for the session — 'superset' if
-        // the day contains any, else 'top_set' if the day leads with a
-        // top set, else 'straight'. plan_exercise_id points at the first
-        // exercise so the session UI can highlight it.
-        const firstEx = day.exercises[0];
-        const rolePref =
-          day.exercises.some((e) => e.structure === 'superset')
-            ? 'superset' as const
-            : firstEx?.structure === 'top_set_backoff'
-              ? 'top_set' as const
-              : 'straight' as const;
+        const { entries, block_role, plan_exercise_id } = sessionFromDay(day);
         const { session } = await api.createSession({
           routine_id: id,
-          name: `${routine.name} — Day ${day.day}`,
+          name: `${routine.name} — ${dayLabel(day)}`,
           entries,
           plan_day: day.day,
-          plan_exercise_id: firstEx?.id ?? null,
-          block_role: rolePref,
+          plan_exercise_id,
+          block_role,
         });
         try {
           sessionStorage.setItem('gym-routine.sessionId', session.id);

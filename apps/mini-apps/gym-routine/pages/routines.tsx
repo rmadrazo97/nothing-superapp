@@ -21,14 +21,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { RoutineExercise, WorkoutRoutine, WorkoutSession } from '@nothing/shared';
+import type { PlanDay, RoutineExercise, WorkoutRoutine, WorkoutSession } from '@nothing/shared';
+import { isRoutineV2, routineV2Schema } from '@nothing/shared';
 import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
 import { SwipeableRow } from '../../../web/src/components/shell/SwipeableRow';
-import { cardStyle, ghostButtonStyle } from '../lib/ui.ts';
+import { BottomSheet } from '../../../web/src/components/shell/BottomSheet';
+import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
 import { toDateLabel } from '../lib/format.ts';
+import { dayLabel, sessionFromDay } from '../lib/session-from-day.ts';
 
 export default function RoutinesPage() {
   const router = useRouter();
@@ -37,6 +40,10 @@ export default function RoutinesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
+  // v2-only: when the tapped routine has plan.days.length > 1 we open a
+  // day-picker sheet before creating the session, so the user trains just
+  // that day's exercises rather than a flat superset of every day.
+  const [dayPicker, setDayPicker] = useState<{ routine: WorkoutRoutine; days: PlanDay[] } | null>(null);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -87,6 +94,36 @@ export default function RoutinesPage() {
     [load, toast],
   );
 
+  const startFromV2Day = useCallback(
+    async (r: WorkoutRoutine, day: PlanDay) => {
+      setDayPicker(null);
+      setStartingId(r.id);
+      try {
+        const { entries, block_role, plan_exercise_id } = sessionFromDay(day);
+        const { session } = await api.createSession({
+          routine_id: r.id,
+          name: `${r.name} — ${dayLabel(day)}`,
+          entries,
+          plan_day: day.day,
+          plan_exercise_id,
+          block_role,
+        });
+        try {
+          sessionStorage.setItem('gym-routine.sessionId', session.id);
+        } catch {
+          /* private-mode Safari — non-fatal */
+        }
+        router.push(`/app/gym-routine/session/${session.id}`);
+      } catch (e) {
+        setStartingId(null);
+        setError(e instanceof ApiError ? e.message : 'Could not start session.');
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
+      }
+    },
+    [router, toast],
+  );
+
   const startFromRoutine = useCallback(
     async (r: WorkoutRoutine) => {
       // Resume path — if a live session is already tied to this routine,
@@ -96,16 +133,25 @@ export default function RoutinesPage() {
         router.push(`/app/gym-routine/session/${live.id}`);
         return;
       }
+
+      // v2 routines with multiple days → open the day-picker sheet.
+      // Single-day v2 or v1 routines fall through to the flat-start path.
+      if (isRoutineV2(r)) {
+        const parsed = routineV2Schema.safeParse(r);
+        if (parsed.success && parsed.data.plan.days.length > 1) {
+          setDayPicker({ routine: r, days: parsed.data.plan.days });
+          return;
+        }
+        // Single-day v2 — just start that one day, no picker needed.
+        if (parsed.success && parsed.data.plan.days.length === 1) {
+          void startFromV2Day(r, parsed.data.plan.days[0]);
+          return;
+        }
+      }
+
       setStartingId(r.id);
       try {
-        // Flatten routine exercises → session entries (v1 shape). Mirrors
-        // the routine-editor's own "start session" flow so behaviour is
-        // consistent — pre-planned sets pre-fill, weight/completed_at are
-        // filled in-session.
-        // Routine rows only carry exercise_id + sets — no snapshot name.
-        // Fall back to exercise_id for the session snapshot; the session UI
-        // already resolves display names from the exercise dictionary at
-        // render time, so nothing user-facing suffers.
+        // v1 flat routine — flatten exercises → session entries.
         const entries = (r.exercises as RoutineExercise[]).map((it) => ({
           exercise_id: it.exercise_id,
           name: it.exercise_id,
@@ -133,7 +179,7 @@ export default function RoutinesPage() {
         if (t) toast[t.variant](t.message);
       }
     },
-    [live, router, toast],
+    [live, router, startFromV2Day, toast],
   );
 
   const liveByRoutine = useMemo(() => {
@@ -236,6 +282,57 @@ export default function RoutinesPage() {
           })}
         </ul>
       )}
+
+      <BottomSheet
+        open={dayPicker !== null}
+        onClose={() => setDayPicker(null)}
+        ariaLabel="Pick a day to train"
+      >
+        {dayPicker && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div>
+              <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+                PICK A DAY
+              </span>
+              <h2 className="display-md" style={{ margin: 'var(--space-2) 0 0 0' }}>
+                {dayPicker.routine.name}
+              </h2>
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {dayPicker.days.map((d) => (
+                <li key={d.day}>
+                  <button
+                    type="button"
+                    onClick={() => void startFromV2Day(dayPicker.routine, d)}
+                    style={{
+                      ...primaryButtonStyle,
+                      width: '100%',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      color: 'var(--color-text-display)',
+                      border: '1px solid var(--color-border-visible)',
+                      padding: 'var(--space-3) var(--space-4)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 'var(--space-1)',
+                    }}
+                  >
+                    <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+                      DAY {d.day}
+                    </span>
+                    <span style={{ fontSize: 'var(--text-body)' }}>{dayLabel(d)}</span>
+                    <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+                      {d.exercises.length} exercise{d.exercises.length === 1 ? '' : 's'}
+                      {d.focus.length > 0 ? ` · ${d.focus.join(', ')}` : ''}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 }

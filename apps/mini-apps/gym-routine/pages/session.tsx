@@ -262,13 +262,28 @@ export default function SessionPage({
       )}
 
       {isLive && (
-        <RestTimer
-          runningSince={restStartedAt}
-          durationSec={restDurationSec}
-          onFinish={() => setRestStartedAt(null)}
-          onSkip={() => setRestStartedAt(null)}
-          onAddSec={(sec) => setRestDurationSec((v) => Math.max(15, v + sec))}
-        />
+        // Sticky so the timer stays visible while the user scrolls through
+        // exercise cards to log sets. z-index above the exercise cards;
+        // background matches the shell canvas so cards don't peek through
+        // the semi-transparent RestTimer card as they scroll under it.
+        <div
+          style={{
+            position: 'sticky',
+            top: 'var(--space-2)',
+            zIndex: 20,
+            background: 'var(--color-bg)',
+            paddingBottom: 'var(--space-2)',
+            marginBottom: 'calc(var(--space-2) * -1)',
+          }}
+        >
+          <RestTimer
+            runningSince={restStartedAt}
+            durationSec={restDurationSec}
+            onFinish={() => setRestStartedAt(null)}
+            onSkip={() => setRestStartedAt(null)}
+            onAddSec={(sec) => setRestDurationSec((v) => Math.max(15, v + sec))}
+          />
+        </div>
       )}
 
       {entries.length === 0 ? (
