@@ -216,19 +216,24 @@ function deriveRefFromUrl(url) {
 }
 
 function main() {
-  let projectId = readEnv('SUPABASE_PROJECT_ID');
+  const explicitProjectId = readEnv('SUPABASE_PROJECT_ID');
   const password = readEnv('SUPABASE_DB_PASSWORD');
   const url = readEnv('SUPABASE_URL') || readEnv('NEXT_PUBLIC_SUPABASE_URL');
   const serviceKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
 
-  // Fallback: if PROJECT_ID isn't in env directly, derive it from SUPABASE_URL
-  // (which is public and safe to have in more places). Common CI setup where
-  // NEXT_PUBLIC_SUPABASE_URL is wired but the ref-only secret isn't.
-  if (!projectId && url) {
-    projectId = deriveRefFromUrl(url);
-    if (projectId) {
-      console.log(`[INFO] derived project ref from SUPABASE_URL: ${projectId}`);
-    }
+  // URL-derived ref is the source of truth when present — SUPABASE_URL is
+  // public + inline at workflow level, so it's always right. The explicit
+  // SUPABASE_PROJECT_ID secret was found in prod CI to sometimes be empty
+  // or stale; prefer the URL-derived value and use the secret only as a
+  // fallback when the URL isn't set at all.
+  const derivedProjectId = deriveRefFromUrl(url);
+  let projectId = derivedProjectId || explicitProjectId;
+  if (derivedProjectId && explicitProjectId && derivedProjectId !== explicitProjectId) {
+    console.log(
+      `[WARN] SUPABASE_PROJECT_ID secret (${explicitProjectId ? '<set>' : '<empty>'}) disagrees with SUPABASE_URL-derived ref (${derivedProjectId}); using URL-derived.`,
+    );
+  } else if (derivedProjectId) {
+    console.log(`[INFO] using project ref derived from SUPABASE_URL: ${derivedProjectId}`);
   }
 
   // Cred check — need PROJECT_ID (or derivable from URL) + PASSWORD for
