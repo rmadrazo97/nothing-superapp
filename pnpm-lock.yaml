@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
+      '@supabase/supabase-js':
+        specifier: ^2.112.2
+        version: 2.112.2
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
