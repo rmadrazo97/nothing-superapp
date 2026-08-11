@@ -54,6 +54,11 @@ export default function SessionPage({
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const [restDurationSec, setRestDurationSec] = useState(DEFAULT_REST_SEC);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  // v0.5.12 — allow patching an ENDED session (user reported missing data
+  // after a workout). Toggled via the "EDIT" button that appears in the
+  // header when isLive is false; all set inputs unlock, save PATCHes the
+  // usual /sessions/[id] endpoint.
+  const [editMode, setEditMode] = useState(false);
   // Map of exercise_id → its catalog row (holds `equipment`, used to
   // decide whether the weight column is "body weight" or a real
   // number field). Hydrated lazily as entries load.
@@ -230,18 +235,49 @@ export default function SessionPage({
   }
 
   const isLive = session.ended_at == null;
+  // `editable` unlocks the set inputs. Live sessions are always editable;
+  // ended sessions become editable when the user opts in via the EDIT
+  // button in the header (v0.5.12 feedback: allow patching ENDED for
+  // missed data).
+  const editable = isLive || editMode;
   const setsDone = totalSetsCompleted(entries);
   const totalPlanned = entries.reduce((s, e) => s + e.sets.length, 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', paddingTop: 'var(--space-6)', paddingBottom: 'var(--space-12)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span className="label">SESSION{isLive ? ' · LIVE' : ' · ENDED'}</span>
-        <Link href="/app/gym-routine" style={{ textDecoration: 'none' }}>
-          <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-            ← Home
-          </span>
-        </Link>
+        <span className="label">
+          SESSION{isLive ? ' · LIVE' : editMode ? ' · EDITING' : ' · ENDED'}
+        </span>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+          {!isLive && (
+            <button
+              type="button"
+              onClick={() => setEditMode((v) => !v)}
+              className="caption"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--color-border-visible)',
+                color: editMode ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
+                borderRadius: 'var(--radius-button)',
+                padding: '0 var(--space-3)',
+                minHeight: 28,
+                cursor: 'pointer',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--font-label)',
+              }}
+              aria-pressed={editMode}
+            >
+              {editMode ? 'DONE' : 'EDIT'}
+            </button>
+          )}
+          <Link href="/app/gym-routine" style={{ textDecoration: 'none' }}>
+            <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+              ← Home
+            </span>
+          </Link>
+        </div>
       </div>
 
       <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -426,7 +462,7 @@ export default function SessionPage({
                             min={0}
                             max={999}
                             value={set.reps}
-                            disabled={!isLive}
+                            disabled={!editable}
                             onChange={(e) => updateSetField(exIdx, setIdx, { reps: Number(e.target.value) || 0 })}
                             onBlur={() => void commitField()}
                             style={{
@@ -446,7 +482,7 @@ export default function SessionPage({
                               step={0.5}
                               value={set.weight_kg ?? ''}
                               placeholder={weightUnitLabel}
-                              disabled={!isLive}
+                              disabled={!editable}
                               onChange={(e) => {
                                 const v = e.target.value;
                                 updateSetField(exIdx, setIdx, { weight_kg: v === '' ? null : Number(v) });
@@ -464,7 +500,7 @@ export default function SessionPage({
                           <button
                             type="button"
                             onClick={() => void toggleSetComplete(exIdx, setIdx)}
-                            disabled={!isLive || saving}
+                            disabled={!editable || saving}
                             aria-pressed={done}
                             aria-label={done ? `Un-mark set ${setIdx + 1}` : `Mark set ${setIdx + 1} complete`}
                             style={{
@@ -474,7 +510,7 @@ export default function SessionPage({
                               background: done ? 'var(--color-accent)' : 'transparent',
                               border: `1px solid ${done ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
                               color: done ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
-                              cursor: isLive ? 'pointer' : 'default',
+                              cursor: editable ? 'pointer' : 'default',
                               fontSize: 'var(--text-body)',
                               lineHeight: 1,
                             }}
@@ -486,7 +522,7 @@ export default function SessionPage({
                     })}
                   </ul>
 
-                  {isLive && (
+                  {editable && (
                     <button
                       type="button"
                       onClick={() => void addSetToEntry(exIdx)}

@@ -30,6 +30,11 @@ import { deriveThreadTitle } from '@nothing/shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Bump serverless-function timeout so long-reasoning + multi-step tool
+// turns don't get cut mid-stream. Vercel Hobby caps at 60s (that's the
+// silent-drop the user reported at v0.5.11); Pro+ honors up to 300.
+// Setting the higher value is harmless on Hobby (Vercel just clamps).
+export const maxDuration = 300;
 
 const MAX_MESSAGES = 20;
 // 30 chat calls/user/hour. Reasoning-model calls at ~$0.01–0.05 apiece — this

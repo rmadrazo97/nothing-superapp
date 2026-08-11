@@ -14,6 +14,7 @@ import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
+import { SwipeableRow } from '../../../web/src/components/shell/SwipeableRow';
 import { cardStyle } from '../lib/ui.ts';
 import {
   durationLabel,
@@ -41,6 +42,23 @@ export default function HistoryPage() {
       if (t) toast[t.variant](t.message);
     }
   }, [toast]);
+
+  const remove = useCallback(
+    async (id: string) => {
+      // Optimistic — drop the row locally first, then delete server-side.
+      // On failure, refetch to restore.
+      setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : prev));
+      try {
+        await api.deleteSession(id);
+      } catch (e) {
+        const t = toastForError(e);
+        if (t) toast[t.variant](t.message);
+        else toast.error('Could not delete session.');
+        await load();
+      }
+    },
+    [load, toast],
+  );
 
   useEffect(() => {
     void load();
@@ -111,29 +129,41 @@ export default function HistoryPage() {
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                 {group.map((s) => (
                   <li key={s.id}>
-                    <Link href={`/app/gym-routine/session/${s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                          <span style={{ color: 'var(--color-text-display)' }}>
-                            {s.name ?? 'Untitled session'}
-                          </span>
+                    <SwipeableRow
+                      ariaLabel={s.name ?? 'Untitled session'}
+                      actions={[
+                        {
+                          label: 'Delete',
+                          kind: 'destructive',
+                          undoLabel: `Deleted "${s.name ?? 'Untitled session'}"`,
+                          onSelect: () => void remove(s.id),
+                        },
+                      ]}
+                    >
+                      <Link href={`/app/gym-routine/session/${s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ color: 'var(--color-text-display)' }}>
+                              {s.name ?? 'Untitled session'}
+                            </span>
+                            <span
+                              className="data"
+                              style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+                            >
+                              {toDateLabel(s.started_at)}
+                            </span>
+                          </div>
                           <span
                             className="data"
-                            style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+                            style={{ color: 'var(--color-text-disabled)', fontSize: 'var(--text-caption)' }}
                           >
-                            {toDateLabel(s.started_at)}
+                            {durationLabel(s.started_at, s.ended_at)} ·{' '}
+                            {totalSetsCompleted(s.entries)} sets ·{' '}
+                            {totalVolumeKg(s.entries).toLocaleString()} kg
                           </span>
                         </div>
-                        <span
-                          className="data"
-                          style={{ color: 'var(--color-text-disabled)', fontSize: 'var(--text-caption)' }}
-                        >
-                          {durationLabel(s.started_at, s.ended_at)} ·{' '}
-                          {totalSetsCompleted(s.entries)} sets ·{' '}
-                          {totalVolumeKg(s.entries).toLocaleString()} kg
-                        </span>
-                      </div>
-                    </Link>
+                      </Link>
+                    </SwipeableRow>
                   </li>
                 ))}
               </ul>

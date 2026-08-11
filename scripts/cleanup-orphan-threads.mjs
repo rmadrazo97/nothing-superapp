@@ -46,8 +46,12 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(0);
 }
 
+// Node 20+ supabase-js tries to require `ws` for realtime even when we
+// never subscribe. Disable realtime entirely — we only do writes here.
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
+  realtime: { params: {} },
+  global: { fetch },
 });
 
 // 5-minute grace window — a first-message thread must be at least this old
