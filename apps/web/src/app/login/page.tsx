@@ -11,8 +11,20 @@ type Status =
   | { kind: 'sent' }
   | { kind: 'error'; message: string };
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+/**
+ * Origin for the auth callback URL. Prefer the runtime window origin
+ * (always correct on the deployed domain) over the build-time env var
+ * (which historically baked http://localhost:3000 into the client bundle
+ * when the CI workflow env leaked in — hotfix in v0.5.16). SSR fallback
+ * uses NEXT_PUBLIC_APP_URL, then the known prod URL as a last resort so
+ * a misconfigured env never sends users to localhost.
+ */
+function resolveAppUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL ?? 'https://nothing-superapp.vercel.app';
+}
 
 /**
  * Build the auth callback URL, threading `?next=<path>` through so the
@@ -24,7 +36,7 @@ const APP_URL =
  */
 function buildCallbackUrl(nextParam: string | null): string {
   const next = safeNext(nextParam);
-  const base = `${APP_URL}/auth/callback`;
+  const base = `${resolveAppUrl()}/auth/callback`;
   // `safeNext` returns `/app` for missing/invalid input — no reason to
   // round-trip that through the URL, it's the default on the far side too.
   return next === '/app' ? base : `${base}?next=${encodeURIComponent(next)}`;

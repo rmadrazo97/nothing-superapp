@@ -19,7 +19,10 @@ env:
   NEXT_PUBLIC_SUPABASE_URL: https://pqbwzcjiedllzafgczhx.supabase.co
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_EBeMXcfGsWXNti0Uv6dpSQ_mlCgdY1D
   NEXT_PUBLIC_STRIPE_PRICE_ID: price_1U1sFlLa3bZXHjTBsLbkFk2x
-  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  # PROD build canonical URL. If localhost, magic-link + OAuth callbacks
+  # bake into the client bundle pointing at 127.0.0.1 and every sign-in
+  # 500s off the live domain — see the v0.5.16 hotfix.
+  NEXT_PUBLIC_APP_URL: https://nothing-superapp.vercel.app
 
 jobs:
   typecheck-build:
