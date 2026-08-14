@@ -76,6 +76,8 @@ export default function ExerciseDetail({
         <img
           src={exercise.gif_url}
           alt={`${exercise.name} demonstration`}
+          width={480}
+          height={480}
           loading="lazy"
           decoding="async"
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}

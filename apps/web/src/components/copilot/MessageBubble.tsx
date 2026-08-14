@@ -163,6 +163,10 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                   key={`${message.id}-att-${idx}`}
                   src={a.url}
                   alt={a.filename ?? `attachment ${idx + 1}`}
+                  width={96}
+                  height={96}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: 96,
                     height: 96,

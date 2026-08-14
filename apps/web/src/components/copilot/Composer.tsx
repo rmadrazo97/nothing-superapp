@@ -331,6 +331,9 @@ export function Composer({
               <img
                 src={att.dataUrl}
                 alt={att.file.name}
+                width={56}
+                height={56}
+                decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
               <button
