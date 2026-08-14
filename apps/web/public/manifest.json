@@ -1,0 +1,73 @@
+{
+  "name": "Nothing Superapp",
+  "short_name": "Nothing",
+  "description": "One app. One subscription. Everything. Nutrition, fitness, focus, and an AI copilot that reads across all of it — for $1/mo.",
+
+  "start_url": "/?utm_source=pwa",
+  "scope": "/",
+  "id": "/",
+
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+
+  "theme_color": "#000000",
+  "background_color": "#000000",
+
+  "categories": ["productivity", "lifestyle", "health"],
+  "lang": "en",
+  "dir": "ltr",
+
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "Start Pomodoro",
+      "short_name": "Focus",
+      "description": "Kick off a focus timer",
+      "url": "/app/pomodoro?utm_source=pwa_shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log a Meal",
+      "short_name": "Log Meal",
+      "description": "Quick-log a meal in Calorie Lite",
+      "url": "/app/calorie-lite?utm_source=pwa_shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Check In on Habits",
+      "short_name": "Habits",
+      "description": "Mark today's habits done",
+      "url": "/app/habits?utm_source=pwa_shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+
+  "prefer_related_applications": false
+}
