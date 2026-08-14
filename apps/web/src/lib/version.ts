@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.15';
-export const APP_RELEASE_DATE = '2026-08-11'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.5.16';
+export const APP_RELEASE_DATE = '2026-08-14'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.16',
+    date: '2026-08-14',
+    highlights: [
+      'native-feel v0.1 pass — three parallel POV workers landed 20 mobile-polish fixes in one wave. PWA foundation (theme-color per color scheme, apple-touch-icon set, manifest.json with maskable icons + shortcuts + start_url/scope/id, iOS splash link tags for 8 device sizes, format-detection). Interaction feel (tap flash killed, hover gated to @media hover:hover pointer:fine, touch-action: manipulation on all interactives, scoped user-select: none, 100vh → 100dvh sweep across 6 files, overscroll-behavior: contain on modals, iOS-safe body scroll lock in 4 drawers). Inputs (16px font-size override on coarse-pointer to kill iOS zoom, visualViewport keyboard focus-scroll handler, autocorrect off on 6 code/search fields, image width+height on 3 imgs for zero CLS).',
+      'Coarse-pointer input font-size trick — instead of touching 40+ INPUT_STYLE definitions or the locked design-system, worker 3 injected one @media (pointer: coarse) rule forcing every editable surface to max(16px, 1rem) !important. Desktop mouse users keep the intended 14px chrome; iOS auto-zoom dies. Zero design-system regression.',
+      'New skill in the Build Kit — native-feel v0.1 shipped to PromptVM as prompt native-feel-caf91d7d. Framework-agnostic 30-recipe DETECT/FIX/VERIFY pass for any web or PWA. Zero deps. Ran on ourselves for the initial dogfood.',
+    ],
+  },
   {
     version: '0.5.15',
     date: '2026-08-12',
