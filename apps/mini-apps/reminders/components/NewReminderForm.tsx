@@ -258,6 +258,7 @@ export default function NewReminderForm({ onSubmit, onCancel }: Props) {
         <Field label="Day of month (1-31)">
           <input
             type="number"
+            inputMode="numeric"
             min={1}
             max={31}
             value={state.schedule_dom}
@@ -276,6 +277,10 @@ export default function NewReminderForm({ onSubmit, onCancel }: Props) {
             value={state.schedule_cron}
             onChange={(e) => setState((p) => ({ ...p, schedule_cron: e.target.value }))}
             placeholder="0 8-22/2 * * *"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
           />
         </Field>
@@ -286,6 +291,10 @@ export default function NewReminderForm({ onSubmit, onCancel }: Props) {
           type="text"
           value={state.timezone}
           onChange={(e) => setState((p) => ({ ...p, timezone: e.target.value }))}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           style={inputStyle}
         />
       </Field>
@@ -307,12 +316,17 @@ export default function NewReminderForm({ onSubmit, onCancel }: Props) {
               type="text"
               value={state.agent_context}
               onChange={(e) => setState((p) => ({ ...p, agent_context: e.target.value }))}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               style={inputStyle}
             />
           </Field>
           <Field label="Max steps">
             <input
               type="number"
+              inputMode="numeric"
               min={1}
               max={10}
               value={state.agent_max_steps}
