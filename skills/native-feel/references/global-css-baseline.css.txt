@@ -1,0 +1,225 @@
+/* native-feel: mobile baseline — do not remove sentinel
+ *
+ * Drop-in global CSS. Append inside the app's canonical global stylesheet.
+ * MERGE STRATEGY: if a rule with the same selector already exists, MERGE
+ * declarations (only add missing ones). Never overwrite existing declarations.
+ *
+ * All rules are scoped as narrowly as safe. No `body { user-select: none }`
+ * or `body { overscroll-behavior: none }` without explicit user consent.
+ */
+
+
+/* ═════════════════════════════════════════════════════════
+ * Root: viewport, text sizing, tap highlight, hyphenation
+ * ═════════════════════════════════════════════════════════ */
+html {
+  /* Kill tap flash across all interactive descendants */
+  -webkit-tap-highlight-color: transparent;
+
+  /* Stop iOS from inflating text on landscape rotation (respects user pref via 100%) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
+  /* Better wrap on narrow columns */
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Body: font baseline, background, safe area rendering
+ * (App-level tokens override these; these are only fallbacks.)
+ * ═════════════════════════════════════════════════════════ */
+body {
+  margin: 0;
+  min-height: 100vh;   /* fallback */
+  min-height: 100svh;  /* small viewport — never hidden by chrome */
+  min-height: 100dvh;  /* dynamic — recomputes as chrome moves */
+
+  /* If you need default sans-serif; app design tokens should override */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Better font rendering on retina */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Interactive elements: touch-action, user-select, hover gating
+ * ═════════════════════════════════════════════════════════ */
+
+/* Fast-tap on all interactive surfaces (kills 300ms delay legacy, kills double-tap-zoom) */
+button,
+a,
+label[for],
+[role="button"],
+[role="link"],
+[role="tab"],
+[role="menuitem"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  touch-action: manipulation;
+}
+
+/* No text selection or callout on interactive surfaces (scoped — never body) */
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+nav a,
+.tab,
+.chip,
+.pill,
+.btn {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Reset button appearance so custom styling isn't fighting UA defaults */
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Gate ALL hover styles to hover-capable pointers (kills sticky hover after tap) */
+@media (hover: hover) and (pointer: fine) {
+  /* Any existing app :hover rules that were NOT already inside a media query
+   * should be re-wrapped by hand or moved here. This block is intentionally
+   * empty by default — the app's own :hover rules should be moved INTO it
+   * during Phase 4 recipe 09.
+   */
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Form inputs: 16px minimum font-size, no zoom on focus
+ * ═════════════════════════════════════════════════════════ */
+input,
+textarea,
+select,
+[contenteditable] {
+  /* iOS zooms in when tapping any input with font-size < 16px */
+  font-size: 16px;
+
+  /* Kill iOS's rounded input styling — apps almost always want their own */
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+
+/* Fix number input weirdness on mobile (spinners, decimal separators, etc.) */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Layout: safe-area helpers (use with viewport-fit=cover)
+ * These are utility classes — apply where needed, don't force globally.
+ * ═════════════════════════════════════════════════════════ */
+.safe-top    { padding-top:    env(safe-area-inset-top, 0); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+.safe-left   { padding-left:   env(safe-area-inset-left, 0); }
+.safe-right  { padding-right:  env(safe-area-inset-right, 0); }
+
+.safe-x {
+  padding-left:  env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+.safe-y {
+  padding-top:    env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Media: prevent layout shift, hint decode strategy
+ * ═════════════════════════════════════════════════════════ */
+img, video, iframe, svg {
+  display: block;    /* eliminate the inline baseline gap */
+  max-width: 100%;
+  height: auto;
+}
+
+/* Encourage browser to decode async by default (no layout blocking) */
+img[loading="lazy"] { content-visibility: auto; }
+
+
+/* ═════════════════════════════════════════════════════════
+ * Scroll: momentum + overscroll containment on common surfaces
+ * (Applied at the container level — not global.)
+ * ═════════════════════════════════════════════════════════ */
+
+/* Modal/sheet/overlay backdrops: don't let inner scroll leak into page */
+.modal-backdrop,
+.sheet,
+.overlay,
+[role="dialog"] {
+  overscroll-behavior: contain;
+}
+
+/* Horizontal carousels: browser handles vertical, page handles horizontal */
+.carousel,
+[data-carousel],
+.snap-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;               /* Firefox */
+}
+.carousel::-webkit-scrollbar,
+[data-carousel]::-webkit-scrollbar,
+.snap-x::-webkit-scrollbar {
+  display: none;                        /* Chromium + Safari */
+}
+.carousel > *,
+[data-carousel] > *,
+.snap-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Focus visibility: keep for keyboard users, hide on mouse/touch
+ * ═════════════════════════════════════════════════════════ */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+
+/* ═════════════════════════════════════════════════════════
+ * Reduced motion: honor the user's setting
+ * ═════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* /native-feel */

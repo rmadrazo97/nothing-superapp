@@ -1,0 +1,147 @@
+native-feel — device verification checklist
+
+The human runs this on real hardware after Phase 4 fixes ship. Mark each ✅ or ❌.
+❌s go back to the agent for a targeted second pass.
+
+Chrome DevTools mobile emulator ≠ real device. It misses:
+  - true safe-area insets (Dynamic Island / home indicator)
+  - real iOS keyboard behavior (visualViewport, focus-scroll)
+  - real momentum scroll physics
+  - PWA install flow
+  - Splash screens
+  - Status-bar theming in standalone mode
+  - Tap latency + haptic feedback
+
+If neither iOS nor Android is available: emulator is better than nothing but the
+polish is NOT signed off.
+
+
+═════════════════════════════════════════════════════════
+SECTION 1 · iOS (Safari + Add-to-Home-Screen PWA)
+═════════════════════════════════════════════════════════
+
+Setup:
+  [ ] Open Safari on an iPhone with a notch/Dynamic Island (iPhone X or newer).
+  [ ] Navigate to the app.
+
+Tap + hover (recipes 08-11):
+  [ ] Tap any button → no gray/blue flash appears.
+  [ ] Tap button, release → hover styles do NOT stick on.
+  [ ] Rapid double-tap a button → no zoom, no delay.
+  [ ] Long-press a button → no text selection handles, no copy popover.
+  [ ] Long-press a paragraph of body text → selection handles DO appear (regression check).
+
+Layout + viewport (recipes 12-14):
+  [ ] Scroll down to hide URL bar → app shell fills the full viewport, no gap.
+  [ ] Scroll up to show URL bar → app shell resizes smoothly, no scroll strip appears.
+  [ ] Header content sits BELOW the Dynamic Island (not clipped by it).
+  [ ] Bottom nav sits ABOVE the home indicator (indicator is still visible).
+  [ ] Rotate to landscape → notch/curved corners don't cover content.
+
+Inputs + keyboard (recipes 15-19):
+  [ ] Tap any input → page does NOT zoom in.
+  [ ] Tap the LAST input on a long form (near screen bottom) → keyboard rises, input auto-scrolls into view (not hidden behind keyboard).
+  [ ] Focus an email input → keyboard shows @ and .com keys.
+  [ ] Focus a phone input → numeric keypad appears.
+  [ ] Focus a username field → no autocorrect popup, no auto-capitalize on first letter.
+  [ ] Rotate to landscape while reading text → text does NOT get bigger.
+
+Scroll + gestures (recipes 20-23):
+  [ ] Drag down at top of page → NO refresh spinner (if scoped) OR refresh appears (if intentionally enabled — check with team).
+  [ ] Swipe horizontally on carousel → carousel moves, page stays.
+  [ ] Swipe vertically on carousel → page scrolls, carousel stays.
+  [ ] Open a modal → drag on the backdrop → page underneath does NOT scroll.
+  [ ] Close modal → page is at same scroll position, no jump.
+
+Media (recipes 24-25):
+  [ ] Background video plays automatically, silent, in-place (not fullscreen).
+  [ ] On slow network (throttle in Safari dev menu), page loads without content jumping around as images appear.
+
+PWA install + polish (recipes 26-30):
+  [ ] Safari Share → "Add to Home Screen" → icon shows the app's real icon (not a screenshot fallback).
+  [ ] Launch from home screen → app opens WITHOUT Safari chrome (URL bar, tab bar).
+  [ ] On launch, no white flash — splash screen matches app design.
+  [ ] Status bar text/icons contrast well against app header (adjust apple-mobile-web-app-status-bar-style if not).
+  [ ] Long-press home icon (if iOS supports for this PWA) → shortcuts appear.
+
+Dark mode:
+  [ ] Toggle iOS system dark mode → browser chrome tint changes to match dark theme-color.
+  [ ] App content re-themes correctly (if design system supports dark mode).
+
+
+═════════════════════════════════════════════════════════
+SECTION 2 · Android (Chrome + installed PWA)
+═════════════════════════════════════════════════════════
+
+Setup:
+  [ ] Open Chrome on Android (any modern device).
+  [ ] Navigate to the app.
+
+Tap + hover:
+  [ ] Tap any button → no gray/blue flash.
+  [ ] Tap and release → hover styles don't stick.
+  [ ] Rapid double-tap a button → no zoom, feels instant.
+  [ ] Long-press a button → no text selection, no callout menu.
+
+Layout + viewport:
+  [ ] App shell fills viewport as URL bar animates in/out on scroll.
+  [ ] On a punch-hole camera device (Pixel 6+, Galaxy S22+), header content clears the punch hole.
+  [ ] On gesture-nav devices, bottom nav clears the gesture bar.
+
+Inputs + keyboard:
+  [ ] Tap any input → page does NOT zoom.
+  [ ] Focused input auto-scrolls above the keyboard.
+  [ ] Correct keyboard type appears for each input type.
+
+Scroll + gestures:
+  [ ] Drag down at top of page → refresh behavior matches expectation.
+  [ ] Horizontal carousels don't fight with vertical page scroll.
+  [ ] Modal backdrop doesn't leak scroll to page underneath.
+
+Media:
+  [ ] Background video autoplays silently in-place.
+  [ ] No layout shift on throttled network.
+
+PWA install + polish:
+  [ ] Chrome address-bar menu offers "Install app" (not just "Add to Home Screen").
+  [ ] Install → launch from home screen → opens as standalone app (no browser chrome).
+  [ ] Home-screen icon fills the system icon shape (circle/squircle — not a white square around a smaller icon).
+  [ ] Long-press home icon → shortcuts menu appears with declared shortcuts.
+  [ ] If share_target declared: share text/URL from another app → your PWA appears in share sheet AND the shared content actually arrives.
+
+Dark mode:
+  [ ] Chrome address bar tints to dark theme-color when system is dark.
+  [ ] PWA standalone mode status bar tints to dark theme_color from manifest.
+
+
+═════════════════════════════════════════════════════════
+SECTION 3 · Cross-device polish
+═════════════════════════════════════════════════════════
+
+Accessibility regression check:
+  [ ] TalkBack (Android) or VoiceOver (iOS): navigate the app — every interactive element has an accessible name.
+  [ ] User pinch-to-zoom still works on non-input content (not blocked by user-scalable=no).
+  [ ] Focus outlines visible for keyboard navigation (Bluetooth keyboard test if possible).
+  [ ] System font-size scaling: bump device font size to Extra Large → app text scales up (text-size-adjust: 100% preserves this).
+
+Network resilience:
+  [ ] Airplane mode → launch installed PWA → branded offline page (not browser error).
+  [ ] Slow 3G throttle → app is usable within a reasonable time (LCP < 4s).
+
+Repeated interactions:
+  [ ] Scroll fast → no jank, no scroll-jail.
+  [ ] Open/close modal 10 times rapidly → no memory leak indicator (Performance tab in DevTools).
+  [ ] Open every tab / route / mini-app → nothing breaks under real-touch stress.
+
+
+═════════════════════════════════════════════════════════
+How to report ❌s back to the agent
+═════════════════════════════════════════════════════════
+
+Copy-paste the failed line + device + repro steps:
+
+  ❌ § iOS · "Bottom nav sits ABOVE the home indicator"
+  Device: iPhone 15 Pro (iOS 18)
+  Repro: Open /app/gym-routine → bottom nav overlaps the home indicator by ~20px.
+
+The agent will find which recipe's fix didn't land and do a targeted patch.

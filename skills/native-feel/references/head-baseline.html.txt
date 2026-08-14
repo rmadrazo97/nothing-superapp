@@ -1,0 +1,101 @@
+native-feel — HTML <head> baseline
+
+Drop-in for the root HTML head (or the framework's equivalent — Next.js metadata,
+Nuxt useHead, SvelteKit +layout.svelte, vanilla index.html).
+
+MERGE STRATEGY: if a meta tag already exists, keep the user's value but merge
+missing attributes. If a link tag already exists, keep the user's href.
+NEVER overwrite existing name / href / content.
+
+Placeholders to replace (grep for {{...}}):
+  {{APP_NAME}}                — human-readable app name, e.g. "Nothing Superapp"
+  {{APP_SHORT_NAME}}          — max 12 chars for iOS home screen, e.g. "Nothing"
+  {{THEME_COLOR_LIGHT}}       — hex for light-mode browser chrome, e.g. "#ffffff"
+  {{THEME_COLOR_DARK}}        — hex for dark-mode browser chrome, e.g. "#000000"
+  {{BACKGROUND_COLOR}}        — hex for splash-screen background, e.g. "#000000"
+  {{DESCRIPTION}}             — SEO + PWA install-prompt subtitle
+  {{OG_IMAGE_URL}}            — absolute URL to 1200×630 social preview
+
+═════════════════════════════════════════════════════════
+Baseline block (paste into <head>)
+═════════════════════════════════════════════════════════
+
+<!-- native-feel: mobile baseline — do not remove sentinel -->
+
+<!-- Viewport: dynamic vh + notch support -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+<!-- Theme color (browser chrome, per color scheme) -->
+<meta name="theme-color" content="{{THEME_COLOR_LIGHT}}" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="{{THEME_COLOR_DARK}}" media="(prefers-color-scheme: dark)" />
+
+<!-- PWA identity + install -->
+<meta name="application-name" content="{{APP_NAME}}" />
+<meta name="description" content="{{DESCRIPTION}}" />
+<link rel="manifest" href="/manifest.json" />
+
+<!-- iOS PWA capability + status bar + title -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="{{APP_SHORT_NAME}}" />
+
+<!-- iOS home-screen icon (also used by Android as fallback) -->
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152.png" />
+
+<!-- Favicon variants -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="{{THEME_COLOR_DARK}}" />
+
+<!-- Stop iOS from auto-linking phone numbers / addresses / dates -->
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+
+<!-- Windows tile color (Edge on Windows) -->
+<meta name="msapplication-TileColor" content="{{THEME_COLOR_DARK}}" />
+<meta name="msapplication-tap-highlight" content="no" />
+
+<!-- Open Graph / Twitter (mobile share previews) -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="{{APP_NAME}}" />
+<meta property="og:description" content="{{DESCRIPTION}}" />
+<meta property="og:image" content="{{OG_IMAGE_URL}}" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<!-- iOS launch splash screens (see references/audit-recipes.txt recipe 26) -->
+<!-- Add per-device <link rel="apple-touch-startup-image"> here for your device support matrix. -->
+
+<!-- /native-feel -->
+
+═════════════════════════════════════════════════════════
+Framework-specific placement
+═════════════════════════════════════════════════════════
+
+Next.js 13+ App Router (app/layout.tsx):
+  - Viewport → export const viewport: Viewport = { themeColor: [{ media: '(prefers-color-scheme: light)', color: '{{THEME_COLOR_LIGHT}}' }, { media: '(prefers-color-scheme: dark)', color: '{{THEME_COLOR_DARK}}' }], viewportFit: 'cover' }
+  - Metadata → export const metadata: Metadata = { title, description, manifest: '/manifest.json', appleWebApp: { capable: true, title: '{{APP_SHORT_NAME}}', statusBarStyle: 'black-translucent' }, icons: { apple: [...] }, formatDetection: { telephone: false } }
+  - Any tag not covered by the Metadata API → put in <head> inside RootLayout children.
+
+Next.js 12 Pages Router (pages/_document.tsx):
+  - Paste the baseline block above inside <Head> in the Document component.
+
+Nuxt 3 (app.vue or nuxt.config.ts):
+  - useHead({ meta: [...], link: [...] }) — one entry per line above.
+
+SvelteKit (src/app.html):
+  - Paste inside %sveltekit.head% area.
+
+Astro (src/layouts/BaseLayout.astro):
+  - Paste inside <head> in the base layout.
+
+Vanilla / static HTML (public/index.html or every page's <head>):
+  - Paste as-is. If multi-page: consider extracting into an include.
+
+Vue / Nuxt 2 (nuxt.config.js head):
+  - head: { meta: [...], link: [...] } same shape as Nuxt 3.
+
+Angular (src/index.html + optional Meta service for dynamic ones):
+  - Paste in <head>. Use Angular Meta service for per-route Open Graph.

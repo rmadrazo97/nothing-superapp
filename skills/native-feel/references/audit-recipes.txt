@@ -1,0 +1,553 @@
+native-feel — the 30 recipes
+
+Each recipe follows the same shape:
+  # ID · Category · Title
+  Symptom     — what the user sees or feels
+  Detect      — shell command to run (grep / find / cat / curl)
+  Fix         — copy-paste-safe code snippet with placement notes
+  Verify      — specific observable behavior on real hardware
+  Skip when   — condition under which this recipe does NOT apply
+  Anti-pattern— what NOT to do (the tempting-but-wrong fix)
+
+The order below is the execution order in Phase 4 (foundation A, then B, C, D, E, F, G).
+Phase 3 baselines cover recipes 01–07 via drop-in files; recipes 08–30 are surgical.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY A · FOUNDATION (also handled by Phase 3 baselines)
+═════════════════════════════════════════════════════════
+
+# 01 · A · Viewport meta missing or missing viewport-fit=cover
+Symptom     : Page can zoom, safe-area env() values return 0, notch cropping content.
+Detect      : grep -rn '<meta name="viewport"' src/ app/ pages/ public/ 2>/dev/null
+              # Missing → recipe applies. Present but without "viewport-fit=cover" → recipe applies (merge only that attr).
+Fix         : Add or merge in the root <head> (Next.js: app/layout.tsx metadata.viewport, Nuxt: nuxt.config, vanilla: index.html):
+              <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+              Do NOT add user-scalable=no or maximum-scale=1 — accessibility failure and iOS ignores it anyway.
+Verify      : Load on iPhone with notch. env(safe-area-inset-top) should be > 0 in DevTools console.
+Skip when   : Already present with viewport-fit=cover.
+Anti-pattern: user-scalable=no — never.
+
+
+# 02 · A · theme-color missing or missing dark-scheme variant
+Symptom     : Browser chrome / iOS status bar color doesn't match app in dark mode.
+Detect      : grep -rn 'name="theme-color"' src/ app/ pages/ public/ 2>/dev/null
+              # If zero hits: apply. If one hit without media query: apply the dark variant.
+Fix         : Emit TWO meta tags in root <head>:
+              <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+              <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+              Replace #ffffff / #000000 with the app's actual surface colors (grep design tokens).
+Verify      : Open Chrome Android in light mode → address bar matches light color. Toggle to dark → address bar re-tints.
+Skip when   : Both variants already present with correct colors.
+Anti-pattern: Single theme-color with no media query — dark-mode users see wrong tint.
+
+
+# 03 · A · apple-touch-icon missing
+Symptom     : iOS Add-to-Home-Screen shows generic screenshot icon instead of the app icon.
+Detect      : grep -rn 'rel="apple-touch-icon"' src/ app/ pages/ public/ 2>/dev/null
+              # Also: ls public/apple-touch-icon.png public/apple-touch-icon-180x180.png 2>/dev/null
+Fix         : Ship a 180×180 PNG at public/apple-touch-icon.png (iOS auto-detects) OR link explicitly:
+              <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+              If designing new: also ship 152×152 (iPad) and 167×167 (iPad Pro).
+Verify      : Safari → Share → Add to Home Screen. Icon on home screen matches app icon (not generic screenshot).
+Skip when   : File exists AND is a real icon (not the framework default placeholder — check the PNG visually).
+Anti-pattern: SVG apple-touch-icon — iOS does not accept SVG here. PNG only.
+
+
+# 04 · A · apple-mobile-web-app-* meta tags missing (PWA standalone quality)
+Symptom     : Added-to-home-screen PWA opens with Safari chrome instead of full-screen, or status bar looks off.
+Detect      : grep -rn 'apple-mobile-web-app-capable\|apple-mobile-web-app-status-bar-style\|apple-mobile-web-app-title' src/ app/ pages/ public/ 2>/dev/null
+Fix         : Add in root <head>:
+              <meta name="apple-mobile-web-app-capable" content="yes" />
+              <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+              <meta name="apple-mobile-web-app-title" content="Your App" />
+              <meta name="mobile-web-app-capable" content="yes" />  <!-- Android/Chrome parallel -->
+              status-bar-style: "default" (white bg + dark text), "black" (opaque black), "black-translucent" (transparent, content flows under — use only with viewport-fit=cover + safe-area padding).
+Verify      : Add to Home Screen on iOS → open from home screen. No Safari bar. Status bar renders per style.
+Skip when   : All four present.
+Anti-pattern: black-translucent WITHOUT viewport-fit=cover and safe-area-inset-top padding → content hidden under notch.
+
+
+# 05 · A · PWA manifest missing or unlinked
+Symptom     : Chrome doesn't offer install prompt; Android Add-to-Home-Screen degrades to a bookmark.
+Detect      : find . -type f \( -name "manifest.json" -o -name "*.webmanifest" \) -not -path "*/node_modules/*" 2>/dev/null
+              grep -rn 'rel="manifest"' src/ app/ pages/ public/ 2>/dev/null
+Fix         : Create public/manifest.json (see references/manifest-baseline.json.txt for the drop-in template).
+              Link in <head>: <link rel="manifest" href="/manifest.json" />
+Verify      : Chrome Android → address bar menu → "Install app" or "Add to Home Screen" is offered as an app (not a shortcut).
+Skip when   : Manifest exists AND is linked from head AND has name / short_name / icons / display / start_url populated.
+Anti-pattern: Manifest present but not linked from head → Chrome ignores it entirely.
+
+
+# 06 · A · Manifest missing display: standalone / display_override
+Symptom     : PWA opens in a browser tab, not as a standalone app.
+Detect      : cat public/manifest.json 2>/dev/null | grep -E '"display"'
+              # Missing or set to "browser" → apply.
+Fix         : Add to manifest.json:
+              "display": "standalone",
+              "display_override": ["standalone", "minimal-ui"]
+              For chromeless kiosk apps: "fullscreen". For most apps: "standalone".
+Verify      : Install PWA from Chrome. Launch from home screen. No URL bar, no browser tab UI.
+Skip when   : display is already "standalone" or "fullscreen".
+Anti-pattern: display: "browser" — defeats the point of a PWA install.
+
+
+# 07 · A · Manifest missing maskable icon
+Symptom     : Android home-screen icon shows inside a white square instead of adapting to system icon shape (circle, squircle, etc.).
+Detect      : cat public/manifest.json 2>/dev/null | grep -E '"purpose".*maskable'
+              # No hit → recipe applies.
+Fix         : Ship TWO 512×512 PNGs and reference both in manifest icons[]:
+              {
+                "src": "/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any"
+              },
+              {
+                "src": "/icon-512-maskable.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable"
+              }
+              Maskable icon must keep the visual mark inside the inner 80% safe zone — the outer 20% may be cropped.
+Verify      : Install PWA on Android. Home-screen icon fills the system shape (no white square border).
+Skip when   : maskable icon already in manifest.
+Anti-pattern: Single icon with purpose: "any maskable" — spec allows it but leads to distortion on many launchers. Ship two separate files.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY B · TAP + HOVER
+═════════════════════════════════════════════════════════
+
+# 08 · B · Gray/blue flash on tap
+Symptom     : Tapping any link or button flashes a gray or blue rectangle on iOS / Android.
+Detect      : grep -rn 'webkit-tap-highlight-color' src/ app/ 2>/dev/null
+              # If zero hits AND no CSS reset in use → recipe applies.
+Fix         : In global CSS:
+              html { -webkit-tap-highlight-color: transparent; }
+              /* If you want a custom press feedback, add :active states explicitly. */
+Verify      : Tap any button on iOS Safari. No gray/blue flash. If you added an :active state, that renders instead.
+Skip when   : Already set to transparent globally.
+Anti-pattern: Setting per-element instead of on html/body → misses future components.
+
+
+# 09 · B · Sticky hover state after tap
+Symptom     : Tapping a button on mobile leaves the hover styles "stuck on" until user taps elsewhere.
+Detect      : grep -rn ':hover' src/ app/ styles/ 2>/dev/null | grep -v '@media' | head -20
+              # Any :hover rule NOT already inside @media (hover: hover) → recipe applies.
+Fix         : Wrap ALL :hover selectors in the hover-capable media query:
+              @media (hover: hover) and (pointer: fine) {
+                .button:hover { background: var(--color-hover); }
+                a:hover { text-decoration: underline; }
+                /* etc. */
+              }
+              For frameworks with utility classes (Tailwind): the framework already handles this via `hover:` variant on modern versions. Verify.
+Verify      : Tap a button on iOS. Release. Button style returns to default immediately — no lingering hover.
+Skip when   : Every :hover rule is already inside @media (hover: hover). Tailwind ≥ v3.4 with `hoverOnlyWhenSupported: true` in config → skip.
+Anti-pattern: Removing :hover entirely — desktop UX regresses.
+
+
+# 10 · B · Laggy tap (300ms delay legacy behavior; modern trigger is missing touch-action)
+Symptom     : Tap feels sluggish; a beat of nothing before the button responds.
+Detect      : grep -rn 'touch-action' src/ app/ styles/ 2>/dev/null
+              # If zero hits on interactive elements → recipe applies.
+Fix         : In global CSS, apply to interactive surfaces:
+              button, a, [role="button"], [role="link"], input[type="submit"], input[type="button"] {
+                touch-action: manipulation;
+              }
+              Also: give tap-down visual feedback on pointerdown for a "hardware-responsive" feel:
+              button:active, [role="button"]:active { transform: scale(0.98); transition: transform 60ms; }
+Verify      : Rapid double-tap a button on iOS. No zoom (double-tap-to-zoom disabled on that element). Tap feels instant.
+Skip when   : touch-action: manipulation is already global on interactives.
+Anti-pattern: touch-action: none globally — kills scroll. Only "none" inside gesture surfaces (see recipe 22).
+
+
+# 11 · B · Long-press selects button text
+Symptom     : Long-pressing a button on mobile pops up the text selection handles and copy menu.
+Detect      : grep -rn 'user-select' src/ app/ styles/ 2>/dev/null
+              # If not scoped to interactive elements → recipe applies.
+Fix         : In global CSS, on interactive surfaces ONLY (never body/root):
+              button, [role="button"], nav a, .tab, .chip {
+                user-select: none;
+                -webkit-user-select: none;
+                -webkit-touch-callout: none;  /* stops the iOS Save Image / Copy Link popover */
+              }
+Verify      : Long-press a button on iOS. No text selection handles. No callout menu.
+Skip when   : Interactive elements already have user-select: none scoped.
+Anti-pattern: body { user-select: none } → breaks copy-paste on paragraphs, chat messages, code blocks. Never.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY C · LAYOUT + VIEWPORT
+═════════════════════════════════════════════════════════
+
+# 12 · C · Layout uses 100vh — height drifts as mobile browser chrome hides/shows
+Symptom     : Full-height layout is too tall (creates a scroll strip) or too short (has a gap at the bottom) as the URL bar animates in/out on scroll.
+Detect      : grep -rn '100vh\b' src/ app/ styles/ 2>/dev/null
+              # Any hit → recipe applies.
+Fix         : Replace based on intent:
+              - Full app shell (fills the viewport as it is RIGHT NOW): 100dvh (dynamic — recomputes as chrome moves)
+              - Hero section that must fit when chrome is showing (never scrolls out): 100svh (small — smallest possible viewport)
+              - Container that must contain content even when chrome is hidden (largest): 100lvh
+              For safety across old browsers, ship the fallback stack:
+              .app-shell { height: 100vh; height: 100svh; height: 100dvh; }
+Verify      : Open on iOS Safari. Scroll to hide URL bar, scroll back to show it. App shell fills the visible viewport at every moment; no scroll strip appears; no gap under content.
+Skip when   : All full-height layouts already use dvh/svh/lvh.
+Anti-pattern: Using JS to set --vh custom property on window resize — dvh/svh/lvh replace that pattern entirely. Delete the JS.
+
+
+# 13 · C · Content stops at the notch (top / bottom insets)
+Symptom     : Header text runs into the notch; bottom nav sits under the iOS home indicator; landscape mode has black bars.
+Detect      : grep -rn 'env(safe-area-inset' src/ app/ styles/ 2>/dev/null
+              # If viewport meta already has viewport-fit=cover (recipe 01) and this grep is empty → recipe applies.
+Fix         : Apply padding using the safe-area env vars:
+              /* Fixed header */
+              .header { padding-top: env(safe-area-inset-top, 0); }
+              /* Fixed bottom nav */
+              .bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0); }
+              /* Landscape left/right (iPhone 14 Pro landscape) */
+              .content { padding-left: env(safe-area-inset-left, 0); padding-right: env(safe-area-inset-right, 0); }
+              For dynamic layouts, use the max() pattern to combine with a design-token padding:
+              .header { padding-top: max(env(safe-area-inset-top), var(--space-4)); }
+Verify      : Open on iPhone 15 Pro. Header sits below the Dynamic Island. Bottom nav floats above home indicator. Rotate to landscape: left/right content stays clear of the notch/curved corners.
+Skip when   : All fixed-position edges already use env(safe-area-inset-*).
+Anti-pattern: Hardcoded padding-top: 44px — ignores different device inset sizes and future hardware.
+
+
+# 14 · C · Sticky bottom sheet / modal ignores home indicator inset
+Symptom     : Bottom sheet's action buttons sit BEHIND the iOS home indicator; feels un-tappable.
+Detect      : grep -rn 'position: fixed\|position:fixed\|bottom: 0\|bottom:0' src/ app/ styles/ 2>/dev/null | head -10
+              # For each hit that's a modal/sheet/nav → check whether it uses safe-area-inset-bottom padding.
+Fix         : Sheet's inner content area:
+              .sheet { padding-bottom: max(env(safe-area-inset-bottom), var(--space-4)); }
+              Sheet's action bar (sticky CTA at the bottom):
+              .sheet-actions { padding-bottom: max(env(safe-area-inset-bottom), var(--space-3)); }
+Verify      : Open a bottom sheet on iPhone with home indicator. Action buttons sit above the indicator; the home indicator is still visible below the CTA row.
+Skip when   : Bottom sheets already use safe-area-inset-bottom.
+Anti-pattern: Setting bottom: 34px hardcoded → wrong on iPhone SE (no indicator), wrong on iPad, wrong on Android.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY D · INPUTS + KEYBOARD
+═════════════════════════════════════════════════════════
+
+# 15 · D · Page zooms into input on focus (iOS)
+Symptom     : Tapping any input on iOS zooms the page in; the user has to pinch-zoom back out after typing.
+Detect      : grep -rn 'font-size' src/ app/ styles/ components/ 2>/dev/null | grep -E 'input|Input|text-area|textarea|TextField' | head -20
+              # Any font-size < 16px on an input → recipe applies.
+Fix         : Force 16px minimum on ALL input types + textarea + contenteditable:
+              input, textarea, select, [contenteditable] {
+                font-size: 16px;
+              }
+              If the design system uses 14px inputs: keep the visual 14px look via padding + line-height + transform, but ship font-size: 16px. Ugly hack, but the ONLY a11y-safe fix.
+              Example:
+              .input-sm {
+                font-size: 16px;
+                line-height: 1;
+                padding: 8px 12px;
+                /* if you truly need 14px visually: */
+                transform: scale(0.875);
+                transform-origin: left center;
+                width: 114.28%; /* compensates for scale */
+              }
+Verify      : Tap any input on iOS Safari. Page does NOT zoom. Keyboard rises; input stays at its resting width.
+Skip when   : All inputs / textareas / selects are ≥ 16px font-size.
+Anti-pattern: <meta name="viewport" content="user-scalable=no"> — a11y violation, and iOS 10+ ignores it. Do NOT.
+
+
+# 16 · D · iOS keyboard covers the focused input
+Symptom     : User taps input near the bottom of the screen. Keyboard rises. Input is now hidden BEHIND the keyboard.
+Detect      : grep -rn 'visualViewport\|scrollIntoView.*focus\|input.*focus.*scroll' src/ app/ 2>/dev/null
+              # If zero hits AND the app has forms below the fold → recipe applies.
+Fix         : Add a global focus-scroll handler (vanilla JS, framework-agnostic — put in root layout / entry file):
+              if (typeof window !== 'undefined' && 'visualViewport' in window) {
+                document.addEventListener('focusin', (e) => {
+                  const el = e.target;
+                  if (!(el instanceof HTMLElement)) return;
+                  if (!el.matches('input, textarea, [contenteditable]')) return;
+                  // Wait for keyboard to animate in, then scroll into view.
+                  setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+                });
+              }
+              For apps with a fixed bottom nav that overlaps too: also listen on visualViewport.resize and hide the nav while keyboard is up (visualViewport.height < window.innerHeight).
+Verify      : On iPhone Safari, tap the LAST input on a long form (near the bottom of the screen). Keyboard rises. Input auto-scrolls to center of the visible area (not hidden behind keyboard).
+Skip when   : Focus-scroll behavior already implemented.
+Anti-pattern: position: fixed on body during focus — the classic iOS keyboard hack. Broken on modern iOS; use visualViewport instead.
+
+
+# 17 · D · Text size shifts on device rotation
+Symptom     : User rotates iPhone to landscape → all text suddenly gets bigger.
+Detect      : grep -rn 'text-size-adjust' src/ app/ styles/ 2>/dev/null
+              # If zero hits → recipe applies.
+Fix         : In global CSS:
+              html {
+                -webkit-text-size-adjust: 100%;
+                text-size-adjust: 100%;
+              }
+Verify      : Load a text-heavy page on iPhone Safari in portrait. Rotate to landscape. Text stays at the designed size (does not scale up).
+Skip when   : text-size-adjust: 100% already on html.
+Anti-pattern: text-size-adjust: none — blocks user font-size preference from taking effect. Use 100% (respects user pref, blocks iOS auto-inflation).
+
+
+# 18 · D · Wrong input type (generic keyboard for email / phone / URL / number)
+Symptom     : Tapping an email input shows the alpha keyboard instead of the email keyboard with @; phone inputs show alpha; etc.
+Detect      : grep -rn '<input\|<Input' src/ app/ components/ 2>/dev/null | grep -v 'type="' | head -20
+              # Any input without an explicit type= attr defaults to text.
+              # Also check known fields: grep -rn 'name="email".*type="text"' etc.
+Fix         : Use the correct input type for each field:
+              - Email: <input type="email" autocomplete="email" inputmode="email" />
+              - Phone: <input type="tel" autocomplete="tel" inputmode="tel" />
+              - URL:   <input type="url" autocomplete="url" inputmode="url" />
+              - Number (integer): <input type="text" inputmode="numeric" pattern="[0-9]*" />
+                (Note: type="number" has UX issues on mobile — spinners, unwanted decimal separators. Prefer inputmode="numeric".)
+              - Decimal: <input type="text" inputmode="decimal" />
+              - Search: <input type="search" autocomplete="off" />
+              - One-time-code (SMS auth): <input type="text" inputmode="numeric" autocomplete="one-time-code" />
+Verify      : Focus an email input on iOS → keyboard has @ and .com keys. Focus a phone input → numeric keypad. Focus OTP → iOS offers to autofill from SMS.
+Skip when   : Every input has the correct type + inputmode + autocomplete.
+Anti-pattern: type="number" for phone numbers → strips leading zeros, spinner icons, weird decimal handling.
+
+
+# 19 · D · Autocorrect fights with usernames / API keys / codes
+Symptom     : User types their username → iOS "corrects" it to a common word.
+Detect      : grep -rn 'name="username"\|name="code"\|name="token"' src/ app/ components/ 2>/dev/null
+Fix         : On usernames, codes, invite tokens, tags:
+              <input
+                type="text"
+                autocorrect="off"
+                autocapitalize="none"
+                autocomplete="username"
+                spellcheck="false"
+              />
+              For invite codes / OTPs: autocomplete="one-time-code" instead of "username".
+Verify      : Type a non-word username on iOS. No autocorrect popup. First letter is not auto-capitalized.
+Skip when   : All identifier-shaped inputs already have autocorrect+autocapitalize disabled.
+Anti-pattern: Disabling autocorrect globally — breaks it on ordinary text fields where users want it.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY E · SCROLL + GESTURES
+═════════════════════════════════════════════════════════
+
+# 20 · E · Pull-to-refresh hijacks page interactions
+Symptom     : User drags down at the top of the page to interact with a component → browser triggers page refresh instead.
+Detect      : grep -rn 'overscroll-behavior' src/ app/ styles/ 2>/dev/null
+              # For SPAs where refresh is undesired everywhere → recipe applies globally.
+              # For apps where pull-to-refresh is welcomed on some pages → scope to modals/gesture surfaces only.
+Fix         : Global (only if user confirms they never want pull-to-refresh):
+              html, body { overscroll-behavior-y: none; }
+              Scoped (default — apply to modal backdrops, gesture surfaces, infinite-scroll lists):
+              .modal-backdrop, .sheet, .swipeable-list { overscroll-behavior: contain; }
+              Note: overscroll-behavior: none blocks the effect entirely. overscroll-behavior: contain blocks the effect at that surface's boundary but lets children scroll normally.
+Verify      : Drag down at the top of the app. No refresh spinner appears. Drag down inside a modal backdrop → nothing. Legitimate pull-to-refresh (if wanted) still works on pages where it wasn't scoped out.
+Skip when   : Already scoped correctly, or the app relies on native pull-to-refresh and this recipe was declined in intake.
+Anti-pattern: Global overscroll-behavior: none without asking — kills pull-to-refresh where the user might actually want it.
+
+
+# 21 · E · Horizontal carousel scrolls vertically instead
+Symptom     : User tries to swipe a horizontal carousel → page scrolls vertically instead. Or vice versa.
+Detect      : Manual — find any horizontal scroll container (grep for overflow-x: auto | scroll):
+              grep -rn 'overflow-x' src/ app/ styles/ components/ 2>/dev/null | head -20
+              # For each result: does the container have touch-action?
+              grep -rn 'touch-action' src/ app/ styles/ components/ 2>/dev/null
+Fix         : On horizontal carousel/scroller root:
+              .carousel {
+                overflow-x: auto;
+                overflow-y: hidden;
+                touch-action: pan-x;  /* browser: you handle horizontal; page: you handle vertical */
+                scroll-snap-type: x mandatory;
+                -webkit-overflow-scrolling: touch;  /* legacy iOS — keep only if targeting iOS < 13 */
+              }
+              .carousel > * { scroll-snap-align: start; flex-shrink: 0; }
+              For vertical-only surfaces where a nested horizontal carousel exists: same treatment on the inner element.
+Verify      : Swipe horizontally on the carousel → carousel moves, page stays. Swipe vertically → page scrolls, carousel stays. Snap points align (if scroll-snap enabled).
+Skip when   : Carousels already use touch-action: pan-x.
+Anti-pattern: touch-action: none — kills all gestures including scroll. Only use "none" on true drag surfaces (map pan, drawing canvas).
+
+
+# 22 · E · Modal backdrop scrolls the page underneath
+Symptom     : Modal / dialog / bottom sheet is open. User scrolls inside the modal → page behind ALSO scrolls. Close modal → page has jumped.
+Detect      : grep -rn 'body.*style.overflow\|body.style.overflow\|document.body.classList' src/ app/ 2>/dev/null
+              # If modal open/close logic doesn't lock body scroll → recipe applies.
+Fix         : Body scroll lock (works around iOS's inability to respect overflow: hidden on body):
+              // Open modal:
+              const scrollY = window.scrollY;
+              document.body.style.position = 'fixed';
+              document.body.style.top = `-${scrollY}px`;
+              document.body.style.left = '0';
+              document.body.style.right = '0';
+              document.body.dataset.scrollY = String(scrollY);
+              // Close modal:
+              const y = Number(document.body.dataset.scrollY || 0);
+              document.body.style.position = '';
+              document.body.style.top = '';
+              document.body.style.left = '';
+              document.body.style.right = '';
+              delete document.body.dataset.scrollY;
+              window.scrollTo(0, y);
+              Plus on the modal backdrop element: overscroll-behavior: contain (recipe 20).
+Verify      : Open modal. Scroll page underneath (drag on backdrop) → nothing moves. Close modal → page is at the exact same scroll position, no jump.
+Skip when   : Body scroll lock already implemented in modal component (many libraries do this: radix-ui/react-dialog, headlessui/react/Dialog, etc.).
+Anti-pattern: document.body.style.overflow = 'hidden' — works on desktop and Android; fails on iOS Safari. Position-fixed pattern is the only cross-platform fix.
+
+
+# 23 · E · Deprecated -webkit-overflow-scrolling: touch present
+Symptom     : No visible symptom — but this declaration is deprecated since iOS 13. Momentum scroll is default now.
+Detect      : grep -rn '\-webkit-overflow-scrolling' src/ app/ styles/ 2>/dev/null
+Fix         : REMOVE the declaration. It does nothing on iOS 13+ and iOS 12 users are < 0.1% of traffic.
+              If you support iOS < 13: keep it for that scoped context, but plan to remove.
+Verify      : No visible change on modern devices. The audit report notes the removal.
+Skip when   : Not present.
+Anti-pattern: Adding it "for safety" in 2026 — noise in the codebase.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY F · MEDIA + ANIMATION
+═════════════════════════════════════════════════════════
+
+# 24 · F · Video autoplay blocked on mobile
+Symptom     : Auto-playing background video does nothing on iOS / Chrome Android. Sometimes shows a broken play button.
+Detect      : grep -rn '<video\|<Video' src/ app/ components/ 2>/dev/null | head -20
+              # For each hit: check for muted + playsinline + autoplay.
+Fix         : ALL THREE attrs required for reliable autoplay:
+              <video muted playsinline autoplay loop poster="/poster.jpg">
+                <source src="/loop.mp4" type="video/mp4" />
+                <source src="/loop.webm" type="video/webm" />
+              </video>
+              - muted: browsers block autoplay of anything with audio.
+              - playsinline: iOS otherwise force-fullscreens the video.
+              - poster: shows immediately, before the video loads.
+              For React: use playsInline (camelCase).
+Verify      : Open on iOS Safari. Background video plays automatically without user gesture, in place (not fullscreen), silently.
+Skip when   : All autoplay videos have muted + playsinline + autoplay.
+Anti-pattern: Autoplay video with sound → blocked by every browser + hostile UX regardless.
+
+
+# 25 · F · Images cause layout shift (no width/height or aspect-ratio)
+Symptom     : Content jumps around as images load. Cumulative Layout Shift score suffers.
+Detect      : grep -rn '<img\|<Image' src/ app/ components/ 2>/dev/null | grep -v 'width\|height\|aspect-ratio' | head -20
+Fix         : EITHER (a) set width + height attrs on every <img>:
+              <img src="/hero.jpg" width="1200" height="630" alt="…" />
+              (Browser reserves the aspect-ratio box before the image loads.)
+              OR (b) wrap in a container with aspect-ratio CSS:
+              .hero-wrap { aspect-ratio: 1200 / 630; }
+              .hero-wrap img { width: 100%; height: 100%; object-fit: cover; }
+              Also add loading="lazy" for below-the-fold images and decoding="async" for all:
+              <img src="…" width="…" height="…" loading="lazy" decoding="async" alt="…" />
+Verify      : Reload the page on a throttled mobile connection. Content position does NOT shift as images load. Chrome DevTools CLS shows 0 on this page.
+Skip when   : All images have explicit dimensions or aspect-ratio containers.
+Anti-pattern: Setting only CSS max-width without a companion height/aspect-ratio → still shifts.
+
+
+═════════════════════════════════════════════════════════
+CATEGORY G · PWA POLISH
+═════════════════════════════════════════════════════════
+
+# 26 · G · iOS launch splash screens missing
+Symptom     : PWA launched from home screen shows a white flash before app UI renders.
+Detect      : grep -rn 'apple-touch-startup-image' src/ app/ pages/ public/ 2>/dev/null
+              # If zero hits AND the app targets iOS PWA install → recipe applies.
+Fix         : iOS needs one splash per device resolution. The pragmatic minimum (covers ~90% of iPhones):
+              <link rel="apple-touch-startup-image" href="/splash/iphone-15-pro.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+              <link rel="apple-touch-startup-image" href="/splash/iphone-14-pro.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+              <link rel="apple-touch-startup-image" href="/splash/iphone-13.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+              /* … repeat for iPhone SE, iPhone 8, iPhone Xs Max, various iPads … */
+              Generate with pwa-asset-generator: npx pwa-asset-generator ./logo.svg ./public/splash --splash-only
+              (If avoiding new deps: user can produce the PNGs manually from the design system's launch design.)
+Verify      : Install PWA on iPhone. Launch from home screen. Splash matches app color / logo — no white flash.
+Skip when   : Splash images present for the target device set.
+Anti-pattern: Single splash image for all devices → stretched/cropped on most.
+
+
+# 27 · G · No offline fallback (service worker missing or absent)
+Symptom     : Open PWA with no connectivity → generic browser error page.
+Detect      : find . -type f \( -name "sw.js" -o -name "service-worker.js" -o -name "*.sw.js" \) -not -path "*/node_modules/*" 2>/dev/null
+              grep -rn 'serviceWorker.register\|next-pwa\|workbox' src/ app/ 2>/dev/null
+              # If zero hits → recipe applies (light touch — SW is not always in scope for a polish pass).
+Fix         : Ship a minimal SW at public/sw.js:
+              const CACHE = 'app-v1';
+              const OFFLINE_URL = '/offline';
+              self.addEventListener('install', (e) => {
+                e.waitUntil(caches.open(CACHE).then((c) => c.addAll([OFFLINE_URL, '/manifest.json'])));
+                self.skipWaiting();
+              });
+              self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+              self.addEventListener('fetch', (e) => {
+                if (e.request.mode !== 'navigate') return;
+                e.respondWith(fetch(e.request).catch(() => caches.match(OFFLINE_URL)));
+              });
+              Register from root layout / entry:
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+              }
+              And create the /offline page (static HTML with app branding).
+              IMPORTANT: SW caching is a whole topic (versioning, stale-while-revalidate, background sync). This recipe is the "at least don't show the browser error page" minimum.
+Verify      : Install PWA. Turn on airplane mode. Launch PWA. See branded /offline page, not Chrome/Safari error page.
+Skip when   : SW already registered AND has an offline fallback route.
+Anti-pattern: Aggressive cache-first strategy without version invalidation → users stuck on stale JS forever. Ship version-gated SW updates from the start.
+
+
+# 28 · G · format-detection missing (phone numbers auto-linked in odd places)
+Symptom     : Random digit strings (order numbers, IDs) render as clickable phone links on iOS.
+Detect      : grep -rn 'format-detection' src/ app/ pages/ public/ 2>/dev/null
+Fix         : Opt out of iOS auto-linking on non-phone content:
+              <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+              For deliberate phone links, use <a href="tel:+15551234567"> — the meta tag doesn't affect explicit hrefs.
+Verify      : Render a page with a numeric ID. Long-press the number on iOS → no "Call" option. Explicit tel: links still work.
+Skip when   : format-detection meta present.
+Anti-pattern: Leaving the default on for a fintech / order-tracking app → phone popover on order numbers is jarring.
+
+
+# 29 · G · No manifest scope / start_url alignment
+Symptom     : PWA install "works" but launching from home screen opens a random page, or Chrome's install prompt keeps re-showing after install.
+Detect      : cat public/manifest.json 2>/dev/null | grep -E '"start_url"|"scope"'
+              # Missing start_url or scope → recipe applies.
+Fix         : In manifest.json:
+              "start_url": "/?utm_source=pwa",   /* useful for analytics */
+              "scope": "/",                       /* or the app's mounted subpath */
+              "id": "/"                            /* stable app identity across start_url changes */
+Verify      : Install PWA. Launch from home screen → lands on start_url. Reinstall check: Chrome DevTools > Application > Manifest → all three fields populated.
+Skip when   : start_url + scope + id all present.
+Anti-pattern: Setting start_url to a page that requires auth → user launches, sees login, exits, never returns.
+
+
+# 30 · G · Missing shortcuts / share_target / handlers (PWA capability polish)
+Symptom     : Users can install the PWA but don't get long-press shortcuts, can't share INTO the app from other apps.
+Detect      : cat public/manifest.json 2>/dev/null | grep -E '"shortcuts"|"share_target"|"protocol_handlers"'
+              # If none of these are declared AND the app has natural entry points (New X, Search) → recipe applies to shortcuts.
+Fix         : Add app shortcuts (long-press home icon menu, Android + some iOS):
+              "shortcuts": [
+                {
+                  "name": "New Entry",
+                  "short_name": "New",
+                  "url": "/new",
+                  "icons": [{ "src": "/icons/shortcut-new.png", "sizes": "192x192" }]
+                }
+              ]
+              For a share target (accept shared text/URL/files from other apps):
+              "share_target": {
+                "action": "/share",
+                "method": "POST",
+                "enctype": "multipart/form-data",
+                "params": { "title": "title", "text": "text", "url": "url" }
+              }
+              Requires a /share route handler that receives the POST.
+              For protocol handlers (open web+myapp:// links in your PWA): "protocol_handlers": [...]
+Verify      : Install PWA on Android. Long-press home icon → shortcuts appear. Share text from another app → your PWA appears in the share sheet.
+Skip when   : Not desired for this app's scope (many PWAs don't need these).
+Anti-pattern: Declaring a share_target without implementing the /share handler → shows in share sheet, silently fails on tap.
+
+
+═════════════════════════════════════════════════════════
+EXECUTION SEQUENCE — Phase 4 walks these in order.
+═════════════════════════════════════════════════════════
+
+Foundation baselines (Phase 3, one commit): recipes 01–07 auto-apply via drop-in files.
+Category B (tap + hover):      recipes 08 → 09 → 10 → 11    [commit: kill tap flash + sticky hover]
+Category C (layout + viewport):recipes 12 → 13 → 14         [commit: safe-area + viewport-fit]
+Category D (inputs + keyboard):recipes 15 → 16 → 17 → 18 → 19 [commit: input zoom + keyboard + types]
+Category E (scroll + gestures):recipes 20 → 21 → 22 → 23    [commit: gesture surfaces + scroll]
+Category F (media):            recipes 24 → 25              [commit: media + layout shift]
+Category G (PWA polish):       recipes 26 → 27 → 28 → 29 → 30 [commit: PWA polish]
+
+If a category has ZERO FOUND recipes, skip its commit entirely.

@@ -1,0 +1,45 @@
+native-feel — one-line recipe index
+
+Foundation (baselined by drop-in files in Phase 3):
+  01 · A · Viewport meta with viewport-fit=cover
+  02 · A · theme-color per color scheme (light + dark)
+  03 · A · apple-touch-icon 180×180
+  04 · A · apple-mobile-web-app-* meta tags
+  05 · A · PWA manifest.json + linked from <head>
+  06 · A · Manifest display: standalone
+  07 · A · Manifest maskable icon
+
+Tap + hover (Phase 4):
+  08 · B · Kill gray/blue tap flash (-webkit-tap-highlight-color: transparent)
+  09 · B · Gate :hover in @media (hover: hover) and (pointer: fine)
+  10 · B · touch-action: manipulation on all interactive surfaces
+  11 · B · user-select: none scoped to buttons + interactive surfaces
+
+Layout + viewport:
+  12 · C · Replace 100vh with 100dvh / 100svh / 100lvh
+  13 · C · env(safe-area-inset-*) on fixed edges
+  14 · C · Bottom sheet / modal padding-bottom: safe-area-inset-bottom
+
+Inputs + keyboard:
+  15 · D · font-size: 16px minimum on inputs (kills iOS zoom)
+  16 · D · visualViewport focus-scroll for keyboard cover-up
+  17 · D · -webkit-text-size-adjust: 100% (kill rotation text inflation)
+  18 · D · Correct input type + inputmode for keyboards
+  19 · D · autocorrect="off" autocapitalize="none" on usernames/codes
+
+Scroll + gestures:
+  20 · E · overscroll-behavior: contain on modal/sheet/gesture surfaces
+  21 · E · touch-action: pan-x on horizontal carousels
+  22 · E · Body scroll lock via position: fixed + top: -scrollY (iOS-safe)
+  23 · E · Remove deprecated -webkit-overflow-scrolling: touch
+
+Media:
+  24 · F · Video: muted + playsinline + autoplay + poster
+  25 · F · width + height OR aspect-ratio on all images (CLS = 0)
+
+PWA polish:
+  26 · G · iOS apple-touch-startup-image splash screens
+  27 · G · Service worker with /offline fallback (light-touch)
+  28 · G · format-detection: telephone=no (etc) for non-phone content
+  29 · G · Manifest start_url + scope + id alignment
+  30 · G · Manifest shortcuts / share_target where applicable

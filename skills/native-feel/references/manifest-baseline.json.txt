@@ -1,0 +1,163 @@
+native-feel — PWA manifest.json baseline
+
+Drop this at public/manifest.json (or public/site.webmanifest — either works if
+the <link rel="manifest"> in <head> points to the right path).
+
+MERGE STRATEGY: if a manifest already exists, keep the user's existing name /
+short_name / icons and add ONLY the missing fields.
+
+Placeholders (grep for {{...}}):
+  {{APP_NAME}}                — full name, e.g. "Nothing Superapp"
+  {{APP_SHORT_NAME}}          — max 12 chars, e.g. "Nothing"
+  {{DESCRIPTION}}             — install-prompt subtitle
+  {{THEME_COLOR}}              — hex (matches <meta theme-color>), e.g. "#000000"
+  {{BACKGROUND_COLOR}}         — splash bg while app loads, e.g. "#000000"
+  {{START_URL}}                — where launches land, typically "/?utm_source=pwa"
+  {{SCOPE}}                    — usually "/" (or the mounted subpath)
+  {{ORIENTATION}}              — "any" | "portrait" | "landscape" | "portrait-primary"
+  {{CATEGORY}}                 — Play Store category hint, e.g. "productivity"
+
+═════════════════════════════════════════════════════════
+manifest.json
+═════════════════════════════════════════════════════════
+
+{
+  "name": "{{APP_NAME}}",
+  "short_name": "{{APP_SHORT_NAME}}",
+  "description": "{{DESCRIPTION}}",
+
+  "start_url": "{{START_URL}}",
+  "scope": "{{SCOPE}}",
+  "id": "{{SCOPE}}",
+
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "{{ORIENTATION}}",
+
+  "theme_color": "{{THEME_COLOR}}",
+  "background_color": "{{BACKGROUND_COLOR}}",
+
+  "categories": ["{{CATEGORY}}"],
+  "lang": "en",
+  "dir": "ltr",
+
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home screen"
+    },
+    {
+      "src": "/screenshots/mobile-2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Main feature"
+    }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "New Entry",
+      "short_name": "New",
+      "description": "Create a new entry",
+      "url": "/new",
+      "icons": [{ "src": "/icons/shortcut-new.png", "sizes": "192x192" }]
+    }
+  ],
+
+  "prefer_related_applications": false
+}
+
+
+═════════════════════════════════════════════════════════
+Notes on each field
+═════════════════════════════════════════════════════════
+
+name / short_name       Both required. short_name displays on home screen where
+                        space is tight (12 chars max is a hard rule).
+
+description             Shown in Chrome's install prompt and Play Store TWA
+                        listing. Keep under 300 chars.
+
+start_url               Where the app launches. Add utm_source=pwa so analytics
+                        can distinguish PWA launches from browser visits.
+
+scope                   Which URLs are "inside the app" (open in PWA chrome).
+                        URLs outside scope open in the browser. Almost always "/".
+
+id                      Stable app identity across start_url changes. Setting
+                        this early prevents "duplicate install" issues later.
+
+display                 "standalone" removes browser chrome. "fullscreen" removes
+                        the status bar too (game/kiosk). "minimal-ui" keeps a
+                        thin URL bar. "browser" defeats the point of a PWA.
+
+display_override        Modern extension — array of preferred display modes in
+                        order. Fallback chain.
+
+orientation             "portrait" locks to portrait. "any" respects device
+                        rotation. "portrait-primary" locks to top-of-device-up
+                        portrait only (no upside-down).
+
+theme_color             MUST match <meta name="theme-color"> to avoid a
+                        color flash when PWA launches.
+
+background_color        The splash-screen background while the app JS loads.
+                        Should match the app's dominant surface color.
+
+icons                   MUST include both "any" and "maskable" purposes. 192 +
+                        512 sizes cover Chrome + Play Store install. Add 96, 144
+                        for older Android if needed.
+
+screenshots             Enables the "richer install UI" on Chrome Android (bigger
+                        install prompt with screenshots). form_factor: "narrow"
+                        for phones, "wide" for tablets/desktop.
+
+shortcuts               Long-press home icon menu (Android + some iOS). Max 4
+                        shortcuts recommended (some launchers cap it).
+
+prefer_related_applications  If TRUE, Chrome install prompts point to your
+                        native app instead of installing the PWA. Almost always
+                        FALSE for a PWA-first product.
+
+
+═════════════════════════════════════════════════════════
+What to skip
+═════════════════════════════════════════════════════════
+
+- share_target: only add if you implement the /share route handler.
+- protocol_handlers: only add if you register a custom scheme.
+- file_handlers: only add if the app opens files (image editor, PDF viewer).
+- launch_handler: advanced (client_mode: "focus-existing" | "navigate-new") —
+  only add if you have a specific tab/focus behavior in mind.
+- edge_side_panel: Edge browser sidebar mode — niche.
