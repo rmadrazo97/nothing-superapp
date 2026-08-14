@@ -25,7 +25,10 @@ export default function SearchBar({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? 'Search'}
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
         spellCheck={false}
+        enterKeyHint="search"
         style={{ ...inputStyle, paddingLeft: 'var(--space-8)' }}
       />
       <span

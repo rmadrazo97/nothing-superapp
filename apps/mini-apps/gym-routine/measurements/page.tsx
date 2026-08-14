@@ -638,6 +638,10 @@ function EntryForm({
           value={form.iso_week}
           onChange={(e) => patch({ iso_week: e.target.value })}
           placeholder="2026-W32"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="characters"
+          spellCheck={false}
           style={inputStyle}
           aria-label="ISO week"
         />

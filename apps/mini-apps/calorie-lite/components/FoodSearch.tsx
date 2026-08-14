@@ -329,6 +329,10 @@ export function FoodSearch({
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search 500+ foods"
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        enterKeyHint="search"
         style={{
           fontFamily: 'var(--font-label)',
           fontSize: 'var(--text-body-sm)',
