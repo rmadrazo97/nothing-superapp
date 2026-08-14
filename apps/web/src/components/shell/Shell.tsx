@@ -20,7 +20,7 @@ export function Shell({ children }: { children: ReactNode }) {
           // bottom padding so scrollable content clears the fixed nav.
           padding:
             'calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-4) + env(safe-area-inset-right)) 170px calc(var(--space-4) + env(safe-area-inset-left))',
-          minHeight: '100vh',
+          minHeight: '100dvh',
         }}
       >
         {children}

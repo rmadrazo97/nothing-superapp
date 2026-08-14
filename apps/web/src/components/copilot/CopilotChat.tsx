@@ -346,7 +346,7 @@ export function CopilotChat({
         flexDirection: 'column',
         minHeight: embedded
           ? 0
-          : `calc(100vh - var(--space-6) - ${TAB_BAR_CLEARANCE}px)`,
+          : `calc(100dvh - var(--space-6) - ${TAB_BAR_CLEARANCE}px)`,
         flex: embedded ? 1 : undefined,
         position: 'relative',
       }}

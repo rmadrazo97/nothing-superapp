@@ -5,7 +5,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         padding: 'var(--space-8) var(--space-6)',
         maxWidth: 800,
         margin: '0 auto',

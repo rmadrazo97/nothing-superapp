@@ -7,7 +7,7 @@ export default function RootLoading() {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'grid',
         placeItems: 'center',
         background: 'var(--color-bg)',
