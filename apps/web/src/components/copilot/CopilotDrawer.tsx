@@ -15,6 +15,7 @@
  */
 import { useEffect } from 'react';
 import { CopilotChat } from './CopilotChat';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/mobile/body-scroll-lock';
 
 export interface CopilotDrawerProps {
   open: boolean;
@@ -38,12 +39,11 @@ export function CopilotDrawer({
   scopeLabel,
   suggestedPrompts,
 }: CopilotDrawerProps) {
-  // Escape + body-scroll lock. Effect only runs while open so we don't
-  // permanently pin the body when the drawer is never mounted-visible.
+  // Escape + iOS-safe body-scroll lock. Effect only runs while open so we
+  // don't permanently pin the body when the drawer is never mounted-visible.
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     const handler = (evt: KeyboardEvent) => {
       if (evt.key === 'Escape') {
         evt.stopPropagation();
@@ -53,7 +53,7 @@ export function CopilotDrawer({
     window.addEventListener('keydown', handler);
     return () => {
       window.removeEventListener('keydown', handler);
-      document.body.style.overflow = previousOverflow;
+      unlockBodyScroll();
     };
   }, [open, onClose]);
 

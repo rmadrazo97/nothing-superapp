@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/lib/toast/context';
 import { SwipeableRow, type SwipeAction } from '@/components/shell/SwipeableRow';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/mobile/body-scroll-lock';
 import type { CopilotThread } from '@nothing/shared';
 
 export interface ThreadDrawerProps {
@@ -71,11 +72,10 @@ export function ThreadDrawer({
     };
   }, [open, toast]);
 
-  // Escape closes; body-scroll lock while open.
+  // Escape closes; body-scroll lock while open (iOS-safe: position: fixed).
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -85,7 +85,7 @@ export function ThreadDrawer({
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      unlockBodyScroll();
     };
   }, [open, onClose]);
 

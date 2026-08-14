@@ -19,6 +19,7 @@ import { Suspense, useCallback, useEffect, type CSSProperties } from 'react';
 import {
   getMiniAppSettingsComponent,
 } from '@/lib/mini-apps/client-registry';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/mobile/body-scroll-lock';
 
 export type MiniAppSettingsSheetProps = {
   /** Mini-app slug. When no panel is registered for this slug, renders null. */
@@ -120,14 +121,13 @@ export function MiniAppSettingsSheet({
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  // Body-scroll lock while open. Restore whatever overflow was set (usually
-  // empty string) so we don't clobber a page-level lock.
+  // Body-scroll lock while open (iOS-safe: position: fixed + restore scrollY).
+  // The helper is reference-counted so nested sheets don't fight each other.
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = prev;
+      unlockBodyScroll();
     };
   }, [open]);
 

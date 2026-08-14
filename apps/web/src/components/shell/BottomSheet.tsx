@@ -25,6 +25,7 @@ import {
   type ReactNode,
   type TouchEvent,
 } from 'react';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/mobile/body-scroll-lock';
 
 const DRAG_CLOSE_PX = 80;
 
@@ -136,13 +137,12 @@ export function BottomSheet({
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  // Body-scroll lock.
+  // Body-scroll lock (iOS-safe: position: fixed + restore scrollY).
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = prev;
+      unlockBodyScroll();
     };
   }, [open]);
 
