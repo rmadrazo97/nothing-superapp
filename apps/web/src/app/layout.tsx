@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./design-system.css";
 import "./globals.css";
+import { MobileKeyboardBehavior } from "@/components/mobile/MobileKeyboardBehavior";
 
 // Defensive URL parser — CI has occasionally fed us blank / mis-quoted
 // values here, which would crash `next build` at static-page generation
@@ -175,7 +176,10 @@ document.addEventListener('touchend', function (e) {
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col" style={{ touchAction: 'pan-x pan-y' }}>{children}</body>
+      <body className="min-h-full flex flex-col" style={{ touchAction: 'pan-x pan-y' }}>
+        <MobileKeyboardBehavior />
+        {children}
+      </body>
     </html>
   );
 }
