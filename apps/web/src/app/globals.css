@@ -9,9 +9,15 @@
   cursor: pointer;
   will-change: transform, border-color;
 }
-.tile:hover {
-  border-color: var(--color-text-primary) !important;
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover {
+    border-color: var(--color-text-primary) !important;
+    transform: translateY(-1px);
+  }
+  .tile-locked:hover {
+    border-color: var(--color-accent) !important;
+    opacity: 0.75 !important;
+  }
 }
 .tile:active {
   transform: translateY(0);
@@ -20,10 +26,6 @@
 .tile:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-.tile-locked:hover {
-  border-color: var(--color-accent) !important;
-  opacity: 0.75 !important;
 }
 
 /* ── Skeleton shimmer ────────────────────────────────────────────────────
@@ -98,9 +100,13 @@
   transition: opacity var(--dur-fast) var(--ease-out),
               color var(--dur-fast) var(--ease-out);
 }
-.nsa-msg-bubble:hover .nsa-copy-btn,
 .nsa-copy-btn:focus-visible {
   opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nsa-msg-bubble:hover .nsa-copy-btn {
+    opacity: 1;
+  }
 }
 @media (hover: none), (pointer: coarse) {
   .nsa-copy-btn { opacity: 0.7; }
@@ -169,10 +175,14 @@
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
-.nsa-msg-bubble:hover ~ .nsa-msg-actions,
-.nsa-msg-actions:hover,
 .nsa-msg-actions:focus-within {
   opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nsa-msg-bubble:hover ~ .nsa-msg-actions,
+  .nsa-msg-actions:hover {
+    opacity: 1;
+  }
 }
 @media (hover: none), (pointer: coarse) {
   .nsa-msg-actions { opacity: 0.8; }
@@ -232,7 +242,9 @@
 .nsa-md-hr { border: 0; border-top: 1px solid var(--color-border); margin: 0.8em 0; }
 
 /* ── Retry chip under a failed assistant bubble ─────────────────────── */
-.nsa-msg-retry:hover { background: var(--color-accent-subtle); }
+@media (hover: hover) and (pointer: fine) {
+  .nsa-msg-retry:hover { background: var(--color-accent-subtle); }
+}
 
 /* ── Empty-state prompt cards ─────────────────────────────────────────
    4-up grid on the standalone assistant page, stacks on narrow screens.
@@ -264,9 +276,11 @@
     background var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
-.nsa-prompt-card:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .nsa-prompt-card:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+  }
 }
 .nsa-prompt-card:active:not(:disabled) { transform: translateY(0); }
 .nsa-prompt-card:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -285,7 +299,9 @@
   color: var(--color-text-primary);
   transition: background var(--dur-fast) var(--ease-out);
 }
-.nsa-thread-row:hover { background: var(--color-surface); }
+@media (hover: hover) and (pointer: fine) {
+  .nsa-thread-row:hover { background: var(--color-surface); }
+}
 .nsa-thread-row[data-active="true"] {
   border-left-color: var(--color-accent);
   background: var(--color-surface);
@@ -396,3 +412,73 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   animation: nsa-msg-in 180ms var(--ease-out) both;
 }
+
+/* native-feel: mobile baseline — do not remove sentinel
+ *
+ * Idempotent block applied by the /native-feel skill. Do not edit inside
+ * the sentinels by hand — re-running the skill will merge missing rules.
+ * All rules are scoped as narrowly as safe: no `body { user-select: none }`,
+ * no `body { overscroll-behavior: none }`. App-level tokens from
+ * `design-system.css` continue to own colors, typography, and spacing —
+ * these rules are mobile-safety defaults only.
+ * ------------------------------------------------------------------ */
+
+/* Root: tap flash, text sizing */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Fast-tap on all interactive surfaces (kills 300ms delay, kills double-tap zoom) */
+button,
+a,
+label[for],
+[role="button"],
+[role="link"],
+[role="tab"],
+[role="menuitem"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  touch-action: manipulation;
+}
+
+/* No accidental text-selection / long-press callout on interactive surfaces.
+ * Scoped — never applied to body. Article/message text stays selectable. */
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+nav a,
+.tab,
+.chip,
+.pill,
+.btn {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Modal / sheet / overlay backdrops: don't let inner scroll leak into the
+ * page underneath (kills the "background scrolls when I swipe inside the
+ * sheet" bug). Do NOT apply to body — that would kill legitimate PWA
+ * pull-to-refresh. */
+.modal-backdrop,
+.sheet,
+.overlay,
+[role="dialog"] {
+  overscroll-behavior: contain;
+}
+
+/* Horizontal carousels: browser handles vertical scroll, page handles the
+ * horizontal drag. Default class conventions; per-component inline styles
+ * can also set `touch-action: pan-x`. */
+.carousel,
+[data-carousel],
+.snap-x {
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+}
+
+/* /native-feel */
