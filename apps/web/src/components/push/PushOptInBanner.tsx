@@ -45,7 +45,9 @@ const CARD_STYLE: CSSProperties = {
   position: 'fixed',
   left: 'var(--space-4)',
   right: 'var(--space-4)',
-  bottom: 'var(--space-6)',
+  // native-feel recipe 14 — banner sits above the home indicator on iPhones
+  // without notch-safe layout the pill would be cropped in standalone PWA mode.
+  bottom: 'calc(var(--space-6) + env(safe-area-inset-bottom))',
   zIndex: 40,
   maxWidth: '520px',
   marginInline: 'auto',
