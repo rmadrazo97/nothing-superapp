@@ -24,7 +24,7 @@ const inputSchema = z.object({
     .min(1)
     .max(500)
     .describe('Human-readable meal label — e.g. "Greek yogurt 150g" or "leftover pizza".'),
-  kcal: z.number().int().nonnegative().max(20000).describe('Total kilocalories for this entry.'),
+  kcal: z.number().nonnegative().max(20000).describe('Total kilocalories for this entry.'),
   protein_g: z.number().nonnegative().max(2000).default(0),
   carbs_g: z.number().nonnegative().max(2000).default(0),
   fat_g: z.number().nonnegative().max(2000).default(0),
@@ -82,11 +82,13 @@ export function makeLogCalorieEntryTool(userId: string, supabase: SupabaseClient
           .insert({
             user_id: userId,             // ALWAYS server-side, never trusted
             meal: input.meal_slot,
-            kcal: input.kcal,
+            // Round int columns — the DB columns are `integer` and reject
+            // fractional grams that the scaled-serving math produces.
+            kcal: Math.round(input.kcal),
             raw_input: input.name,
-            protein_g: input.protein_g,
-            carbs_g: input.carbs_g,
-            fat_g: input.fat_g,
+            protein_g: Math.round(input.protein_g),
+            carbs_g: Math.round(input.carbs_g),
+            fat_g: Math.round(input.fat_g),
             fiber_g: input.fiber_g ?? 0,
             sugar_g: input.sugar_g ?? 0,
             sodium_mg: input.sodium_mg ?? 0,

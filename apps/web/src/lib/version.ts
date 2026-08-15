@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.17';
+export const APP_VERSION = '0.5.18';
 export const APP_RELEASE_DATE = '2026-08-15'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,15 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.18',
+    date: '2026-08-15',
+    highlights: [
+      'Calorie-lite — the REAL fix for the "Could not save." bug. Root cause was 22P02 ("invalid input syntax for type integer: 0.8"): app_calorie_entries.protein_g/carbs_g/fat_g/kcal are all `integer` columns, but scaled-serving math produces fractional grams. Route now Math.round()s all four before insert; Zod on the AI log_calorie_entry tool no longer rejects fractional kcal. Same rounding applied on the copilot write path.',
+      'Gym info drawer — the ILIKE fallback got smart. Beyond exact / prefix / contains, the route now does word-AND: splits the name into significant words (≥ 3 chars, no stopwords), longest first, and chains an ilike("%word%") per word — matches "Cable seated row converging machine" for a routine that says "Low row, converging machine" regardless of word order. Progressively drops the shortest word until something matches.',
+      'PWA manifest — deleted the dynamic Next.js manifest.ts route so /manifest.webmanifest stops 403ing through Vercel Attack Challenge. Falls through to the static /manifest.json in public/ which Vercel edge serves directly, bypassing the challenge intercept.',
+    ],
+  },
   {
     version: '0.5.17',
     date: '2026-08-15',

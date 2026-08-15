@@ -4,10 +4,12 @@
  * Single-exercise fetch for the detail view. `id` is a 4-digit catalog
  * string ("0001".."1324"), OR a routine-local id like "d5e1" that the
  * plan-generator invents when it can't match a catalog row cleanly.
- * For local ids we fall back to a case-insensitive name match via the
- * `?name=` query — routines always store the human-readable name, so
- * "Incline dumbbell press" resolves to catalog row 0402 even when the
- * id itself is opaque.
+ * For local ids we fall back to increasingly forgiving name lookups via
+ * the `?name=` query: exact → prefix → contains → word-AND → longest-
+ * word contains. Catalog names are like "Cable seated row converging
+ * machine" while routine names are like "Low row, converging machine",
+ * so the multi-word AND (each significant word must appear anywhere)
+ * is the only reliable bridge.
  */
 import { NextResponse } from 'next/server';
 import { requireEntitledUser, jsonError } from '../../_lib';
@@ -17,6 +19,30 @@ export const runtime = 'nodejs';
 
 const SELECT_COLUMNS =
   'id, name, body_part, target, equipment, muscle_group, secondary_muscles, instruction_steps, image_url, gif_url, attribution';
+
+// Words too generic to disambiguate — most exercises are of some flavour
+// of these. Kept short; ILIKE fallback still works because we keep at
+// least one distinctive word.
+const STOPWORDS = new Set([
+  'the', 'and', 'with', 'for', 'from', 'into', 'per', 'each',
+  'left', 'right', 'both', 'set', 'sets', 'rep', 'reps',
+]);
+
+function significantWords(hint: string): string[] {
+  return hint
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation → spaces
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
+    .sort((a, b) => b.length - a.length); // longest first — most specific
+}
+
+async function ok(data: unknown) {
+  return NextResponse.json(
+    { exercise: data },
+    { headers: { 'Cache-Control': 'private, max-age=3600' } },
+  );
+}
 
 export async function GET(
   request: Request,
@@ -42,50 +68,37 @@ export async function GET(
     .eq('id', id)
     .maybeSingle();
 
-  if (direct.data) {
-    return NextResponse.json(
-      { exercise: direct.data },
-      { headers: { 'Cache-Control': 'private, max-age=3600' } },
-    );
-  }
+  if (direct.data) return ok(direct.data);
 
   if (nameHint) {
     const trimmed = nameHint.slice(0, 120);
-    const exact = await gated.supabase
-      .from('exercises')
-      .select(SELECT_COLUMNS)
-      .ilike('name', trimmed)
-      .limit(1)
-      .maybeSingle();
-    if (exact.data) {
-      return NextResponse.json(
-        { exercise: exact.data },
-        { headers: { 'Cache-Control': 'private, max-age=3600' } },
-      );
+
+    // Stage 1 — literal ILIKE tiers.
+    for (const pattern of [trimmed, `${trimmed}%`, `%${trimmed}%`]) {
+      const r = await gated.supabase
+        .from('exercises')
+        .select(SELECT_COLUMNS)
+        .ilike('name', pattern)
+        .limit(1)
+        .maybeSingle();
+      if (r.data) return ok(r.data);
     }
-    const prefix = await gated.supabase
-      .from('exercises')
-      .select(SELECT_COLUMNS)
-      .ilike('name', `${trimmed}%`)
-      .limit(1)
-      .maybeSingle();
-    if (prefix.data) {
-      return NextResponse.json(
-        { exercise: prefix.data },
-        { headers: { 'Cache-Control': 'private, max-age=3600' } },
-      );
-    }
-    const contains = await gated.supabase
-      .from('exercises')
-      .select(SELECT_COLUMNS)
-      .ilike('name', `%${trimmed}%`)
-      .limit(1)
-      .maybeSingle();
-    if (contains.data) {
-      return NextResponse.json(
-        { exercise: contains.data },
-        { headers: { 'Cache-Control': 'private, max-age=3600' } },
-      );
+
+    // Stage 2 — word-AND. "Low row, converging machine" →
+    // ilike('name','%converging%').ilike('name','%machine%')… — matches
+    // "Cable seated row converging machine" regardless of word order.
+    const words = significantWords(trimmed);
+    if (words.length > 0) {
+      // Try progressively fewer words: all → longest N-1 → longest N-2
+      // → … → longest single word. Stops the moment something matches.
+      for (let take = words.length; take >= 1; take--) {
+        let q = gated.supabase.from('exercises').select(SELECT_COLUMNS);
+        for (const w of words.slice(0, take)) {
+          q = q.ilike('name', `%${w}%`);
+        }
+        const r = await q.limit(1).maybeSingle();
+        if (r.data) return ok(r.data);
+      }
     }
   }
 

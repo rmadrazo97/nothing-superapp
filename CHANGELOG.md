@@ -4,6 +4,15 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.18] — 2026-08-15 — Real calorie fix (integer coercion), smarter exercise ILIKE, static manifest
+
+Follow-up patch to v0.5.17 after live testing surfaced three residuals.
+
+### Fixed
+- **Calorie-lite — "Could not save." was NOT the FK violation v0.5.17 guessed.** With the honest-error surfacing that shipped in v0.5.17, the actual Postgres error came through: `22P02 invalid input syntax for type integer: "0.8"`. Root cause: `app_calorie_entries.protein_g/carbs_g/fat_g/kcal` are `integer` columns dating back to migration 001, but scaled-serving math on the client produces fractional grams. Route now `Math.round()`s all four before insert, and the Zod on both the /entries route and the AI `log_calorie_entry` tool no longer rejects fractional `kcal`. Same rounding applied to the copilot write path so `log_calorie_entry({kcal: 143.6, protein_g: 8.4})` also succeeds.
+- **Gym exercise (i) drawer — v0.5.17's exact/prefix/contains ILIKE fallback wasn't matching most routines.** LLM-generated routine names use compact phrasing ("Low row, converging machine") that the catalog stores differently ("Cable seated row converging machine"). Added a word-AND stage: split into significant words (≥ 3 chars, no stopwords), longest first, chain one `ilike('%word%')` per word so word-order and connective words don't matter. Progressively drops the shortest word until something matches; falls through to a single-word contains as a last resort.
+- **PWA manifest 403 in the console on every page load.** Vercel Attack Challenge Mode was intercepting `/manifest.webmanifest` (the dynamic route Next.js emits from `manifest.ts`) with an anti-bot HTML challenge that browsers can't solve in a manifest-fetch context. Deleted `src/app/manifest.ts` so the `metadata.manifest: '/manifest.json'` link points at the static file in `public/`, which Vercel edge serves directly and doesn't challenge.
+
 ## [0.5.17] — 2026-08-15 — Bug sweep: calorie POST 403, gym UX pass, assistant chat wipe
 
 Direct-feedback release from a live prod session — 10 reported issues, all fixed in one wave.

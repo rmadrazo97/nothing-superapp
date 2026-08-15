@@ -41,7 +41,10 @@ const ENTERED_AT_MAX_FUTURE_MS = 5 * 60 * 1000; // 5m forward
 const entryInsertBodySchema = z
   .object({
     meal: mealEnum,
-    kcal: z.number().int().nonnegative().max(20000),
+    // Accept any nonnegative number — we round to int server-side before
+    // the DB insert. Rejecting fractional kcal at Zod would 400 every
+    // scaled-serving submit ("2 × 72.5 kcal") that the client computes.
+    kcal: z.number().nonnegative().max(20000),
     raw_input: z.string().trim().max(500).nullable().optional(),
     protein_g: z.number().nonnegative().max(2000).optional(),
     carbs_g: z.number().nonnegative().max(2000).optional(),
@@ -179,14 +182,21 @@ export async function POST(request: Request) {
     // clock skew shouldn't block a legitimate meal log. Server clock wins.
   }
 
+  // `kcal / protein_g / carbs_g / fat_g` are `integer` columns in the
+  // original migration; scaled-serving math (e.g. 2 × Egg → 0.8 g fibre)
+  // produces fractional values that Postgres rejects with 22P02
+  // ("invalid input syntax for type integer"). Round to int here so
+  // clients can send raw fractional macros without knowing the column
+  // types. The MFP-tier fields (fiber_g / sugar_g / sodium_mg /
+  // cholesterol_mg) are `numeric(10,2)` and pass through untouched.
   const insert = {
     user_id: user.id,
     meal: parsed.data.meal,
-    kcal: parsed.data.kcal,
+    kcal: Math.round(parsed.data.kcal),
     raw_input: parsed.data.raw_input ?? null,
-    protein_g: parsed.data.protein_g ?? 0,
-    carbs_g: parsed.data.carbs_g ?? 0,
-    fat_g: parsed.data.fat_g ?? 0,
+    protein_g: Math.round(parsed.data.protein_g ?? 0),
+    carbs_g: Math.round(parsed.data.carbs_g ?? 0),
+    fat_g: Math.round(parsed.data.fat_g ?? 0),
     fiber_g: parsed.data.fiber_g ?? 0,
     sugar_g: parsed.data.sugar_g ?? 0,
     sodium_mg: parsed.data.sodium_mg ?? 0,
