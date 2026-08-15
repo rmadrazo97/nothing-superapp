@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.16';
-export const APP_RELEASE_DATE = '2026-08-14'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.5.17';
+export const APP_RELEASE_DATE = '2026-08-15'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,22 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.5.17',
+    date: '2026-08-15',
+    highlights: [
+      'Calorie-lite Add Meal actually saves. POST /entries retries with food_id=null on FK violation so a stale food-cache id never blocks a save, and the real Postgres error surfaces in the UI when it does fail instead of the opaque "Could not save." toast.',
+      'Fitness Pal Add Meal card — bumped padding + section gaps, chips have room to breathe, error banner became a proper alert card with ERROR label + accent tint.',
+      'Gym Pick-a-Day sheet no longer blows out the layout with a 36px display heading — routine name drops to --text-subheading with a 2-line clamp.',
+      'Gym exercise (i) HOW-TO drawer stopped 404ing for routines with opaque local ids ("d5e1"). Route accepts ?name= fallback and matches the catalog via ILIKE exact → prefix → contains. Also unblocks body-weight detection.',
+      'Gym exercise cards now show "LAST · 65KG × 10 · AUG 12" as a reference from the heaviest completed set in the last 30 sessions, keyed by lowercased name so it survives routine swaps.',
+      'Gym session title shrunk from display-md (36px) to --text-heading (24px) with a 2-line clamp — the "PLAN DE ENTRENAMIENTO – JOSÉ ALEJANDRO MADRAZO ÁVILA – Day 5 – Full Upper Body" runoff is over.',
+      'Gym set-done checkbox went from 44×44 to 56×56 with a 2px border and larger ✓. Actually hittable on a phone now.',
+      'Gym ⤢ focus-mode button on every exercise card — toggles a single-exercise view with FOCUS · 2/5 + ← Show all at the top for zero-distraction logging.',
+      'Assistant composer send button now uses the same PixelLoader dot matrix as the THINKING pill. Last spinner in the app is gone.',
+      'Assistant chat no longer disappears after the reply finishes streaming. Fixed a ref-comparison bug in CopilotChat where the streaming→idle status transition was re-firing setMessages([]) and wiping the just-rendered turn.',
+    ],
+  },
   {
     version: '0.5.16',
     date: '2026-08-14',

@@ -191,6 +191,12 @@ export function CopilotChat({
     if (initialMessages === firstInitialMessagesRef.current) return;
     if (status === 'submitted' || status === 'streaming') return;
     setMessages(initialMessages ?? []);
+    // Advance the ref so a later `status` transition (streaming → idle
+    // after the user's first send) doesn't compare against a long-gone
+    // reference and re-fire this reset — that was wiping the just-
+    // streamed reply because the parent's mount effect creates a fresh
+    // `[]` reference that never matches the useRef initial value.
+    firstInitialMessagesRef.current = initialMessages;
     // Reset the first-user-fired latch so a switched-into thread's first
     // NEW user message re-invokes ensureThreadForFirstMessage if needed
     // (won't for existing threads — the guard is `messages.length === 0`).

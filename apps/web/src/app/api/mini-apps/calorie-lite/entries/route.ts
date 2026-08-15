@@ -205,7 +205,41 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: 'db_error' }, { status: 500 });
+    // Surface the underlying Postgres error so the client can render a
+    // useful message + we can debug prod incidents. Historically this
+    // returned a generic 500 and swallowed FK/RLS violations, which is
+    // how "Could not save." became untraceable in production.
+    console.error('[calorie-lite/entries POST] db error', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      insert,
+    });
+    // Postgres 23503 = FK violation → likely a stale food_id from an
+    // outdated food cache; drop the FK and retry once so the user's
+    // save still succeeds (the row is still valid without the link).
+    if (error?.code === '23503' && (insert.food_id || insert.custom_food_id)) {
+      const retryInsert = { ...insert, food_id: null, custom_food_id: null };
+      const retry = await supabase
+        .from('app_calorie_entries')
+        .insert(retryInsert)
+        .select(SELECT_COLUMNS)
+        .single();
+      if (!retry.error && retry.data) {
+        return NextResponse.json({ entry: retry.data }, { status: 201 });
+      }
+    }
+    return NextResponse.json(
+      {
+        error: 'db_error',
+        code: error?.code ?? null,
+        message: error?.message ?? null,
+        details: error?.details ?? null,
+        hint: error?.hint ?? null,
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ entry: data }, { status: 201 });

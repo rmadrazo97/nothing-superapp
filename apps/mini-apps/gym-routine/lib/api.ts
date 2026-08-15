@@ -108,8 +108,14 @@ export async function listExercises(
   return req(`/api/mini-apps/gym-routine/exercises${suffix}`);
 }
 
-export async function getExercise(id: string): Promise<{ exercise: Exercise }> {
-  return req(`/api/mini-apps/gym-routine/exercises/${encodeURIComponent(id)}`);
+export async function getExercise(
+  id: string,
+  nameHint?: string,
+): Promise<{ exercise: Exercise }> {
+  // Pass the display name as a fallback so opaque routine ids (e.g. "d5e1"
+  // that a v2 plan invented) still resolve to a catalog row via ILIKE.
+  const qs = nameHint ? `?name=${encodeURIComponent(nameHint)}` : '';
+  return req(`/api/mini-apps/gym-routine/exercises/${encodeURIComponent(id)}${qs}`);
 }
 
 // ─── Routines ──────────────────────────────────────────────────────────────

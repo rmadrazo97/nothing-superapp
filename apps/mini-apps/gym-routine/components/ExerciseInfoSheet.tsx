@@ -19,12 +19,15 @@ import ExerciseDetail from './ExerciseDetail.tsx';
 
 export type ExerciseInfoSheetProps = {
   exerciseId: string | null;
+  /** Display name — used as the ILIKE fallback when the id doesn't match a catalog row. */
+  exerciseName?: string | null;
   open: boolean;
   onClose: () => void;
 };
 
 export default function ExerciseInfoSheet({
   exerciseId,
+  exerciseName,
   open,
   onClose,
 }: ExerciseInfoSheetProps) {
@@ -34,7 +37,8 @@ export default function ExerciseInfoSheet({
 
   useEffect(() => {
     if (!open || !exerciseId) return;
-    const cached = cacheRef.current.get(exerciseId);
+    const cacheKey = `${exerciseId}|${exerciseName ?? ''}`;
+    const cached = cacheRef.current.get(cacheKey);
     if (cached) {
       setExercise(cached);
       setError(null);
@@ -44,10 +48,10 @@ export default function ExerciseInfoSheet({
     setExercise(null);
     setError(null);
     api
-      .getExercise(exerciseId)
+      .getExercise(exerciseId, exerciseName ?? undefined)
       .then(({ exercise: ex }) => {
         if (cancelled) return;
-        cacheRef.current.set(exerciseId, ex);
+        cacheRef.current.set(cacheKey, ex);
         setExercise(ex);
       })
       .catch(() => {
@@ -57,7 +61,7 @@ export default function ExerciseInfoSheet({
     return () => {
       cancelled = true;
     };
-  }, [open, exerciseId]);
+  }, [open, exerciseId, exerciseName]);
 
   return (
     <BottomSheet

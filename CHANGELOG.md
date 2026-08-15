@@ -4,6 +4,25 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.5.17] — 2026-08-15 — Bug sweep: calorie POST 403, gym UX pass, assistant chat wipe
+
+Direct-feedback release from a live prod session — 10 reported issues, all fixed in one wave.
+
+### Fixed
+- **Calorie-lite — POST /entries returned 403 with an opaque "Could not save." toast.** Root cause was a stale food id from the client cache tripping the `food_id → foods(id)` FK on insert. Route now retries once with `food_id=null` (row still saves), and when the retry also fails the real Postgres `code/message/hint/details` are returned in the JSON body. Both client submit paths (`FoodSearch.tsx`, `page.tsx`) render the specific error instead of the opaque toast.
+- **Fitness Pal — Add Meal card was cramped.** Card padding + section gaps bumped to `--space-6`, chip row to `--space-3` with 36px min-height, tabs get bottom padding, error banner became a proper alert card (ERROR label + accent border tint) instead of an inline paragraph squished against the meal-slot chips.
+- **Gym — Pick-a-Day sheet blew out the layout with a 36px display heading.** Routine name drops to `--text-subheading` (18px) with a 2-line clamp + word-break.
+- **Gym — exercise (i) HOW-TO drawer 404'd for routines with opaque local ids ("d5e1").** `GET /exercises/[id]` now accepts `?name=` and falls back exact → prefix → contains ILIKE against the catalog. Session hydration passes the name too, so body-weight detection also works for these routines.
+- **Gym — no reference for previous weights.** Every exercise card shows `LAST · 65KG × 10 · AUG 12` from the heaviest completed set in the last 30 sessions, keyed by lowercased name so it survives routine swaps.
+- **Gym — session title too big.** `display-md` (36px) → `--text-heading` (24px) with a 2-line clamp. "PLAN DE ENTRENAMIENTO – JOSÉ ALEJANDRO MADRAZO ÁVILA – Day 5 – Full Upper Body" no longer overflows.
+- **Gym — set-done checkbox hard to tap.** 44×44 → 56×56, 2px border, larger ✓, `touch-action: manipulation`.
+- **Assistant — chat thread disappeared after the reply finished streaming.** `CopilotChat` was comparing `initialMessages` against a `useRef` initial value that never advanced. When the parent's mount effect created a new `[]` reference for self-created threads, every subsequent `streaming → idle` transition re-fired `setMessages([])` and wiped the just-rendered reply. Fix: advance `firstInitialMessagesRef.current` after each reset so the identity check stays valid.
+- **Assistant — composer send button used a spinning `◐` while every other progress surface used the pixel-dot loader.** Replaced with `<PixelLoader size="sm" />`.
+
+### Added
+- **Gym focus mode.** New `⤢` button on every exercise card toggles a single-exercise view with `FOCUS · 2/5` + `← Show all` at the top. Lifters can zero in on the current lift without scroll-hunting through a 6-exercise session.
+- **Gym API — name-based fallback on `/exercises/[id]`.** Accepts `?name=` and matches the catalog via ILIKE (exact → prefix → contains). Id regex widened to `[0-9a-zA-Z_.-]{1,64}` so v2 flattened ids (e.g. `abc.c1`) also pass validation.
+
 ## [0.5.11] — 2026-08-11 — Gym day picker + sticky rest timer + quantity input fix
 
 The direct-user-feedback wave. Three reported issues from live prod screenshots, all fixed in one small release.

@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { useToast } from '@/lib/toast/context';
+import { PixelLoader } from './PixelLoader';
 
 /**
  * Bottom-anchored composer.
@@ -482,7 +483,7 @@ export function Composer({
           }}
         >
           {busy ? (
-            <span aria-hidden className="nsa-send-spin">◐</span>
+            <PixelLoader size="sm" label="Sending" />
           ) : (
             <span aria-hidden>→</span>
           )}

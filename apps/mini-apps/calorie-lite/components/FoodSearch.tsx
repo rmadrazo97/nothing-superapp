@@ -739,7 +739,12 @@ function QuantityPicker({
       });
       if (!res.ok) {
         if (res.status === 402) onSubscriptionRequired();
-        else if (res.status !== 401) onError('Could not save.');
+        else if (res.status !== 401) {
+          const body = await res.json().catch(() => null);
+          const detail =
+            body?.message || body?.hint || body?.details || body?.error;
+          onError(detail ? `Could not save: ${detail}` : 'Could not save.');
+        }
         setSaving(false);
         return;
       }

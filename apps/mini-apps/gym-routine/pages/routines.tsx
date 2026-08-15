@@ -294,7 +294,22 @@ export default function RoutinesPage() {
               <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
                 PICK A DAY
               </span>
-              <h2 className="display-md" style={{ margin: 'var(--space-2) 0 0 0' }}>
+              <h2
+                style={{
+                  margin: 'var(--space-2) 0 0 0',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-subheading)',
+                  fontWeight: 500,
+                  lineHeight: 1.3,
+                  letterSpacing: 0,
+                  color: 'var(--color-text-display)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  wordBreak: 'break-word',
+                }}
+              >
                 {dayPicker.routine.name}
               </h2>
             </div>

@@ -1664,10 +1664,10 @@ function AddView({
         background: 'rgba(0, 0, 0, 0.5)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-4)',
+        padding: 'var(--space-6)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-4)',
+        gap: 'var(--space-6)',
         // v0.5.3 (#97) — hard overflow guard. The 480px shell column is the
         // ceiling; a wide food-name or option label must never push the card
         // past it. `min-width: 0` lets nested flex/grid children shrink.
@@ -1683,12 +1683,13 @@ function AddView({
         aria-label="Add meal method"
         style={{
           display: 'flex',
-          gap: 'var(--space-2)',
+          gap: 'var(--space-3)',
           borderBottom: '1px solid var(--color-border)',
           // Tab row can scroll horizontally so 4 tabs fit on a narrow phone
           // without wrapping (which would double the header height).
           overflowX: 'auto',
           scrollbarWidth: 'none',
+          paddingBottom: 'var(--space-2)',
         }}
       >
         <SubTabButton active={subview === 'search'} onClick={() => setSubview('search')}>
@@ -1706,14 +1707,14 @@ function AddView({
       </div>
 
       {/* Meal slot picker persists across ALL subviews. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
           MEAL SLOT
         </span>
         <div
           role="radiogroup"
           aria-label="Meal slot"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)' }}
         >
           {MEAL_OPTIONS.map((m) => (
             <button
@@ -1727,12 +1728,13 @@ function AddView({
                 color: meal === m.id ? 'var(--color-bg)' : 'var(--color-text-primary)',
                 border: `1px solid ${meal === m.id ? 'var(--color-text-display)' : 'var(--color-border-visible)'}`,
                 borderRadius: 'var(--radius-button)',
-                padding: 'var(--space-2) var(--space-4)',
+                padding: 'var(--space-3) var(--space-4)',
                 fontFamily: 'var(--font-label)',
                 fontSize: 'var(--text-label)',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
+                minHeight: 36,
               }}
             >
               {m.label}
@@ -1742,9 +1744,31 @@ function AddView({
       </div>
 
       {error && (
-        <p role="alert" className="caption" style={{ color: 'var(--color-accent)' }}>
-          {error}
-        </p>
+        <div
+          role="alert"
+          style={{
+            border: '1px solid var(--color-accent)',
+            borderRadius: 'var(--radius-compact)',
+            padding: 'var(--space-3) var(--space-4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+            background: 'rgba(235, 46, 45, 0.06)',
+          }}
+        >
+          <span
+            className="label"
+            style={{ color: 'var(--color-accent)', fontSize: 'var(--text-label)' }}
+          >
+            ERROR
+          </span>
+          <span
+            className="caption"
+            style={{ color: 'var(--color-text-primary)', letterSpacing: 0 }}
+          >
+            {error}
+          </span>
+        </div>
       )}
 
       {subview === 'search' && (
@@ -1909,7 +1933,10 @@ function QuickLogForm({
               : 'Could not save.',
           );
         } else if (res.status !== 401) {
-          onError('Could not save.');
+          const body = await res.json().catch(() => null);
+          const detail =
+            body?.message || body?.hint || body?.details || body?.error;
+          onError(detail ? `Could not save: ${detail}` : 'Could not save.');
         }
         setSaving(false);
         return;

@@ -38,6 +38,15 @@ import {
 
 const DEFAULT_REST_SEC = 90;
 
+/** "AUG 12" for the last-set reference chip. Empty string on parse fail. */
+function formatLastDate(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  return new Date(t)
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    .toUpperCase();
+}
+
 export default function SessionPage({
   params,
 }: {
@@ -63,8 +72,22 @@ export default function SessionPage({
   // decide whether the weight column is "body weight" or a real
   // number field). Hydrated lazily as entries load.
   const [exerciseMeta, setExerciseMeta] = useState<Record<string, Exercise>>({});
-  // Bottom-sheet state for the ⓘ HOW-TO drawer.
-  const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
+  // Bottom-sheet state for the ⓘ HOW-TO drawer. We track the name too so
+  // the API can fall back to ILIKE lookup when the routine's opaque id
+  // ("d5e1") doesn't hit a catalog PK.
+  const [infoExercise, setInfoExercise] = useState<
+    { id: string; name: string } | null
+  >(null);
+  // Focus mode: when set, render only entries[focusedExIndex] in a
+  // wider card. Lets the user zero in on one exercise at a time
+  // (Strong / Hevy-style focused logger).
+  const [focusedExIndex, setFocusedExIndex] = useState<number | null>(null);
+  // "Last time you did this exercise" reference — keyed by lowercased
+  // exercise name so it survives routine-swap and opaque local ids.
+  // Populated once from the last 30 completed sessions.
+  const [lastByName, setLastByName] = useState<
+    Record<string, { reps: number; weight_kg: number | null; ended_at: string }>
+  >({});
   const { toast } = useToast();
 
   // Per-mini-app settings — weight/length units. Debounced-optimistic.
@@ -99,6 +122,63 @@ export default function SessionPage({
     void load();
   }, [load]);
 
+  // v0.5.17 — one-shot fetch of recent completed sessions so each
+  // exercise card can show "last time you did this" as a reference.
+  // Matches by lowercased name (stable across routines + opaque ids).
+  // If the exercise's session has multiple completed sets, we pick the
+  // heaviest as the reference — most useful "beat this" number for the
+  // user. Silent on failure — the reference is optional polish, not
+  // critical path.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { sessions } = await api.listSessions(30);
+        if (cancelled) return;
+        const map: Record<
+          string,
+          { reps: number; weight_kg: number | null; ended_at: string }
+        > = {};
+        // Newest → oldest so the first hit per exercise wins.
+        const sorted = sessions
+          .filter((s) => s.ended_at)
+          .sort((a, b) => (b.ended_at ?? '').localeCompare(a.ended_at ?? ''));
+        for (const s of sorted) {
+          if (s.id === id) continue; // Skip the current session itself.
+          for (const entry of s.entries) {
+            const key = entry.name.trim().toLowerCase();
+            if (!key || map[key]) continue;
+            const doneSets = entry.sets.filter((set) => set.completed_at);
+            if (doneSets.length === 0) continue;
+            // Prefer the heaviest completed set of that session as the
+            // reference number. Falls back to the last set for BW.
+            const withWeight = doneSets.filter(
+              (set) => set.weight_kg != null && set.weight_kg > 0,
+            );
+            const top =
+              withWeight.length > 0
+                ? withWeight.reduce((a, b) =>
+                    (b.weight_kg ?? 0) > (a.weight_kg ?? 0) ? b : a,
+                  )
+                : doneSets[doneSets.length - 1];
+            map[key] = {
+              reps: top.reps,
+              weight_kg: top.weight_kg ?? null,
+              ended_at: s.ended_at ?? '',
+            };
+          }
+        }
+        setLastByName(map);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, id]);
+
   // Hydrate exercise catalog rows for every entry we haven't seen yet.
   // One-shot per id — the exercise catalog is public/immutable so we
   // never invalidate. Failures are silent; the row just doesn't get an
@@ -111,8 +191,15 @@ export default function SessionPage({
     if (missing.length === 0) return;
     let cancelled = false;
     (async () => {
+      // Pass the entry's display name so routines with opaque local ids
+      // ("d5e1") still resolve to a catalog row via ILIKE — this hydrates
+      // `equipment` so isBW works and unblocks the ⓘ HOW-TO drawer.
+      const nameById = new Map<string, string>();
+      for (const e of entries) {
+        if (e.exercise_id && e.name) nameById.set(e.exercise_id, e.name);
+      }
       const results = await Promise.allSettled(
-        missing.map((id) => api.getExercise(id)),
+        missing.map((id) => api.getExercise(id, nameById.get(id) ?? undefined)),
       );
       if (cancelled) return;
       setExerciseMeta((prev) => {
@@ -281,7 +368,22 @@ export default function SessionPage({
       </div>
 
       <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h1 className="display-md" style={{ margin: 0 }}>
+        <h1
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-heading)',
+            fontWeight: 500,
+            lineHeight: 1.25,
+            letterSpacing: '-0.01em',
+            color: 'var(--color-text-display)',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+          }}
+        >
           {session.name ?? 'Workout'}
         </h1>
         <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
@@ -322,6 +424,32 @@ export default function SessionPage({
         </div>
       )}
 
+      {focusedExIndex != null && entries[focusedExIndex] && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+          }}
+        >
+          <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+            FOCUS · {focusedExIndex + 1}/{entries.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFocusedExIndex(null)}
+            style={{
+              ...ghostButtonStyle,
+              minHeight: 36,
+              padding: '0 var(--space-3)',
+            }}
+          >
+            ← Show all
+          </button>
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <EmptyState
           icon="◈"
@@ -334,11 +462,16 @@ export default function SessionPage({
         />
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {entries.map((entry, exIdx) => {
+          {(focusedExIndex != null && entries[focusedExIndex]
+            ? [{ entry: entries[focusedExIndex], exIdx: focusedExIndex }]
+            : entries.map((entry, exIdx) => ({ entry, exIdx }))
+          ).map(({ entry, exIdx }) => {
             const doneCount = entry.sets.filter((s) => s.completed_at).length;
             const active = isLive && doneCount < entry.sets.length;
             const meta = exerciseMeta[entry.exercise_id];
             const isBW = meta ? isBodyWeightEquipment(meta.equipment) : false;
+            const lastRef = lastByName[entry.name.trim().toLowerCase()];
+            const isFocused = focusedExIndex === exIdx;
             // Grid columns collapse when we hide the weight input for BW
             // exercises — reps takes the full inner span.
             const gridCols = isBW
@@ -385,7 +518,9 @@ export default function SessionPage({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setInfoExerciseId(entry.exercise_id)}
+                        onClick={() =>
+                          setInfoExercise({ id: entry.exercise_id, name: entry.name })
+                        }
                         aria-label={`How to do ${entry.name}`}
                         title="How to"
                         style={{
@@ -427,13 +562,77 @@ export default function SessionPage({
                         </span>
                       )}
                     </div>
-                    <span
-                      className="data"
-                      style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        flexShrink: 0,
+                      }}
                     >
-                      {doneCount}/{entry.sets.length} DONE
-                    </span>
+                      <span
+                        className="data"
+                        style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
+                      >
+                        {doneCount}/{entry.sets.length} DONE
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFocusedExIndex((v) => (v === exIdx ? null : exIdx))
+                        }
+                        aria-label={isFocused ? 'Collapse' : 'Focus this exercise'}
+                        title={isFocused ? 'Collapse' : 'Focus'}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--color-border-visible)',
+                          color: 'var(--color-text-secondary)',
+                          borderRadius: 'var(--radius-compact)',
+                          width: 32,
+                          height: 32,
+                          minWidth: 32,
+                          padding: 0,
+                          fontSize: 14,
+                          lineHeight: 1,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        {isFocused ? '⤡' : '⤢'}
+                      </button>
+                    </div>
                   </div>
+
+                  {lastRef && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        fontFamily: 'var(--font-label)',
+                        fontSize: 'var(--text-label)',
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-secondary)',
+                        paddingBottom: 'var(--space-1)',
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>LAST</span>
+                      <span style={{ color: 'var(--color-text-display)' }}>
+                        {lastRef.weight_kg != null && lastRef.weight_kg > 0
+                          ? `${lastRef.weight_kg}${gymSettings.weightUnit === 'kg' ? 'KG' : 'LBS'} × ${lastRef.reps}`
+                          : `${lastRef.reps} REPS`}
+                      </span>
+                      <span style={{ opacity: 0.5 }}>·</span>
+                      <span style={{ opacity: 0.7 }}>
+                        {formatLastDate(lastRef.ended_at)}
+                      </span>
+                    </div>
+                  )}
 
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                     {entry.sets.map((set, setIdx) => {
@@ -504,15 +703,20 @@ export default function SessionPage({
                             aria-pressed={done}
                             aria-label={done ? `Un-mark set ${setIdx + 1}` : `Mark set ${setIdx + 1} complete`}
                             style={{
-                              width: 44,
-                              height: 44,
+                              width: 56,
+                              height: 56,
+                              minWidth: 56,
                               borderRadius: 'var(--radius-compact)',
                               background: done ? 'var(--color-accent)' : 'transparent',
-                              border: `1px solid ${done ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
+                              border: `2px solid ${done ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
                               color: done ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
                               cursor: editable ? 'pointer' : 'default',
-                              fontSize: 'var(--text-body)',
+                              fontSize: 24,
                               lineHeight: 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              touchAction: 'manipulation',
                             }}
                           >
                             {done ? '✓' : ''}
@@ -581,9 +785,10 @@ export default function SessionPage({
       )}
 
       <ExerciseInfoSheet
-        exerciseId={infoExerciseId}
-        open={infoExerciseId != null}
-        onClose={() => setInfoExerciseId(null)}
+        exerciseId={infoExercise?.id ?? null}
+        exerciseName={infoExercise?.name ?? null}
+        open={infoExercise != null}
+        onClose={() => setInfoExercise(null)}
       />
     </div>
   );
