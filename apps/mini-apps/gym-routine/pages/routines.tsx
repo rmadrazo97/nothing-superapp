@@ -208,9 +208,9 @@ export default function RoutinesPage() {
         style={{
           ...ghostButtonStyle,
           alignSelf: 'flex-start',
-          padding: 'var(--space-2) var(--space-4)',
-          minHeight: 36,
-          fontSize: 'var(--text-caption)',
+          padding: 'var(--space-3) var(--space-4)',
+          minHeight: 44,
+          fontSize: 'var(--text-body-sm)',
           color: 'var(--color-accent)',
           borderColor: 'var(--color-accent)',
         }}

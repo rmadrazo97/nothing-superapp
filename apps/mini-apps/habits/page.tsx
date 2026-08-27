@@ -32,7 +32,7 @@ import {
 } from './lib/api.ts';
 
 const CARD_STYLE: CSSProperties = {
-  background: 'rgba(0, 0, 0, 0.5)',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border-visible)',
   borderRadius: 'var(--radius-card)',
   padding: 'var(--space-4)',
@@ -41,7 +41,7 @@ const CARD_STYLE: CSSProperties = {
 const INPUT_STYLE: CSSProperties = {
   background: 'transparent',
   border: '1px solid var(--color-border-visible)',
-  borderRadius: 'var(--radius-input)',
+  borderRadius: 'var(--radius-compact)',
   padding: 'var(--space-2) var(--space-3)',
   color: 'var(--color-text-display)',
   fontFamily: 'inherit',
@@ -55,7 +55,7 @@ const CHIP_ACTIVE: CSSProperties = {
   border: '1px solid var(--color-accent)',
   background: 'var(--color-accent)',
   color: 'var(--color-text-display)',
-  minHeight: 32,
+  minHeight: 44,
   cursor: 'pointer',
   fontFamily: 'var(--font-label)',
   fontSize: 'var(--text-label)',
@@ -301,7 +301,7 @@ export default function HabitsHomePage() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-5)',
+        gap: 'var(--space-4)',
         paddingTop: 'var(--space-6)',
         paddingBottom: 'var(--space-12)',
       }}

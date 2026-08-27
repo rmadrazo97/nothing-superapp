@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import type { Exercise } from '@nothing/shared';
+import { ExerciseIllustration } from './ExerciseIllustration.tsx';
+import { resolveSlug } from '../lib/workout-guide-map.ts';
 
 /**
  * ExerciseCard — a single tile in the exercise grid.
@@ -38,30 +40,13 @@ export default function ExerciseCard({
           display: 'block',
         }}
       >
-        <div
-          style={{
-            aspectRatio: '1 / 1',
-            width: '100%',
-            background: 'var(--color-neutral-100)',
-            border: '1px solid var(--color-border-visible)',
-            borderRadius: 'var(--radius-card)',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={exercise.image_url}
-            alt={exercise.name}
-            loading="lazy"
-            decoding="async"
-            width={180}
-            height={180}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          />
-        </div>
+        <ExerciseIllustration
+          slug={resolveSlug(exercise)}
+          fallbackGifUrl={exercise.gif_url}
+          alt={exercise.name}
+          size={180}
+          fps={1}
+        />
         <div
           style={{
             display: 'flex',

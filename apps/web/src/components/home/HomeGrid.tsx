@@ -56,7 +56,9 @@ const tileBaseStyle: CSSProperties = {
 };
 
 const iconStyle: CSSProperties = {
-  fontSize: 'var(--text-heading)',
+  // Emoji tiles are the primary launcher signal — 48px keeps the glyph
+  // reading as an icon (not a caption) on every viewport.
+  fontSize: 48,
   lineHeight: 1,
   color: 'var(--color-text-display)',
 };
@@ -74,8 +76,8 @@ const labelStyle: CSSProperties = {
 
 const lockBadgeStyle: CSSProperties = {
   position: 'absolute',
-  top: 'var(--space-2)',
-  right: 'var(--space-2)',
+  top: 'var(--space-3)',
+  right: 'var(--space-3)',
   fontSize: 'var(--text-caption)',
   color: 'var(--color-accent)',
   fontFamily: 'var(--font-label)',

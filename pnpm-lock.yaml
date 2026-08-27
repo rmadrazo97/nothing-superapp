@@ -61,6 +61,9 @@ importers:
 
   apps/mini-apps/gym-routine:
     dependencies:
+      '@bryllim/workout-guide':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@nothing/mini-apps-runtime':
         specifier: workspace:*
         version: link:../../../packages/mini-apps-runtime
@@ -334,6 +337,10 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@bryllim/workout-guide@1.0.0':
+    resolution: {integrity: sha512-N593OR3vyT/C1sDpdM/UoF5gHUwEAziExxo9Y0awMLyPpCvx8DnIAlOFJ9kHk/TZwhbWN6WoCEASAEX5ZbiIGQ==}
+    engines: {node: '>=18'}
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -1797,6 +1804,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2636,6 +2644,8 @@ snapshots:
       - zod
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@bryllim/workout-guide@1.0.0': {}
 
   '@drizzle-team/brocli@0.10.2': {}
 

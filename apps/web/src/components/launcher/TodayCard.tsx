@@ -23,7 +23,7 @@
  * disappearing — the layout stability matters more than the byte-savings
  * of hiding cells individually).
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PixelCard } from '@/components/pixel-ui/PixelCard';
 import { PixelMetricGrid } from '@/components/pixel-ui/PixelMetricGrid';
 
@@ -53,36 +53,72 @@ function formatDateLabel(iso: string): string {
 
 export function TodayCard() {
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'hidden'>(
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'hidden'>(
     'loading',
   );
 
+  const load = useCallback(async () => {
+    setStatus('loading');
+    try {
+      const res = await fetch('/api/launcher/today', {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        // 402 (unentitled) stays silent — the paywall handles that flow.
+        // 401 also silent — the proxy will redirect on the next navigation.
+        // For 5xx / other, surface a subtle retry chip so the user knows the
+        // data DID try to load and isn't just missing.
+        if (res.status === 401 || res.status === 402) {
+          setStatus('hidden');
+        } else {
+          setStatus('error');
+        }
+        return;
+      }
+      const body = (await res.json()) as Summary;
+      setSummary(body);
+      setStatus('ready');
+    } catch {
+      setStatus('error');
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/launcher/today', {
-          credentials: 'same-origin',
-        });
-        if (!res.ok) {
-          // 401 / 402 / 500 — silently hide. The launcher is still useful
-          // without a summary card, and an error banner up top would fight
-          // for attention with the assistant tile.
-          if (!cancelled) setStatus('hidden');
-          return;
-        }
-        const body = (await res.json()) as Summary;
-        if (cancelled) return;
-        setSummary(body);
-        setStatus('ready');
-      } catch {
-        if (!cancelled) setStatus('hidden');
-      }
+    void (async () => {
+      await load();
+      if (cancelled) return;
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [load]);
+
+  if (status === 'error') {
+    return (
+      <button
+        type="button"
+        onClick={() => void load()}
+        aria-label="Retry loading today"
+        style={{
+          alignSelf: 'flex-start',
+          background: 'transparent',
+          border: '1px solid var(--color-border-visible)',
+          color: 'var(--color-text-secondary)',
+          borderRadius: 'var(--radius-button)',
+          padding: 'var(--space-2) var(--space-3)',
+          minHeight: 44,
+          cursor: 'pointer',
+          fontFamily: 'var(--font-label)',
+          fontSize: 'var(--text-caption)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+        }}
+      >
+        COULDN'T LOAD TODAY · RETRY
+      </button>
+    );
+  }
 
   if (status !== 'ready' || !summary) return null;
 

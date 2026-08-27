@@ -40,7 +40,7 @@ import {
 } from './lib/api.ts';
 
 const CARD_STYLE: CSSProperties = {
-  background: 'rgba(0, 0, 0, 0.5)',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border-visible)',
   borderRadius: 'var(--radius-card)',
   padding: 'var(--space-4)',
@@ -51,7 +51,7 @@ const TEXTAREA_STYLE: CSSProperties = {
   minHeight: 180,
   background: 'transparent',
   border: '1px solid var(--color-border-visible)',
-  borderRadius: 'var(--radius-input)',
+  borderRadius: 'var(--radius-compact)',
   padding: 'var(--space-3)',
   color: 'var(--color-text-display)',
   fontFamily: 'inherit',
@@ -66,7 +66,7 @@ const CHIP_ACTIVE: CSSProperties = {
   border: '1px solid var(--color-accent)',
   background: 'var(--color-accent)',
   color: 'var(--color-text-display)',
-  minHeight: 32,
+  minHeight: 44,
   cursor: 'pointer',
   fontFamily: 'var(--font-label)',
   fontSize: 'var(--text-label)',

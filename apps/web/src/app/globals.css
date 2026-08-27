@@ -413,6 +413,23 @@
   animation: nsa-msg-in 180ms var(--ease-out) both;
 }
 
+/* ── Row-action button focus ring ──────────────────────────────────────
+   Small inline actions (Edit / Delete on a calorie entry, etc.) used to
+   ship `all: unset` which nuked the browser's default focus outline.
+   Explicit focus-visible ring restores keyboard affordance. */
+.nsa-row-action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Body-scroll lock ──────────────────────────────────────────────────
+   Applied to <body> when a mini-app wants to freeze background scroll
+   (e.g. pomodoro during an active focus session). Kept here so any
+   surface can toggle without shipping its own <style> block. */
+.no-scroll {
+  overflow: hidden;
+}
+
 /* native-feel: mobile baseline — do not remove sentinel
  *
  * Idempotent block applied by the /native-feel skill. Do not edit inside

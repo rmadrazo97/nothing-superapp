@@ -347,8 +347,8 @@ export default function SessionPage({
                 border: '1px solid var(--color-border-visible)',
                 color: editMode ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
                 borderRadius: 'var(--radius-button)',
-                padding: '0 var(--space-3)',
-                minHeight: 28,
+                padding: '0 var(--space-4)',
+                minHeight: 44,
                 cursor: 'pointer',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -524,14 +524,17 @@ export default function SessionPage({
                         aria-label={`How to do ${entry.name}`}
                         title="How to"
                         style={{
+                          // Visual glyph stays small (20px); padding + min
+                          // dimensions expand the hit target to 44×44 so the
+                          // button clears the WCAG tap-target minimum without
+                          // reshaping the header row.
                           background: 'transparent',
                           border: '1px solid var(--color-border-visible)',
                           color: 'var(--color-text-secondary)',
                           borderRadius: '999px',
-                          width: 20,
-                          height: 20,
-                          minWidth: 20,
-                          padding: 0,
+                          minWidth: 44,
+                          minHeight: 44,
+                          padding: 'var(--space-2)',
                           fontSize: 12,
                           lineHeight: 1,
                           cursor: 'pointer',
@@ -588,11 +591,12 @@ export default function SessionPage({
                           border: '1px solid var(--color-border-visible)',
                           color: 'var(--color-text-secondary)',
                           borderRadius: 'var(--radius-compact)',
-                          width: 32,
-                          height: 32,
-                          minWidth: 32,
+                          width: 44,
+                          height: 44,
+                          minWidth: 44,
+                          minHeight: 44,
                           padding: 0,
-                          fontSize: 14,
+                          fontSize: 16,
                           lineHeight: 1,
                           cursor: 'pointer',
                           display: 'inline-flex',

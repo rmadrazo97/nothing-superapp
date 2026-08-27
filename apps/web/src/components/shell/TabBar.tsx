@@ -107,7 +107,7 @@ export function TabBar() {
           maxWidth: 480,
           margin: '0 auto',
           padding:
-            'var(--space-2) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom))',
+            'var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom))',
         }}
       >
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>

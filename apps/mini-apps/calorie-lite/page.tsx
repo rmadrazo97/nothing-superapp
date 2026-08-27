@@ -771,7 +771,7 @@ function TotalCard({
     <section
       aria-label="Today's total"
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-4)',
@@ -1029,7 +1029,7 @@ function MealGroupCard({
         gap: 'var(--space-2)',
         padding: 'var(--space-4)',
         margin: 'var(--space-3) 0',
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
       }}
@@ -1136,15 +1136,17 @@ function MealGroupCard({
           type="button"
           onClick={handleDeleteGroup}
           disabled={busy}
-          className="data"
+          className="data nsa-row-action"
           style={{
-            all: 'unset',
             cursor: 'pointer',
-            padding: 'var(--space-1) var(--space-3)',
+            background: 'transparent',
+            padding: 'var(--space-2) var(--space-3)',
+            minHeight: 44,
             border: `1px solid ${
               confirmingDelete ? 'var(--color-accent)' : 'var(--color-border-visible)'
             }`,
-            borderRadius: 'var(--radius-pill, 999px)',
+            borderRadius: 'var(--radius-button)',
+            fontFamily: 'inherit',
             fontSize: 'var(--text-caption)',
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
@@ -1375,13 +1377,18 @@ function EntryRow({
             type="button"
             onClick={() => setEditing(true)}
             disabled={busy}
-            className="data"
+            // Dropping the previous `all:'unset'` — that nuked the focus ring
+            // for keyboard users. Explicit styles + the shared row-action
+            // class restore focus-visible via globals.css.
+            className="data nsa-row-action"
             style={{
-              all: 'unset',
               cursor: 'pointer',
+              background: 'transparent',
               padding: 'var(--space-2) var(--space-3)',
+              minHeight: 44,
               border: '1px solid var(--color-border-visible)',
-              borderRadius: 'var(--radius-pill, 999px)',
+              borderRadius: 'var(--radius-button)',
+              fontFamily: 'inherit',
               fontSize: 'var(--text-caption)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -1394,15 +1401,17 @@ function EntryRow({
             type="button"
             onClick={handleDelete}
             disabled={busy}
-            className="data"
+            className="data nsa-row-action"
             style={{
-              all: 'unset',
               cursor: 'pointer',
+              background: 'transparent',
               padding: 'var(--space-2) var(--space-3)',
+              minHeight: 44,
               border: `1px solid ${
                 confirmingDelete ? 'var(--color-accent)' : 'var(--color-border-visible)'
               }`,
-              borderRadius: 'var(--radius-pill, 999px)',
+              borderRadius: 'var(--radius-button)',
+              fontFamily: 'inherit',
               fontSize: 'var(--text-caption)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -1489,7 +1498,7 @@ function EditEntryForm({
   const inputStyle: CSSProperties = {
     background: 'var(--color-surface-elevated, rgba(0,0,0,0.4))',
     border: '1px solid var(--color-border-visible)',
-    borderRadius: 'var(--radius-input, 4px)',
+    borderRadius: 'var(--radius-compact)',
     padding: 'var(--space-2) var(--space-3)',
     color: 'var(--color-text-primary)',
     fontFamily: 'var(--font-data)',
@@ -1546,7 +1555,7 @@ function EditEntryForm({
               border: `1px solid ${
                 meal === m.id ? 'var(--color-accent)' : 'var(--color-border-visible)'
               }`,
-              borderRadius: 'var(--radius-pill, 999px)',
+              borderRadius: 'var(--radius-button)',
               fontSize: 'var(--text-caption)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -1568,7 +1577,7 @@ function EditEntryForm({
             cursor: 'pointer',
             padding: 'var(--space-2) var(--space-4)',
             border: '1px solid var(--color-border-visible)',
-            borderRadius: 'var(--radius-pill, 999px)',
+            borderRadius: 'var(--radius-button)',
             fontSize: 'var(--text-caption)',
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
@@ -1587,7 +1596,7 @@ function EditEntryForm({
             padding: 'var(--space-2) var(--space-4)',
             background: 'var(--color-accent)',
             color: 'var(--color-text-inverse, #fff)',
-            borderRadius: 'var(--radius-pill, 999px)',
+            borderRadius: 'var(--radius-button)',
             fontSize: 'var(--text-caption)',
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
@@ -1661,7 +1670,7 @@ function AddView({
   return (
     <div
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-6)',
@@ -1734,7 +1743,7 @@ function AddView({
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
-                minHeight: 36,
+                minHeight: 44,
               }}
             >
               {m.label}
@@ -1753,7 +1762,7 @@ function AddView({
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--space-1)',
-            background: 'rgba(235, 46, 45, 0.06)',
+            background: 'var(--color-accent-subtle)',
           }}
         >
           <span
@@ -2158,7 +2167,7 @@ function HistoryView({
       <section
         aria-label="Last 7 days"
         style={{
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border-visible)',
           borderRadius: 'var(--radius-card)',
           padding: 'var(--space-4)',
@@ -2212,7 +2221,7 @@ function HistoryView({
               <li
                 key={dateKey}
                 style={{
-                  background: 'rgba(0, 0, 0, 0.5)',
+                  background: 'var(--color-surface)',
                   border: '1px solid var(--color-border-visible)',
                   borderRadius: 'var(--radius-card)',
                   padding: 'var(--space-4)',

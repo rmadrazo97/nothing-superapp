@@ -199,7 +199,7 @@ const compactChipStyle: CSSProperties = {
   // Match `+ ADD MEAL` sizing — compact, NOT the oversized pill A2 shrunk in
   // v0.5.1. See feedback_ns_space_scale_gap: no --space-5 / --space-7.
   padding: 'var(--space-2) var(--space-4)',
-  minHeight: 36,
+  minHeight: 44,
   fontSize: 'var(--text-label)',
 };
 

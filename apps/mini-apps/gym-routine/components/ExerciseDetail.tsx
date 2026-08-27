@@ -15,6 +15,8 @@
 import type { Exercise } from '@nothing/shared';
 import { chipStyle } from '../lib/ui.ts';
 import AttributionFooter from './AttributionFooter.tsx';
+import { ExerciseIllustration } from './ExerciseIllustration.tsx';
+import { resolveSlug } from '../lib/workout-guide-map.ts';
 
 export type ExerciseDetailProps = {
   exercise: Exercise;
@@ -27,6 +29,7 @@ export default function ExerciseDetail({
   exercise,
   compact = false,
 }: ExerciseDetailProps) {
+  const slug = resolveSlug(exercise);
   return (
     <div
       style={{
@@ -57,31 +60,26 @@ export default function ExerciseDetail({
         <span style={chipStyle(false)}>{exercise.equipment}</span>
       </div>
 
-      <div
-        style={{
-          aspectRatio: '1 / 1',
-          width: '100%',
-          maxWidth: compact ? 360 : 480,
-          alignSelf: 'center',
-          background: 'var(--color-neutral-100)',
-          border: '1px solid var(--color-border-visible)',
-          borderRadius: 'var(--radius-card)',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={exercise.gif_url}
+      <div style={{ alignSelf: 'center' }}>
+        <ExerciseIllustration
+          slug={slug}
+          fallbackGifUrl={exercise.gif_url}
           alt={`${exercise.name} demonstration`}
-          width={480}
-          height={480}
-          loading="lazy"
-          decoding="async"
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          size={compact ? 360 : 480}
+          fps={2}
         />
+        {slug && (
+          <div
+            style={{
+              fontSize: 'var(--text-caption)',
+              color: 'var(--color-text-disabled)',
+              marginTop: 'var(--space-2)',
+              textAlign: 'center',
+            }}
+          >
+            Illustrations by Bryl Lim · CC BY-SA 4.0
+          </div>
+        )}
       </div>
 
       <section
