@@ -16,10 +16,11 @@ export function Shell({ children }: { children: ReactNode }) {
           // Standalone PWA on iOS: the status bar / Dynamic Island sits ON TOP
           // of the viewport when `viewport-fit=cover`. Add the safe-area inset
           // to the top padding so the mini-app header clears the island. The
-          // TabBar handles its own bottom inset — we still keep the 170px
-          // bottom padding so scrollable content clears the fixed nav.
+          // TabBar handles its own bottom inset — bottom padding is derived
+          // from the ~72px nav height + safe-area + a comfortable buffer so
+          // scrollable content clears the fixed nav on every device.
           padding:
-            'calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-4) + env(safe-area-inset-right)) 170px calc(var(--space-4) + env(safe-area-inset-left))',
+            'calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-4) + env(safe-area-inset-right)) calc(72px + env(safe-area-inset-bottom) + var(--space-8)) calc(var(--space-4) + env(safe-area-inset-left))',
           minHeight: '100dvh',
         }}
       >

@@ -107,7 +107,7 @@ export default function GymHomePage() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-5)',
+        gap: 'var(--space-6)',
         paddingTop: 'var(--space-6)',
         paddingBottom: 'var(--space-12)',
       }}
@@ -117,13 +117,30 @@ export default function GymHomePage() {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           gap: 'var(--space-4)',
         }}
       >
-        <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-          GYM · MINI APP
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          <span
+            className="label"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            GYM · MINI APP
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 'var(--font-display-weight)',
+              fontSize: 'var(--text-heading)',
+              color: 'var(--color-text-display)',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.1,
+            }}
+          >
+            TODAY
+          </span>
+        </div>
         <MiniAppSettingsButton slug="gym-routine" title="Gym" />
       </div>
 
@@ -186,6 +203,63 @@ export default function GymHomePage() {
           </section>
         </Link>
       )}
+
+      {/* Cold-open empty state — first-run user has nothing to look at yet.
+          Shown when there's no live session, no completed history, and no
+          saved routines. Falls away as soon as they log anything. */}
+      {!live &&
+        recent !== null &&
+        recent.length === 0 &&
+        routines !== null &&
+        routines.length === 0 && (
+          <section
+            aria-label="First workout tip"
+            style={{
+              border: '1px dashed var(--color-border-visible)',
+              borderRadius: 'var(--radius-card)',
+              padding: 'var(--space-6) var(--space-4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+              alignItems: 'flex-start',
+            }}
+          >
+            <span
+              className="label"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              YOUR FIRST WORKOUT
+            </span>
+            <p
+              style={{
+                margin: 0,
+                color: 'var(--color-text-secondary)',
+                fontSize: 'var(--text-body-sm)',
+                lineHeight: 1.5,
+              }}
+            >
+              Start empty and log sets on the fly, or build a routine you can
+              re-run every week.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={startEmpty}
+                disabled={starting}
+              >
+                {starting ? 'STARTING…' : 'START EMPTY'}
+              </button>
+              <Link
+                href="/app/gym-routine/routines"
+                className="btn"
+                style={{ textDecoration: 'none' }}
+              >
+                BUILD ROUTINE
+              </Link>
+            </div>
+          </section>
+        )}
 
       {/* THIS WEEK — hero data card, PixelUI dogfood */}
       {summary && !summary.isEmpty && (
@@ -381,7 +455,7 @@ export default function GymHomePage() {
                       aria-hidden
                       style={{
                         color: isEmpty ? 'var(--color-text-disabled)' : 'var(--color-accent)',
-                        fontSize: 10,
+                        fontSize: 'var(--text-caption)',
                         lineHeight: 1,
                         flexShrink: 0,
                       }}
@@ -451,7 +525,9 @@ export default function GymHomePage() {
 const smallChipStyle = {
   ...ghostButtonStyle,
   padding: 'var(--space-2) var(--space-3)',
-  minHeight: 32,
+  minHeight: 44,
+  display: 'inline-flex',
+  alignItems: 'center',
   fontSize: 'var(--text-caption)',
   color: 'var(--color-text-secondary)',
 };

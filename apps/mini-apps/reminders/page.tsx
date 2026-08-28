@@ -70,6 +70,10 @@ export default function RemindersPage() {
     >
       <Header view={view} onChangeView={setView} />
 
+      {reminders !== null && reminders.length === 0 && view !== 'history' && (
+        <FirstRunCard />
+      )}
+
       {showHero && summary && (
         <PixelCard title="THIS WEEK" meta={weekMetaLabel()}>
           <div
@@ -186,6 +190,44 @@ function Header({
   );
 }
 
+// First-run empty-state card — shown once the reminders list has loaded and
+// is empty. RemindersView renders its own muted line below; this larger
+// dashed card is the hero prompt that orients a brand-new user.
+function FirstRunCard() {
+  return (
+    <section
+      aria-label="First-run reminder tip"
+      style={{
+        border: '1px dashed var(--color-border-visible)',
+        borderRadius: 'var(--radius-card)',
+        padding: 'var(--space-6) var(--space-4)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)',
+        alignItems: 'flex-start',
+      }}
+    >
+      <span
+        className="label"
+        style={{ color: 'var(--color-text-secondary)' }}
+      >
+        SCHEDULE YOUR FIRST REMINDER
+      </span>
+      <p
+        style={{
+          margin: 0,
+          color: 'var(--color-text-secondary)',
+          fontSize: 'var(--text-body-sm)',
+          lineHeight: 1.5,
+        }}
+      >
+        A gentle nudge at a chosen time — daily, weekly, or one-off. Use the
+        + NEW REMINDER control below to get started.
+      </p>
+    </section>
+  );
+}
+
 function TabButton({
   active,
   onClick,
@@ -211,6 +253,7 @@ function TabButton({
           ? 'var(--color-text-display)'
           : 'var(--color-text-secondary)',
         padding: 'var(--space-2) var(--space-3)',
+        minHeight: 44,
         fontFamily: 'var(--font-label)',
         fontSize: 'var(--text-label)',
         letterSpacing: '0.08em',

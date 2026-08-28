@@ -139,6 +139,10 @@ export function FromPlanDropdown({
         <div
           role="menu"
           aria-label="Log meal from plan"
+          // .elev-md is the shared design-system elevation — replaces the
+          // one-off harsh boxShadow that read too heavy against the dark
+          // surface. See design-system/styles.css for the token.
+          className="elev-md"
           style={{
             position: 'absolute',
             top: 'calc(100% + var(--space-2))',
@@ -154,7 +158,6 @@ export function FromPlanDropdown({
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--space-2)',
-            boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
           }}
         >
           <span

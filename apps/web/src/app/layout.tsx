@@ -176,7 +176,7 @@ document.addEventListener('touchend', function (e) {
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col" style={{ touchAction: 'pan-x pan-y' }}>
+      <body className="min-h-full flex flex-col" style={{ touchAction: 'pan-y' }}>
         <MobileKeyboardBehavior />
         {children}
       </body>

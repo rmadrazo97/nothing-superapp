@@ -27,14 +27,6 @@ export default function ComingSoonPage() {
         launcher has something real to render before the first product surface
         goes live.
       </p>
-      <p
-        className="label"
-        style={{
-          marginTop: 'var(--space-6)',
-        }}
-      >
-        NEXT UP · CALORIE-LITE
-      </p>
     </div>
   );
 }

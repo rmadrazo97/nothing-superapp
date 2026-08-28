@@ -4,6 +4,36 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.0] — 2026-08-27 — App revamp: on-brand exercise illustrations, snappier navigation, mobile UX sweep
+
+Cross-cutting release. Three independent tracks landed together on `feat/app-revamp-v06` — no schema changes, no new mini-apps.
+
+### Added
+- **`<ExerciseIllustration>`** in `apps/mini-apps/gym-routine/components/` — cycles the 3 PNG frames shipped by `@bryllim/workout-guide` at 2 fps (respects `prefers-reduced-motion` — holds on frame 1). Frames are served from jsDelivr (`https://cdn.jsdelivr.net/npm/@bryllim/workout-guide@1.0.0/`) so the 30 MB asset payload never enters the app bundle. The JS shim (~540 KB with inlined manifest of 302 exercises) is loaded via `await import('@bryllim/workout-guide')` inside a `useEffect`, so other mini-apps pay zero cost. Frames 2 and 3 are preloaded so the first cycle does not stutter. Falls back to the existing `gif_url` when no matching slug exists, and to a subtle "NO PREVIEW" tile when neither exists.
+- **`workout_guide_slug`** field on every routine exercise in `fixtures/jam-v1.json` (12 entries: 9 exact + 3 fuzzy matches, 0 unmatched). Fuzzy notes recorded in `/tmp/exercise-slug-mapping.json` for reference.
+- **Per-mini-app `loading.tsx`** under all 9 route folders (`apps/web/src/app/app/{gym-routine,calorie-lite,pomodoro,habits,journal,reminders,coming-soon,assistant,settings}/`) — the blank-screen gap between tap and hydration is now a shimmer skeleton. Shared primitive at `apps/web/src/components/shell/MiniAppSkeleton.tsx`.
+- **First-run empty states** on the gym home ("YOUR FIRST WORKOUT — start empty / from routine") and reminders home ("SCHEDULE YOUR FIRST REMINDER"). Brand-new users no longer see a near-blank hero.
+- **`TodayCard` error chip** — transient API failures now render a subtle "COULDN'T LOAD TODAY · RETRY" instead of silently hiding the whole card.
+- **CC BY-SA 4.0 attribution** on the exercise detail page ("Illustrations by Bryl Lim · CC BY-SA 4.0") — required by the workout-guide asset licence.
+
+### Changed
+- **`/app/*` layout** parallelizes the profiles + preferences Supabase reads via `Promise.all()` (was two serial `await`s). Saves ~300 ms on every mini-app cold nav.
+- **Launcher tile emoji** grew from 24 px to 48 px so the glyph reads as a launcher icon, not caption text. Lock badge inset bumped `--space-2` → `--space-3` so it no longer clips against the tile border.
+- **Launcher loading skeleton** grid now `repeat(2, minmax(0, 1fr))` to mirror the real `HomeGrid` — hydration no longer reshuffles columns on wider phones.
+- **Shell padding-bottom** `170px` → `calc(72px + env(safe-area-inset-bottom) + var(--space-8))` — matches actual TabBar height plus safe area; no more dead space on phones without a home indicator.
+- **Tab bar** breathing-room padding bumped so icon + label are not crammed against the home indicator on Pro Max phones.
+- **Body `touch-action`** tightened from `pan-x pan-y` to `pan-y` — no top-level surface needs horizontal panning; kills accidental horizontal pans on narrow phones.
+- **Chip / tab / small-button tap targets** bumped to a 44 px minimum across gym-routine (info ⓘ, focus toggle, EDIT/DONE pill, secondary nav chips, routine editor ghost buttons, "+ NEW ROUTINE" CTA, measurements ghost, session INFO), calorie-lite (meal-slot chips, edit/delete row action, delete-group), pomodoro (gear + tab buttons), reminders (tab buttons), habits (chips), journal (chips). Info button was 20×20 — now 44×44 tap zone with unchanged visual glyph.
+- **Calorie-lite edit/delete row actions** dropped `all: 'unset'` in favour of explicit styles + a `.nsa-row-action:focus-visible` outline in `globals.css` — keyboard focus is visible again.
+- **`FromPlanDropdown` shadow** swapped an off-scale `0 12px 30px rgba(0,0,0,0.6)` inline shadow for the `.elev-md` class.
+- **Coming-soon copy** removed the stale "NEXT UP · CALORIE-LITE" line (calorie-lite shipped in the 0.5.x line).
+
+### Fixed
+- **Silent 0-space / 0-radius bugs** from undefined design tokens. `--space-5` (not in the scale — memory: skip 5 and 7) replaced with `--space-4` / `--space-6` in `gym-routine/page.tsx` and `habits/page.tsx`. `--radius-input` (not in the scale) replaced with `--radius-compact` in `journal`, `habits`, and `calorie-lite`. `--radius-pill` replaced with `--radius-button` in six places in `calorie-lite`. `grep -R "var(--space-5)|var(--radius-input)|var(--radius-pill)" apps/` now returns 0.
+- **Pomodoro `.no-scroll` no-op.** The class was `add`ed to `<body>` while a focus session was running, but was never defined anywhere. Rule added to `globals.css` — focus mode now actually locks page scroll.
+- **Off-token colours** replaced with tokens in the touched files. `rgba(0, 0, 0, 0.5)` → `var(--color-surface)`; calorie-lite error banner `rgba(235, 46, 45, 0.06)` → `var(--color-accent-subtle)` (also fixed the wrong hue — accent is `#D71921`, not `#EB2E2D`).
+- **Pomodoro timer inline `fontSize: 72`** removed — was duplicating the `.display-xl` class which already sets 72 px, drift risk was real.
+
 ## [0.5.18] — 2026-08-15 — Real calorie fix (integer coercion), smarter exercise ILIKE, static manifest
 
 Follow-up patch to v0.5.17 after live testing surfaced three residuals.

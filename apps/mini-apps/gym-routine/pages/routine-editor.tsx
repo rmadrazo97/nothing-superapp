@@ -377,7 +377,7 @@ export default function RoutineEditorPage({
                       type="button"
                       onClick={() => move(exIdx, -1)}
                       aria-label="Move up"
-                      style={{ ...ghostButtonStyle, minHeight: 36, padding: 'var(--space-2)' }}
+                      style={{ ...ghostButtonStyle, minHeight: 44, minWidth: 44, padding: 'var(--space-2)' }}
                     >
                       ↑
                     </button>
@@ -385,7 +385,7 @@ export default function RoutineEditorPage({
                       type="button"
                       onClick={() => move(exIdx, +1)}
                       aria-label="Move down"
-                      style={{ ...ghostButtonStyle, minHeight: 36, padding: 'var(--space-2)' }}
+                      style={{ ...ghostButtonStyle, minHeight: 44, minWidth: 44, padding: 'var(--space-2)' }}
                     >
                       ↓
                     </button>
@@ -393,7 +393,7 @@ export default function RoutineEditorPage({
                       type="button"
                       onClick={() => removeAt(exIdx)}
                       aria-label="Remove"
-                      style={{ ...ghostButtonStyle, minHeight: 36, padding: 'var(--space-2)', color: 'var(--color-text-secondary)' }}
+                      style={{ ...ghostButtonStyle, minHeight: 44, minWidth: 44, padding: 'var(--space-2)', color: 'var(--color-text-secondary)' }}
                     >
                       ×
                     </button>
@@ -447,7 +447,7 @@ export default function RoutineEditorPage({
                         type="button"
                         onClick={() => removeSet(exIdx, setIdx)}
                         aria-label={`Remove set ${setIdx + 1}`}
-                        style={{ ...ghostButtonStyle, minHeight: 36, padding: 'var(--space-2)' }}
+                        style={{ ...ghostButtonStyle, minHeight: 44, minWidth: 44, padding: 'var(--space-2)' }}
                       >
                         ×
                       </button>

@@ -31,7 +31,7 @@ export default function AppLoading() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           gap: 'var(--space-4)',
         }}
         aria-label="Loading mini-apps"

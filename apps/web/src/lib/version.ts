@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.5.18';
-export const APP_RELEASE_DATE = '2026-08-15'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.6.0';
+export const APP_RELEASE_DATE = '2026-08-27'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,17 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.6.0',
+    date: '2026-08-27',
+    highlights: [
+      'Exercise illustrations — swapped the busy, off-brand gymvisual GIFs for @bryllim/workout-guide: 302 minimal line-drawings, 3 PNG frames each, cycled at 2 fps for a subtle animation that matches the Nothing OS aesthetic. Package loaded via dynamic import so it does not inflate the initial bundle; frames served from jsDelivr so 30 MB of assets never touch the app bundle. Every exercise in the current routine (jam-v1) mapped to a slug — 9 exact + 3 fuzzy + 0 unmatched. CC BY-SA 4.0 attribution rendered on the exercise detail page.',
+      'App-to-app navigation feels faster. Parallelized the two Supabase reads (profiles + preferences) in the /app/* layout — saves ~300 ms on every mini-app cold nav. Added per-mini-app loading.tsx skeletons under all 9 route folders — the blank screen between tap and hydration is now a shimmer skeleton instead of black. Fixed the launcher loading skeleton to mirror the real 2-column grid so hydration does not reshuffle columns.',
+      'Mobile UI/UX sweep across all mini-apps. Killed 4 silent bugs from undefined design tokens (var(--space-5), var(--radius-input), var(--radius-pill)) — collapsed spacing and 0-radius corners are gone. Bumped every chip, tab, secondary-nav button, and small action pill to a 44 px minimum touch target across gym-routine, calorie-lite, pomodoro, habits, journal, and reminders — the session INFO ⓘ (previously 20×20) and the gym focus toggle now match iOS tap-target guidance. Replaced hard-coded rgba(0,0,0,0.5) with var(--color-surface) so future retunes propagate. Launcher tile emoji grew from 24 px to 48 px so it reads as a launcher glyph, not caption text. Shell padding-bottom now respects safe-area-inset instead of a hard 170 px.',
+      'First-run empty states. Gym home shows "YOUR FIRST WORKOUT — start empty / from routine" for brand-new users instead of a near-blank screen; reminders home shows "SCHEDULE YOUR FIRST REMINDER". TodayCard also surfaces a subtle "COULDN\'T LOAD TODAY · RETRY" chip on transient failures instead of silently hiding.',
+      'Dead code + stale copy purged. Pomodoro .no-scroll class defined (was previously a no-op setting classes that did not exist). Coming-soon "NEXT UP · CALORIE-LITE" line removed (calorie-lite shipped in 0.5.x). Body touch-action tightened to pan-y so accidental horizontal pans of the whole page cannot happen on narrow phones.',
+    ],
+  },
   {
     version: '0.5.18',
     date: '2026-08-15',
