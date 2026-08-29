@@ -186,7 +186,7 @@ export function ThreadDrawer({
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'var(--color-surface)',
           animation: 'nsa-copilot-fade-in var(--dur-fast, 180ms) var(--ease-out) both',
         }}
       />

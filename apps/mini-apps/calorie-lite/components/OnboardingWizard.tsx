@@ -663,7 +663,7 @@ function GoalStep({
               onClick={() => setGoal(opt.id)}
               style={{
                 textAlign: 'left',
-                background: 'rgba(0, 0, 0, 0.5)',
+                background: 'var(--color-surface)',
                 color: 'var(--color-text-primary)',
                 border: `1px solid ${
                   active ? 'var(--color-accent)' : 'var(--color-border-visible)'
@@ -753,7 +753,7 @@ function ActivityStep({
             onClick={() => setActivity(opt.id)}
             style={{
               textAlign: 'left',
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'var(--color-surface)',
               color: 'var(--color-text-primary)',
               border: `1px solid ${
                 active ? 'var(--color-accent)' : 'var(--color-border-visible)'
@@ -806,7 +806,7 @@ function ConfirmStep({
       <section
         aria-label="Computed target"
         style={{
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border-visible)',
           borderRadius: 'var(--radius-card)',
           padding: 'var(--space-4)',

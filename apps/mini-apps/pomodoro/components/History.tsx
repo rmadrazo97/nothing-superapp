@@ -85,7 +85,7 @@ export function History({
           <li
             key={key}
             style={{
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border-visible)',
               borderRadius: 'var(--radius-card)',
               padding: 'var(--space-4)',

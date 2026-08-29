@@ -247,7 +247,7 @@ export function WeightView() {
           <form
             onSubmit={submitWeight}
             style={{
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border-visible)',
               borderRadius: 'var(--radius-card)',
               padding: 'var(--space-4)',
@@ -442,7 +442,7 @@ function LatestCard({
     <section
       aria-label="Latest weight"
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-4)',
@@ -558,7 +558,7 @@ function WeightChart({
     <section
       aria-label="Weight trend"
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-4)',

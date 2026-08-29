@@ -447,7 +447,7 @@ function PlanIndexCard({
           ? '2px solid var(--color-accent)'
           : '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
-        background: isActive ? 'rgba(215, 25, 33, 0.04)' : 'rgba(0, 0, 0, 0.5)',
+        background: isActive ? 'rgba(215, 25, 33, 0.04)' : 'var(--color-surface)',
         width: '100%',
         boxSizing: 'border-box',
       }}
