@@ -49,7 +49,7 @@ type ProfileLoadState =
 // ─── shared inline styles (design-system tokens only) ─────────────────────
 
 const CARD_STYLE: CSSProperties = {
-  background: 'rgba(0, 0, 0, 0.5)',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border-visible)',
   borderRadius: 'var(--radius-card)',
   padding: 'var(--space-6)',
@@ -805,7 +805,7 @@ function AboutCard() {
     <section
       aria-labelledby="section-about"
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-visible)',
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-4)',

@@ -69,7 +69,7 @@ export default function RestTimer({
     <section
       aria-label="Rest timer"
       style={{
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         border: `1px solid ${idle ? 'var(--color-border-visible)' : 'var(--color-accent)'}`,
         borderRadius: 'var(--radius-card)',
         padding: 'var(--space-4)',

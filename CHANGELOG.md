@@ -4,6 +4,13 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.1] — 2026-08-29 — Finish the surface-token sweep
+
+Follow-up to v0.6.0. Track B in the revamp release was scoped to top-level mini-app pages only, leaving 28 hard-coded `rgba(0, 0, 0, 0.5)` string literals in sub-components. This release finishes the sweep so a future retune of `--color-surface` actually propagates.
+
+### Changed
+- Replaced `'rgba(0, 0, 0, 0.5)'` with `'var(--color-surface)'` in 21 files: calorie-lite sub-components (`CustomFoodList`, `CustomMealsPanel`, `FoodSearch`, `FromPlanTab`, `MacroCard`, `MealPlanView`, `OnboardingWizard`, `PlanForm`, `PlanRulesCard`, `ReportsView`, `StreakChip`, `TodayInsights`, `WeightView`), `gym-routine/components/RestTimer`, `gym-routine/lib/ui`, `pomodoro/components/History`, `apps/web/src/app/{login,paywall,app/settings}/page.tsx`, `components/copilot/ThreadDrawer`, and `components/mini-app-settings/tokens`. `grep -R "'rgba(0, 0, 0, 0.5)'" apps/` now returns 0.
+
 ## [0.6.0] — 2026-08-27 — App revamp: on-brand exercise illustrations, snappier navigation, mobile UX sweep
 
 Cross-cutting release. Three independent tracks landed together on `feat/app-revamp-v06` — no schema changes, no new mini-apps.

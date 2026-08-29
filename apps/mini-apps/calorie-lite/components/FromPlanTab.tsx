@@ -271,7 +271,7 @@ export function FromPlanTab({
                       alignItems: 'baseline',
                       gap: 'var(--space-3)',
                       padding: 'var(--space-3) var(--space-4)',
-                      background: 'rgba(0, 0, 0, 0.5)',
+                      background: 'var(--color-surface)',
                       border: '1px solid var(--color-border-visible)',
                       borderRadius: 'var(--radius-compact)',
                       opacity: busy ? 0.6 : 1,

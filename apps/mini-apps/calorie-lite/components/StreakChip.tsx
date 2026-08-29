@@ -125,7 +125,7 @@ export function StreakChip({ current }: { current: number }) {
         padding: 'var(--space-2) var(--space-3)',
         border: `1px solid ${atBest ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
         borderRadius: 'var(--radius-card)',
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'var(--color-surface)',
         // Shrinkable so the ⚙ cog next to it always fits — the extra
         // rows collapse via a11y-only visibility on ≤430px viewports
         // (see .nsa-streak-longest / .nsa-streak-month in globals.css).

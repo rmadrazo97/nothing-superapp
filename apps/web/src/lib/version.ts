@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.6.0';
-export const APP_RELEASE_DATE = '2026-08-27'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.6.1';
+export const APP_RELEASE_DATE = '2026-08-29'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,13 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.6.1',
+    date: '2026-08-29',
+    highlights: [
+      'Finished the token sweep started in v0.6.0. Replaced the remaining 28 hard-coded `rgba(0, 0, 0, 0.5)` string literals with `var(--color-surface)` across 21 files — every card, modal, chip, and drawer background in calorie-lite (14 sub-components), pomodoro history, gym rest timer + shared UI tokens, settings, paywall, login, copilot thread drawer, and the mini-app-settings tokens. Future retunes of the surface colour token now propagate everywhere in one edit instead of 28.',
+    ],
+  },
   {
     version: '0.6.0',
     date: '2026-08-27',
