@@ -69,6 +69,15 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
   if (parsed.data.name != null) patch.name = parsed.data.name;
   if (parsed.data.exercises != null) patch.exercises = parsed.data.exercises;
+  // v2 fields — coach-grade plan blob + provenance. `plan` is validated
+  // permissively on the shared row schema (z.unknown) so the API accepts
+  // any coach-authored shape; downstream renderers parse it strictly via
+  // routineV2Schema and fall back to the v1 renderer when parse fails.
+  if (parsed.data.plan !== undefined) patch.plan = parsed.data.plan;
+  if (parsed.data.parsing_notes !== undefined) patch.parsing_notes = parsed.data.parsing_notes;
+  if (parsed.data.source !== undefined) patch.source = parsed.data.source;
+  if (parsed.data.athlete !== undefined) patch.athlete = parsed.data.athlete;
+  if (parsed.data.schema_version !== undefined) patch.schema_version = parsed.data.schema_version;
 
   if (Object.keys(patch).length === 0) {
     return jsonError('empty_patch', 400);

@@ -22,6 +22,10 @@ export function Shell({ children }: { children: ReactNode }) {
           padding:
             'calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-4) + env(safe-area-inset-right)) calc(72px + env(safe-area-inset-bottom) + var(--space-8)) calc(var(--space-4) + env(safe-area-inset-left))',
           minHeight: '100dvh',
+          // Belt-and-suspenders: if a child mistakenly overflows horizontally
+          // (long titles, wide grids, sticky elements), clip it here instead
+          // of letting the whole shell scroll sideways off-screen.
+          overflowX: 'hidden',
         }}
       >
         {children}

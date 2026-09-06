@@ -82,6 +82,17 @@ export default function SessionPage({
   // wider card. Lets the user zero in on one exercise at a time
   // (Strong / Hevy-style focused logger).
   const [focusedExIndex, setFocusedExIndex] = useState<number | null>(null);
+  // Per-entry BW override. Lets the user flip an exercise between
+  // weighted and body-weight without leaving the session — the catalog
+  // meta is often wrong for machine variants ("machine lateral raise"
+  // reads as `body_only` in the DB but we're using it with plates).
+  //   undefined → follow catalog
+  //   true      → force BW (hides KG column, saves weight_kg = null)
+  //   false     → force weighted (shows KG column)
+  const [bwOverride, setBwOverride] = useState<Record<number, boolean>>({});
+  // Confirm-before-delete for the exercise card's × REMOVE button. Keyed
+  // by index; clears after commit or when the user taps anywhere else.
+  const [confirmRemoveExIdx, setConfirmRemoveExIdx] = useState<number | null>(null);
   // "Last time you did this exercise" reference — keyed by lowercased
   // exercise name so it survives routine-swap and opaque local ids.
   // Populated once from the last 30 completed sessions.
@@ -278,6 +289,54 @@ export default function SessionPage({
     await persistEntries(entries);
   };
 
+  const removeSetFromEntry = async (exIdx: number, setIdx: number) => {
+    const next = entries.map((entry, i) => {
+      if (i !== exIdx) return entry;
+      // Keep at least one set — deleting the last one would render the
+      // card unusable. User can remove the whole exercise instead.
+      if (entry.sets.length <= 1) return entry;
+      return { ...entry, sets: entry.sets.filter((_, j) => j !== setIdx) };
+    });
+    setEntries(next);
+    await persistEntries(next);
+  };
+
+  const removeExercise = async (exIdx: number) => {
+    const next = entries.filter((_, i) => i !== exIdx);
+    // Rebase focus / confirm state so we don't point at a stale index.
+    setFocusedExIndex((v) => (v === exIdx ? null : v != null && v > exIdx ? v - 1 : v));
+    setConfirmRemoveExIdx(null);
+    setBwOverride((prev) => {
+      const nextOverrides: Record<number, boolean> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const idx = Number(k);
+        if (idx === exIdx) continue;
+        nextOverrides[idx > exIdx ? idx - 1 : idx] = v;
+      }
+      return nextOverrides;
+    });
+    setEntries(next);
+    await persistEntries(next);
+  };
+
+  const toggleBw = async (exIdx: number, isCurrentlyBw: boolean) => {
+    const nextBw = !isCurrentlyBw;
+    setBwOverride((prev) => ({ ...prev, [exIdx]: nextBw }));
+    // If flipping TO body-weight, blank out weight so historical volume
+    // math stays honest. Persist so the change survives a refresh.
+    if (nextBw) {
+      const next = entries.map((entry, i) => {
+        if (i !== exIdx) return entry;
+        return {
+          ...entry,
+          sets: entry.sets.map((s) => ({ ...s, weight_kg: null })),
+        };
+      });
+      setEntries(next);
+      await persistEntries(next);
+    }
+  };
+
   const addSetToEntry = async (exIdx: number) => {
     const next = entries.map((entry, i) => {
       if (i !== exIdx) return entry;
@@ -469,14 +528,18 @@ export default function SessionPage({
             const doneCount = entry.sets.filter((s) => s.completed_at).length;
             const active = isLive && doneCount < entry.sets.length;
             const meta = exerciseMeta[entry.exercise_id];
-            const isBW = meta ? isBodyWeightEquipment(meta.equipment) : false;
+            const metaBW = meta ? isBodyWeightEquipment(meta.equipment) : false;
+            const isBW = bwOverride[exIdx] ?? metaBW;
             const lastRef = lastByName[entry.name.trim().toLowerCase()];
             const isFocused = focusedExIndex === exIdx;
             // Grid columns collapse when we hide the weight input for BW
-            // exercises — reps takes the full inner span.
+            // exercises — reps takes the full inner span. `minmax(0, 1fr)`
+            // stops the number input's intrinsic width (~150px in Safari)
+            // from forcing the row wider than its parent card on 375-wide
+            // phones, which was pushing the whole session off-screen.
             const gridCols = isBW
-              ? '36px 1fr auto'
-              : '36px 1fr 1fr auto';
+              ? '32px minmax(0,1fr) 48px'
+              : '32px minmax(0,1fr) minmax(0,1fr) 48px';
             return (
               <li key={`${entry.exercise_id}-${exIdx}`}>
                 <div
@@ -546,23 +609,55 @@ export default function SessionPage({
                       >
                         {'ⓘ'}
                       </button>
-                      {isBW && (
-                        <span
+                      {editable ? (
+                        <button
+                          type="button"
+                          onClick={() => void toggleBw(exIdx, isBW)}
+                          aria-pressed={isBW}
+                          aria-label={
+                            isBW
+                              ? 'Currently body weight. Tap to switch to weighted.'
+                              : 'Currently weighted. Tap to switch to body weight.'
+                          }
+                          title={isBW ? 'Body weight — tap to add weight' : 'Weighted — tap for body weight'}
                           style={{
-                            border: '1px solid var(--color-border-visible)',
-                            color: 'var(--color-text-secondary)',
+                            border: `1px solid ${isBW ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
+                            color: isBW ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                            background: 'transparent',
                             padding: '0 var(--space-2)',
                             borderRadius: 'var(--radius-button)',
                             fontFamily: 'var(--font-label)',
                             fontSize: 'var(--text-label)',
                             letterSpacing: '0.06em',
                             textTransform: 'uppercase',
-                            lineHeight: '20px',
+                            lineHeight: '22px',
+                            height: 24,
                             whiteSpace: 'nowrap',
+                            cursor: 'pointer',
+                            flexShrink: 0,
                           }}
                         >
-                          Body weight
-                        </span>
+                          {isBW ? '● BW' : '○ BW'}
+                        </button>
+                      ) : (
+                        isBW && (
+                          <span
+                            style={{
+                              border: '1px solid var(--color-border-visible)',
+                              color: 'var(--color-text-secondary)',
+                              padding: '0 var(--space-2)',
+                              borderRadius: 'var(--radius-button)',
+                              fontFamily: 'var(--font-label)',
+                              fontSize: 'var(--text-label)',
+                              letterSpacing: '0.06em',
+                              textTransform: 'uppercase',
+                              lineHeight: '20px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Body weight
+                          </span>
+                        )
                       )}
                     </div>
                     <div
@@ -707,15 +802,15 @@ export default function SessionPage({
                             aria-pressed={done}
                             aria-label={done ? `Un-mark set ${setIdx + 1}` : `Mark set ${setIdx + 1} complete`}
                             style={{
-                              width: 56,
-                              height: 56,
-                              minWidth: 56,
+                              width: 44,
+                              height: 44,
+                              minWidth: 44,
                               borderRadius: 'var(--radius-compact)',
                               background: done ? 'var(--color-accent)' : 'transparent',
                               border: `2px solid ${done ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
                               color: done ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
                               cursor: editable ? 'pointer' : 'default',
-                              fontSize: 24,
+                              fontSize: 20,
                               lineHeight: 1,
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -731,13 +826,65 @@ export default function SessionPage({
                   </ul>
 
                   {editable && (
-                    <button
-                      type="button"
-                      onClick={() => void addSetToEntry(exIdx)}
-                      style={{ ...ghostButtonStyle, alignSelf: 'flex-start' }}
-                    >
-                      + Add set
-                    </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => void addSetToEntry(exIdx)}
+                        style={ghostButtonStyle}
+                      >
+                        + Add set
+                      </button>
+                      {entry.sets.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void removeSetFromEntry(exIdx, entry.sets.length - 1)
+                          }
+                          style={{
+                            ...ghostButtonStyle,
+                            color: 'var(--color-text-secondary)',
+                          }}
+                          aria-label="Remove last set"
+                        >
+                          − Remove set
+                        </button>
+                      )}
+                      <div style={{ flex: 1 }} />
+                      {confirmRemoveExIdx === exIdx ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void removeExercise(exIdx)}
+                            style={{
+                              ...ghostButtonStyle,
+                              borderColor: 'var(--color-accent)',
+                              color: 'var(--color-accent)',
+                            }}
+                          >
+                            Confirm remove
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemoveExIdx(null)}
+                            style={ghostButtonStyle}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemoveExIdx(exIdx)}
+                          style={{
+                            ...ghostButtonStyle,
+                            color: 'var(--color-text-secondary)',
+                          }}
+                          aria-label={`Remove ${entry.name}`}
+                        >
+                          × Remove exercise
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </li>

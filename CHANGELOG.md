@@ -4,6 +4,22 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.2] — 2026-09-06 — Gym: editable v2 routines + session-level exercise edits + mobile overflow fix
+
+The gym mini-app's coach-authored (v2) routines were read-only through 0.6.1 — you could look at them but not touch them, and the assistant had no `update_gym_routine` tool so it couldn't help either. Live sessions also had no way to delete an exercise or flip one to body-weight mid-workout. And on 375-wide phones the whole session UI was scrolling sideways because the set grid's `1fr` tracks were letting the number-input intrinsic width (~150 px in Safari) push each row past its container.
+
+### Added
+- **`<PlanDayEditor>`** — new editable variant of `<PlanDayCard>`. Rename the day + each exercise, delete any exercise (works across straight / top_set_backoff / superset structures), edit sets + reps min/max on every straight/top-set/backoff block, edit rounds + component sets/reps on supersets, toggle body-weight (writes `equipment: 'body_only'`).
+- **v2 routine editor MANAGE mode** in `pages/routine-editor.tsx` — header toggle drops the read-only PlanDayCard stack for the new editor. Local `planDraft` state, dirty-flag, Save/Discard buttons. Save PATCHes the whole plan blob.
+- **Session-level exercise editing** in `pages/session.tsx` — per-entry BW override chip (`● BW` / `○ BW`) that flips the KG column visibility and blanks weight_kg when toggling to BW. "− Remove set" removes the last set. "× Remove exercise" with a confirm step drops the entry entirely; index bookkeeping rebases focus mode + BW overrides so a delete never leaves stale pointers.
+- **`update_gym_routine` assistant tool** at `apps/web/src/lib/ai/tools/update-gym-routine.ts` and registered in the tools index. Same write-gate + audit + idempotency stack as `create_gym_routine`. Description tells the model to always send the whole updated `plan` object because jsonb has no partial-merge semantics on nested arrays.
+
+### Changed
+- **`/api/mini-apps/gym-routine/routines/[id]` PATCH** now accepts `plan`, `parsing_notes`, `source`, `athlete`, `schema_version` (was `name` + `exercises` only). Downstream the v2 editor + the copilot both write through the same route.
+- **Session set-grid columns** in both `pages/session.tsx` and `pages/routine-editor.tsx` switched from `1fr` to `minmax(0,1fr)` so number-input intrinsic width can't force the row wider than its parent card.
+- **Session done-set checkbox** shrunk from 56×56 back to 44×44 (still WCAG-compliant) so the row fits comfortably on 375-wide screens.
+- **`<Shell>`** `main` now has `overflow-x: hidden` as a belt-and-suspenders clip so any future child overflow doesn't scroll the whole shell sideways off-screen.
+
 ## [0.6.1] — 2026-08-29 — Finish the surface-token sweep
 
 Follow-up to v0.6.0. Track B in the revamp release was scoped to top-level mini-app pages only, leaving 28 hard-coded `rgba(0, 0, 0, 0.5)` string literals in sub-components. This release finishes the sweep so a future retune of `--color-surface` actually propagates.

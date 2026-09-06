@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.6.1';
-export const APP_RELEASE_DATE = '2026-08-29'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.6.2';
+export const APP_RELEASE_DATE = '2026-09-06'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,16 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.6.2',
+    date: '2026-09-06',
+    highlights: [
+      'Gym session — cards no longer clip off the right edge on 375-wide phones. The set grid was using `1fr` which lets number-input intrinsic width (~150px in Safari) blow the row past its container; switched to `minmax(0,1fr)` on both the session logger and the routine editor so tracks actually shrink. Belt-and-suspenders `overflow-x: hidden` on the Shell main clips anything else that misbehaves in the future.',
+      'Gym session — every exercise card is now editable during a live session. Tap the BW chip to toggle between weighted and body-weight on the fly (per-entry override, saves weight_kg=null when flipping to BW). "− Remove set" removes the last set. "× Remove exercise" with a confirm step drops it from the session entirely. All three PATCH straight into the existing /sessions/[id] endpoint — no new schema.',
+      'Gym routine editor — v2 (coach-authored) routines are finally editable. MANAGE mode drops the read-only PlanDayCard stack for a new PlanDayEditor: rename the routine + each day, delete exercises or whole days, edit sets + reps min/max on every straight/top-set/backoff block, edit rounds + component sets/reps on supersets, toggle BW per exercise. Save PATCHes the full plan blob to /routines/[id]; the API accepts `plan`, `parsing_notes`, `source`, `athlete`, `schema_version` now (was name+exercises only).',
+      'Assistant — new `update_gym_routine` tool. The copilot can now patch an existing v2 routine (name, plan, source, athlete, parsing_notes) instead of only creating new ones. Same write-gate + audit + idempotency stack as create_gym_routine. Tool description tells the model to send the whole updated `plan` object because Postgres jsonb has no partial-merge semantics on nested arrays.',
+    ],
+  },
   {
     version: '0.6.1',
     date: '2026-08-29',

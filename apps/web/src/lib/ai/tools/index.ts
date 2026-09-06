@@ -27,6 +27,7 @@ import { makeListPomodoroSessionsTool } from './list-pomodoro-sessions';
 import { makeCreateGymRoutineTool } from './create-gym-routine';
 import { makeGetGymRoutineTool } from './get-gym-routine';
 import { makeListGymRoutinesTool } from './list-gym-routines';
+import { makeUpdateGymRoutineTool } from './update-gym-routine';
 // meal plans v1 — nutritionist-style structured plans (migration 012)
 import { makeCreateMealPlanTool } from './create-meal-plan';
 import { makeGetMealPlanTool } from './get-meal-plan';
@@ -92,6 +93,7 @@ export function copilotTools(userId: string, supabase: SupabaseClient) {
     create_gym_routine: makeCreateGymRoutineTool(userId, supabase),
     get_gym_routine: makeGetGymRoutineTool(userId, supabase),
     list_gym_routines: makeListGymRoutinesTool(userId, supabase),
+    update_gym_routine: makeUpdateGymRoutineTool(userId, supabase),
     // meal plans v1 (add-only) — nutritionist-style plans w/ options + rules
     create_meal_plan: makeCreateMealPlanTool(userId, supabase),
     get_meal_plan: makeGetMealPlanTool(userId, supabase),
