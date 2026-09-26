@@ -151,9 +151,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Also blocks iOS Safari's pinch-zoom + double-tap-zoom gestures
             that the viewport meta alone doesn't stop in standalone PWA
             mode. `gesturestart` is Safari-only (Chromium ignores it).
-            `touchend` double-tap detection is a belt-and-suspenders for
-            older iOS versions where the viewport meta is honored but
-            double-tap-zoom still triggers. */}
+            Double-tap zoom is handled by `touch-action: pan-y` on <body>.
+            v0.6.3: removed the old `touchend` double-tap blocker — it
+            preventDefault()-ed ANY tap within 300ms of the previous one,
+            anywhere, which swallowed the click + focus on fast taps
+            (reps field → ✓, or ✓ set 1 → ✓ set 2 in the gym logger). */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -166,13 +168,7 @@ if ('serviceWorker' in navigator) {
 }
 document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
 document.addEventListener('gesturechange', function (e) { e.preventDefault(); });
-document.addEventListener('gestureend', function (e) { e.preventDefault(); });
-var lastTouchEnd = 0;
-document.addEventListener('touchend', function (e) {
-  var now = Date.now();
-  if (now - lastTouchEnd <= 300) { e.preventDefault(); }
-  lastTouchEnd = now;
-}, { passive: false });`,
+document.addEventListener('gestureend', function (e) { e.preventDefault(); });`,
           }}
         />
       </head>

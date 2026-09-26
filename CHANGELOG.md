@@ -4,6 +4,21 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.3] — 2026-09-26 — Gym: live-session input + ✓ reliability, logger revamp
+
+User report: "The number inputs and check mark to mark complete are not working, I need to fill in multiple times." Three independent root causes, all fixed.
+
+### Fixed
+- **Global tap swallowing** (`apps/web/src/app/layout.tsx`). An inline `touchend` handler called `preventDefault()` on any tap within 300 ms of the previous one, app-wide, to block iOS double-tap zoom. That also cancels the synthesized click + focus, so fast sequences (reps field → ✓, ✓ → ✓) dropped the second tap. Removed; `touch-action: pan-y` on `<body>` + `maximumScale: 1` already block zoom.
+- **Typed values being overwritten** (`pages/session.tsx`). Every blur/toggle fired a parallel PATCH and then replaced local `entries` with the server response, so a slow response for set 1 clobbered what was being typed in set 2, and out-of-order responses could roll state back. New `useSessionSaver` hook: one request in flight, latest snapshot wins, retries network/5xx/429 every 4 s and on `online`, `keepalive` flush on `visibilitychange`/`pagehide`, End session waits for everything to land. Server responses are never written back into local state.
+- **✓ disabled while saving.** `disabled={saving}` meant the input blur → save → re-render disabled the button before the click landed.
+- **Number inputs.** `type="number"` + `Number(value)` ate "22." mid-typing, turned comma decimals into `null`, and let "12.5" reps / >1000 weights through — which the server rejected, wedging every later save of the same entries. New `<SetNumberField>` keeps a raw draft, accepts comma decimals, selects on focus, and only emits clamped schema-valid numbers; `sanitizeEntries` guards every PATCH.
+- Exercise catalog lookups that failed were retried on every keystroke; the "last time" history was re-fetched after every save.
+
+### Changed
+- Logger UI: column headers (SET / KG / REPS / DONE; tap KG ⇄ to flip body weight), current set highlighted, done rows tinted, 52×48 ✓ always showing a check glyph, carry-forward of weight/reps to following open sets, ✓ on empty weight adopts the previous-set / last-session hint, Enter on weight jumps to reps and Enter on reps completes the set, prev/next in focus mode plus a "Next exercise" button, overall progress bar, SAVING/SAVED/RETRY chip.
+- `<RestTimer>` is now a compact one-row bar (−15 / +15 / Skip + progress hairline) instead of a 72 px card; rest length is remembered per device; vibrates when rest ends.
+
 ## [0.6.2] — 2026-09-06 — Gym: editable v2 routines + session-level exercise edits + mobile overflow fix
 
 The gym mini-app's coach-authored (v2) routines were read-only through 0.6.1 — you could look at them but not touch them, and the assistant had no `update_gym_routine` tool so it couldn't help either. Live sessions also had no way to delete an exercise or flip one to body-weight mid-workout. And on 375-wide phones the whole session UI was scrolling sideways because the set grid's `1fr` tracks were letting the number-input intrinsic width (~150 px in Safari) push each row past its container.
