@@ -4,6 +4,18 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.4] — 2026-09-26 — Weight: expandable full history with trends
+
+### Added
+- **`<WeightHistorySheet>`** (calorie-lite WEIGHT) — opened from the new ALL HISTORY ⤢ button or by tapping the 30-day chart. Range chips 30D / 90D / 6M / 1Y / ALL (ranges longer than the data are hidden), 260 px interactive chart with pointer scrubbing (readout shows the weigh-in + its 7-day average), trend stats (change, per-week rate from a least-squares fit, low/high with dates, weigh-in count, goal ETA at the current rate), and a monthly table (avg, Δ vs previous month, low–high, count).
+- **`lib/weight-trend.ts`** — pure trend math (7-day trailing moving average, linear fit, range stats, goal projection, monthly summary, nearest-point search) with unit tests.
+- Entry list: SHOW ALL toggle past the first 20.
+
+### Changed
+- WEIGHT view now loads up to 500 weigh-ins (`?limit=500`, the API max) instead of the default 30-day window; the compact card still shows the last 30 days.
+- New shared **`<WeightTrendChart>`** replaces the inline chart: raw weigh-ins de-emphasised, the 7-day average drawn as the main line, round-number y-grid, date ticks, and a viewBox that tracks the real pixel width so labels aren't shrunk to ~5 px on phones.
+- `sw.js` `SW_VERSION` bumped with the release.
+
 ## [0.6.3] — 2026-09-26 — Gym: live-session input + ✓ reliability, logger revamp
 
 User report: "The number inputs and check mark to mark complete are not working, I need to fill in multiple times." Three independent root causes, all fixed.

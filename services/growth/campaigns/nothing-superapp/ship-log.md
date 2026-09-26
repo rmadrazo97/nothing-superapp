@@ -2,6 +2,10 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-09-26 — v0.6.4 weight: expand the chart, see all of it, with trends.
+
+User ask: "allow to expand the weight history chart and see it all with trends." The WEIGHT card was a fixed 30-day sparkline with no way to look further back (the client never asked the API for more than its 30-day default). Now it loads full history and ALL HISTORY opens a sheet with range chips, drag-to-inspect, a 7-day moving-average trend line over the raw weigh-ins, change + weekly rate + goal ETA, and a month-by-month table. Change and rate are computed from the 7-day average (and a least-squares fit) rather than first-vs-last weigh-in, so a single water-heavy morning can't flip the story. Verified in headless Chromium (iPhone 13) with ~14 months / 310 mocked weigh-ins.
+
 ## 2026-09-26 — v0.6.3 gym: inputs + ✓ that work on the first tap, logger revamp.
 
 Live-user report: "I always fight against it… the number inputs and check mark are not working, I need to fill in multiple times." Three stacked root causes. (1) An app-wide inline `touchend` double-tap-zoom blocker `preventDefault()`-ed any tap within 300 ms of the last one — which also cancels the click and focus, so every fast gym-floor sequence lost its second tap. (2) The session page fired a PATCH per blur/toggle in parallel and wrote each response back into local state, so slow gym wifi rolled back whatever you typed next. (3) `type="number"` + `Number()` ate "22.", turned "22,5" into nothing, and let "12.5" reps through — which the server 400'd, and every later save carried the same bad value. Fixed with a serialized latest-wins save queue that never writes back, a draft-string `<SetNumberField>`, and removing the tap blocker. Verified in headless Chromium (iPhone 13 emulation) against a 1.5 s-latency mocked API: comma decimal, carry-forward, three rapid ✓ taps, all persisted in 2 coalesced PATCHes, End session flushes first. **Lesson: never `preventDefault` on `touchend` globally — use `touch-action`.**
