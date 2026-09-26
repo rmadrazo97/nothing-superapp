@@ -2,6 +2,10 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-09-26 — v0.6.3 gym: inputs + ✓ that work on the first tap, logger revamp.
+
+Live-user report: "I always fight against it… the number inputs and check mark are not working, I need to fill in multiple times." Three stacked root causes. (1) An app-wide inline `touchend` double-tap-zoom blocker `preventDefault()`-ed any tap within 300 ms of the last one — which also cancels the click and focus, so every fast gym-floor sequence lost its second tap. (2) The session page fired a PATCH per blur/toggle in parallel and wrote each response back into local state, so slow gym wifi rolled back whatever you typed next. (3) `type="number"` + `Number()` ate "22.", turned "22,5" into nothing, and let "12.5" reps through — which the server 400'd, and every later save carried the same bad value. Fixed with a serialized latest-wins save queue that never writes back, a draft-string `<SetNumberField>`, and removing the tap blocker. Verified in headless Chromium (iPhone 13 emulation) against a 1.5 s-latency mocked API: comma decimal, carry-forward, three rapid ✓ taps, all persisted in 2 coalesced PATCHes, End session flushes first. **Lesson: never `preventDefault` on `touchend` globally — use `touch-action`.**
+
 ## 2026-09-06 — v0.6.2 gym: editable v2 routines + mid-session exercise edits + mobile overflow fix.
 
 Live-user bug report with four screenshots. Session UI was clipping off the right edge on 375-wide phones (checkbox column half-visible, "← Home" and "SESSION · LIVE" truncated). User couldn't edit their coach-authored routine "manually nor with the assistant". And couldn't change the equipment type or delete an exercise mid-workout. Shipped all three in one release.

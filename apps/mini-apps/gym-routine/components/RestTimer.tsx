@@ -2,26 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { formatMmSs } from '../lib/format.ts';
-import { ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
 
 /**
- * RestTimer — between-sets countdown.
+ * RestTimer — compact between-sets countdown bar (v0.6.3).
  *
- * We use requestAnimationFrame + Date.now() diffing (NOT setInterval) so a
- * background tab or sleep event doesn't drift the timer. When the tab
- * regains focus the next rAF tick reads real wall-clock elapsed and
- * updates to the correct remaining time.
+ * Was a full card with a 72px display number that sat sticky at the top
+ * and ate ~40% of a phone screen while logging. Now a single ~56px row:
+ * time + progress hairline + −15 / +15 / Skip. Idle it shows the planned
+ * rest so the user can tune it before the first set.
+ *
+ * rAF + Date.now() diffing (not setInterval) so a backgrounded PWA or a
+ * locked phone doesn't drift: the next frame reads real elapsed time.
  *
  * Contract:
- *   - `runningSince` is null when idle. Set to Date.now() by the parent
- *     when a set is marked complete.
- *   - `durationSec` — total planned rest. Default 90s.
- *   - `onFinish` fires exactly once when remaining hits 0.
- *
- * The parent owns the "should we be running?" state — this component only
- * renders the countdown. That means the timer survives re-renders and can
- * be lifted to a page-level context if we later want a persistent timer
- * across the whole session UI.
+ *   - `runningSince` null when idle; parent sets Date.now() on set ✓.
+ *   - `onFinish` fires exactly once per run when remaining hits 0.
  */
 export default function RestTimer({
   runningSince,
@@ -38,6 +33,12 @@ export default function RestTimer({
 }) {
   const [remaining, setRemaining] = useState<number>(durationSec);
   const finishedRef = useRef(false);
+  // Parent passes inline arrows; keep the latest in a ref so the rAF loop
+  // doesn't restart on every parent render (every keystroke).
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
 
   useEffect(() => {
     finishedRef.current = false;
@@ -53,7 +54,12 @@ export default function RestTimer({
       if (left <= 0) {
         if (!finishedRef.current) {
           finishedRef.current = true;
-          onFinish();
+          try {
+            navigator.vibrate?.([80, 60, 80]);
+          } catch {
+            /* unsupported */
+          }
+          onFinishRef.current();
         }
         return;
       }
@@ -61,70 +67,102 @@ export default function RestTimer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [runningSince, durationSec, onFinish]);
+  }, [runningSince, durationSec]);
 
   const idle = runningSince == null;
+  const shown = idle ? durationSec : remaining;
+  const progress = idle ? 0 : 1 - remaining / Math.max(1, durationSec);
+
+  const smallBtn = {
+    background: 'transparent',
+    border: '1px solid var(--color-border-visible)',
+    color: 'var(--color-text-primary)',
+    borderRadius: 'var(--radius-button)',
+    height: 40,
+    minWidth: 48,
+    padding: '0 var(--space-3)',
+    fontFamily: 'var(--font-label)',
+    fontSize: 'var(--text-label)',
+    letterSpacing: '0.06em',
+    cursor: 'pointer',
+    touchAction: 'manipulation' as const,
+  };
 
   return (
     <section
       aria-label="Rest timer"
       style={{
+        position: 'relative',
+        overflow: 'hidden',
         background: 'var(--color-surface)',
         border: `1px solid ${idle ? 'var(--color-border-visible)' : 'var(--color-accent)'}`,
         borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-4)',
+        padding: 'var(--space-2) var(--space-3)',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
       }}
     >
-      <span className="label">{idle ? 'REST · READY' : 'REST · COUNTDOWN'}</span>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+        <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
+          {idle ? 'REST' : 'RESTING'}
+        </span>
         <span
-          className="display-xl"
-          style={{ color: idle ? 'var(--color-text-secondary)' : 'var(--color-text-display)' }}
+          className="data"
+          aria-live="off"
+          style={{
+            fontSize: 26,
+            lineHeight: 1.1,
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            color: idle ? 'var(--color-text-secondary)' : 'var(--color-text-display)',
+          }}
         >
-          {formatMmSs(idle ? durationSec : remaining)}
+          {formatMmSs(shown)}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          onClick={() => onAddSec(15)}
-          disabled={idle}
-          style={{
-            ...ghostButtonStyle,
-            opacity: idle ? 0.5 : 1,
-            cursor: idle ? 'not-allowed' : 'pointer',
-          }}
-        >
-          +15s
-        </button>
-        <button
-          type="button"
-          onClick={() => onAddSec(30)}
-          disabled={idle}
-          style={{
-            ...ghostButtonStyle,
-            opacity: idle ? 0.5 : 1,
-            cursor: idle ? 'not-allowed' : 'pointer',
-          }}
-        >
-          +30s
-        </button>
+      <button
+        type="button"
+        onClick={() => onAddSec(-15)}
+        aria-label="Rest 15 seconds less"
+        style={smallBtn}
+      >
+        −15
+      </button>
+      <button
+        type="button"
+        onClick={() => onAddSec(15)}
+        aria-label="Rest 15 seconds more"
+        style={smallBtn}
+      >
+        +15
+      </button>
+      {!idle && (
         <button
           type="button"
           onClick={onSkip}
-          disabled={idle}
           style={{
-            ...primaryButtonStyle,
-            opacity: idle ? 0.5 : 1,
-            cursor: idle ? 'not-allowed' : 'pointer',
+            ...smallBtn,
+            background: 'var(--color-accent)',
+            border: '1px solid var(--color-accent)',
+            color: 'var(--color-text-display)',
+            textTransform: 'uppercase',
           }}
         >
           Skip
         </button>
-      </div>
+      )}
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          height: 2,
+          width: `${Math.min(100, Math.max(0, progress * 100))}%`,
+          background: 'var(--color-accent)',
+        }}
+      />
     </section>
   );
 }

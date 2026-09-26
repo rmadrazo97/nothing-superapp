@@ -3,21 +3,31 @@
 /**
  * Live session — the actual workout logger.
  *
- * State model:
- *   - `session` is the server-authoritative snapshot loaded on mount.
- *   - `entries` is the local editable copy. Every set-toggle patches the
- *     server via PATCH /sessions/[id] and refreshes local state from the
- *     server response — so a mid-session tab-switch + return picks up the
- *     latest completed_at stamps without special-casing.
- *   - `restStartedAt` (ms since epoch) drives RestTimer. Set when a set is
- *     marked complete; cleared on skip or when timer hits 0.
+ * State model (v0.6.3 rewrite — "I have to fill every input twice"):
+ *   - `entries` (mirrored in `entriesRef`) is the single source of truth
+ *     while the page is open. Every edit goes through `commit()`, which
+ *     updates local state synchronously and hands a snapshot to
+ *     `useSessionSaver`.
+ *   - The saver serializes PATCHes (one in flight, latest wins, retries
+ *     on network/5xx) and NEVER writes the server response back into
+ *     `entries`. The old code did, so a slow response for set 1 would
+ *     overwrite what the user was typing in set 2.
+ *   - Nothing is ever disabled while a save runs. The old ✓ button was
+ *     `disabled={saving}`, so tapping ✓ right after typing (input blur →
+ *     save → disable) swallowed the tap.
+ *   - Inputs are <SetNumberField>: text + inputMode, draft-string state,
+ *     select-on-focus, comma decimals, values pushed on every keystroke.
+ *   - Typing a weight / reps carries forward to the following open sets
+ *     that still matched, and ✓ on an empty weight uses the "last time"
+ *     hint — so a straight 4×8 is one number typed, four taps.
+ *   - `restStartedAt` (ms since epoch) drives the compact RestTimer.
  *
  * Cross-tab safety: on mount we drop this session's id into sessionStorage
  * so the home page's "Resume workout" banner can jump straight back in
  * even without a network round-trip. The server GET /sessions/live is the
  * cross-device source of truth.
  */
-import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Exercise, SessionEntry, WorkoutSession } from '@nothing/shared';
@@ -25,9 +35,12 @@ import { EmptyState } from '@nothing/mini-apps-runtime';
 import * as api from '../lib/api.ts';
 import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
-import { cardStyle, ghostButtonStyle, inputStyle, primaryButtonStyle } from '../lib/ui.ts';
+import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
 import { durationLabel, totalSetsCompleted, totalVolumeKg } from '../lib/format.ts';
+import { applyRepsEdit, applyWeightEdit, SETS_MAX } from '../lib/set-input.ts';
+import { useSessionSaver, type SaveStatus } from '../lib/use-session-saver.ts';
 import RestTimer from '../components/RestTimer.tsx';
+import SetNumberField from '../components/SetNumberField.tsx';
 import ExerciseInfoSheet from '../components/ExerciseInfoSheet.tsx';
 import { useMiniAppSettings } from '../../../web/src/components/mini-app-settings';
 import {
@@ -37,6 +50,7 @@ import {
 } from '../lib/settings.ts';
 
 const DEFAULT_REST_SEC = 90;
+const REST_KEY = 'gym-routine.restSec';
 
 /** "AUG 12" for the last-set reference chip. Empty string on parse fail. */
 function formatLastDate(iso: string): string {
@@ -46,6 +60,16 @@ function formatLastDate(iso: string): string {
     .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     .toUpperCase();
 }
+
+function buzz(ms: number) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    /* unsupported */
+  }
+}
+
+type LastRef = { reps: number; weight_kg: number | null; ended_at: string };
 
 export default function SessionPage({
   params,
@@ -57,51 +81,34 @@ export default function SessionPage({
 
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [entries, setEntries] = useState<SessionEntry[]>([]);
+  const entriesRef = useRef<SessionEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [ending, setEnding] = useState(false);
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const [restDurationSec, setRestDurationSec] = useState(DEFAULT_REST_SEC);
   const [confirmEnd, setConfirmEnd] = useState(false);
-  // v0.5.12 — allow patching an ENDED session (user reported missing data
-  // after a workout). Toggled via the "EDIT" button that appears in the
-  // header when isLive is false; all set inputs unlock, save PATCHes the
-  // usual /sessions/[id] endpoint.
+  // v0.5.12 — allow patching an ENDED session (missed data after a
+  // workout). Toggled via the EDIT button in the header when not live.
   const [editMode, setEditMode] = useState(false);
-  // Map of exercise_id → its catalog row (holds `equipment`, used to
-  // decide whether the weight column is "body weight" or a real
-  // number field). Hydrated lazily as entries load.
+  // exercise_id → catalog row (holds `equipment` for the BW decision).
   const [exerciseMeta, setExerciseMeta] = useState<Record<string, Exercise>>({});
-  // Bottom-sheet state for the ⓘ HOW-TO drawer. We track the name too so
-  // the API can fall back to ILIKE lookup when the routine's opaque id
-  // ("d5e1") doesn't hit a catalog PK.
+  const requestedMetaRef = useRef<Set<string>>(new Set());
   const [infoExercise, setInfoExercise] = useState<
     { id: string; name: string } | null
   >(null);
-  // Focus mode: when set, render only entries[focusedExIndex] in a
-  // wider card. Lets the user zero in on one exercise at a time
-  // (Strong / Hevy-style focused logger).
+  // Focus mode: render only entries[focusedExIndex] (Strong/Hevy-style).
   const [focusedExIndex, setFocusedExIndex] = useState<number | null>(null);
-  // Per-entry BW override. Lets the user flip an exercise between
-  // weighted and body-weight without leaving the session — the catalog
-  // meta is often wrong for machine variants ("machine lateral raise"
-  // reads as `body_only` in the DB but we're using it with plates).
-  //   undefined → follow catalog
-  //   true      → force BW (hides KG column, saves weight_kg = null)
-  //   false     → force weighted (shows KG column)
+  // Per-entry BW override (catalog meta is often wrong for machine
+  // variants). undefined → follow catalog, true → BW, false → weighted.
   const [bwOverride, setBwOverride] = useState<Record<number, boolean>>({});
-  // Confirm-before-delete for the exercise card's × REMOVE button. Keyed
-  // by index; clears after commit or when the user taps anywhere else.
   const [confirmRemoveExIdx, setConfirmRemoveExIdx] = useState<number | null>(null);
-  // "Last time you did this exercise" reference — keyed by lowercased
-  // exercise name so it survives routine-swap and opaque local ids.
-  // Populated once from the last 30 completed sessions.
-  const [lastByName, setLastByName] = useState<
-    Record<string, { reps: number; weight_kg: number | null; ended_at: string }>
-  >({});
+  // "Last time you did this exercise", keyed by lowercased name.
+  const [lastByName, setLastByName] = useState<Record<string, LastRef>>({});
+  // Re-render once in a while so ELAPSED keeps moving while idle.
+  const [, setNow] = useState(0);
+  const fieldRefs = useRef(new Map<string, HTMLInputElement>());
   const { toast } = useToast();
 
-  // Per-mini-app settings — weight/length units. Debounced-optimistic.
   const { settings: gymSettings } = useMiniAppSettings<GymSettings>(
     'gym-routine',
     GYM_SETTINGS_DEFAULTS,
@@ -111,11 +118,36 @@ export default function SessionPage({
     [gymSettings.weightUnit],
   );
 
+  const onSaveError = useCallback(
+    (e: unknown) => {
+      const t = toastForError(e);
+      if (t) toast[t.variant](t.message);
+    },
+    [toast],
+  );
+  const saver = useSessionSaver(id, onSaveError);
+
+  /** The one way to change entries: local first, then queue a save. */
+  const commit = useCallback(
+    (
+      update: (prev: SessionEntry[]) => SessionEntry[],
+      opts?: { immediate?: boolean },
+    ) => {
+      const next = update(entriesRef.current);
+      if (next === entriesRef.current) return;
+      entriesRef.current = next;
+      setEntries(next);
+      saver.save(next, opts);
+    },
+    [saver],
+  );
+
   const load = useCallback(async () => {
     setError(null);
     try {
       const { session } = await api.getSession(id);
       setSession(session);
+      entriesRef.current = session.entries;
       setEntries(session.entries);
       try {
         sessionStorage.setItem('gym-routine.sessionId', session.id);
@@ -133,37 +165,57 @@ export default function SessionPage({
     void load();
   }, [load]);
 
-  // v0.5.17 — one-shot fetch of recent completed sessions so each
-  // exercise card can show "last time you did this" as a reference.
-  // Matches by lowercased name (stable across routines + opaque ids).
-  // If the exercise's session has multiple completed sets, we pick the
-  // heaviest as the reference — most useful "beat this" number for the
-  // user. Silent on failure — the reference is optional polish, not
-  // critical path.
+  // Remembered rest length — a per-device convenience.
   useEffect(() => {
-    if (!session) return;
+    try {
+      const v = Number(localStorage.getItem(REST_KEY));
+      if (Number.isFinite(v) && v >= 15 && v <= 600) setRestDurationSec(v);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
+  const adjustRest = (delta: number) => {
+    setRestDurationSec((v) => {
+      const next = Math.min(600, Math.max(15, v + delta));
+      try {
+        localStorage.setItem(REST_KEY, String(next));
+      } catch {
+        /* storage blocked */
+      }
+      return next;
+    });
+  };
+
+  const isLive = session != null && session.ended_at == null;
+  useEffect(() => {
+    if (!isLive) return;
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, [isLive]);
+
+  // One-shot fetch of recent completed sessions for the "LAST" reference.
+  // Keyed on the session id (not the object) so it doesn't refetch after
+  // every save like it used to.
+  const loadedId = session?.id ?? null;
+  useEffect(() => {
+    if (!loadedId) return;
     let cancelled = false;
     (async () => {
       try {
         const { sessions } = await api.listSessions(30);
         if (cancelled) return;
-        const map: Record<
-          string,
-          { reps: number; weight_kg: number | null; ended_at: string }
-        > = {};
-        // Newest → oldest so the first hit per exercise wins.
+        const map: Record<string, LastRef> = {};
         const sorted = sessions
           .filter((s) => s.ended_at)
           .sort((a, b) => (b.ended_at ?? '').localeCompare(a.ended_at ?? ''));
         for (const s of sorted) {
-          if (s.id === id) continue; // Skip the current session itself.
+          if (s.id === loadedId) continue;
           for (const entry of s.entries) {
             const key = entry.name.trim().toLowerCase();
             if (!key || map[key]) continue;
             const doneSets = entry.sets.filter((set) => set.completed_at);
             if (doneSets.length === 0) continue;
-            // Prefer the heaviest completed set of that session as the
-            // reference number. Falls back to the last set for BW.
+            // Heaviest completed set = most useful "beat this" number.
             const withWeight = doneSets.filter(
               (set) => set.weight_kg != null && set.weight_kg > 0,
             );
@@ -188,122 +240,113 @@ export default function SessionPage({
     return () => {
       cancelled = true;
     };
-  }, [session, id]);
+  }, [loadedId]);
 
-  // Hydrate exercise catalog rows for every entry we haven't seen yet.
-  // One-shot per id — the exercise catalog is public/immutable so we
-  // never invalidate. Failures are silent; the row just doesn't get an
-  // "is body weight" hint (falls back to showing the weight field with
-  // the current unit label).
+  // Hydrate catalog rows once per exercise id. Tracks requested ids so a
+  // failed lookup isn't retried on every keystroke (it used to be).
   useEffect(() => {
-    const missing = entries
-      .map((e) => e.exercise_id)
-      .filter((id) => id && !exerciseMeta[id]);
+    const missing = Array.from(
+      new Set(
+        entries
+          .map((e) => e.exercise_id)
+          .filter((eid) => eid && !requestedMetaRef.current.has(eid)),
+      ),
+    );
     if (missing.length === 0) return;
-    let cancelled = false;
+    missing.forEach((eid) => requestedMetaRef.current.add(eid));
+    const nameById = new Map<string, string>();
+    for (const e of entries) {
+      if (e.exercise_id && e.name) nameById.set(e.exercise_id, e.name);
+    }
     (async () => {
-      // Pass the entry's display name so routines with opaque local ids
-      // ("d5e1") still resolve to a catalog row via ILIKE — this hydrates
-      // `equipment` so isBW works and unblocks the ⓘ HOW-TO drawer.
-      const nameById = new Map<string, string>();
-      for (const e of entries) {
-        if (e.exercise_id && e.name) nameById.set(e.exercise_id, e.name);
-      }
       const results = await Promise.allSettled(
-        missing.map((id) => api.getExercise(id, nameById.get(id) ?? undefined)),
+        missing.map((eid) => api.getExercise(eid, nameById.get(eid) ?? undefined)),
       );
-      if (cancelled) return;
       setExerciseMeta((prev) => {
         const next = { ...prev };
         results.forEach((r, i) => {
-          if (r.status === 'fulfilled') {
-            next[missing[i]] = r.value.exercise;
-          }
+          if (r.status === 'fulfilled') next[missing[i]] = r.value.exercise;
         });
         return next;
       });
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [entries, exerciseMeta]);
+  }, [entries]);
 
-  const persistEntries = useCallback(
-    async (next: SessionEntry[]) => {
-      setSaving(true);
-      try {
-        const { session: updated } = await api.updateSession(id, { entries: next });
-        setSession(updated);
-        setEntries(updated.entries);
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Could not save.');
-        const t = toastForError(e);
-        if (t) toast[t.variant](t.message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [id, toast],
-  );
+  // ── Mutations ────────────────────────────────────────────────────────
 
-  const toggleSetComplete = async (exIdx: number, setIdx: number) => {
-    const next = entries.map((entry, i) => {
-      if (i !== exIdx) return entry;
-      return {
-        ...entry,
-        sets: entry.sets.map((s, j) => {
-          if (j !== setIdx) return s;
+  const setWeight = (exIdx: number, setIdx: number, w: number | null) =>
+    commit((prev) =>
+      prev.map((e, i) => (i === exIdx ? applyWeightEdit(e, setIdx, w) : e)),
+    );
+
+  const setReps = (exIdx: number, setIdx: number, r: number | null) => {
+    // Cleared reps field → keep the old value (the field reverts on blur).
+    if (r == null) return;
+    commit((prev) =>
+      prev.map((e, i) => (i === exIdx ? applyRepsEdit(e, setIdx, r) : e)),
+    );
+  };
+
+  const toggleSetComplete = (exIdx: number, setIdx: number, fillWeight: number | null) => {
+    const cur = entriesRef.current[exIdx]?.sets[setIdx];
+    if (!cur) return;
+    const completing = cur.completed_at == null;
+    commit(
+      (prev) =>
+        prev.map((entry, i) => {
+          if (i !== exIdx) return entry;
+          // ✓ on an empty weight adopts the hint shown in the field.
+          const base =
+            completing && fillWeight != null && entry.sets[setIdx].weight_kg == null
+              ? applyWeightEdit(entry, setIdx, fillWeight)
+              : entry;
           return {
-            ...s,
-            completed_at: s.completed_at ? null : new Date().toISOString(),
+            ...base,
+            sets: base.sets.map((s, j) =>
+              j === setIdx
+                ? { ...s, completed_at: completing ? new Date().toISOString() : null }
+                : s,
+            ),
           };
         }),
-      };
-    });
-    // Optimistic — the RestTimer feels bad if we wait for the network.
-    const nowCompleted = next[exIdx].sets[setIdx].completed_at != null;
-    setEntries(next);
-    if (nowCompleted) setRestStartedAt(Date.now());
-    await persistEntries(next);
+      { immediate: true },
+    );
+    if (completing) {
+      buzz(15);
+      if (isLive) setRestStartedAt(Date.now());
+    }
   };
 
-  const updateSetField = (
-    exIdx: number,
-    setIdx: number,
-    patch: { reps?: number; weight_kg?: number | null },
-  ) => {
-    setEntries((prev) => {
-      const next = prev.map((entry, i) => {
-        if (i !== exIdx) return entry;
-        return {
-          ...entry,
-          sets: entry.sets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)),
-        };
-      });
-      return next;
-    });
-  };
+  const addSetToEntry = (exIdx: number) =>
+    commit(
+      (prev) =>
+        prev.map((entry, i) => {
+          if (i !== exIdx || entry.sets.length >= SETS_MAX) return entry;
+          const last = entry.sets[entry.sets.length - 1];
+          return {
+            ...entry,
+            sets: [
+              ...entry.sets,
+              { reps: last?.reps ?? 10, weight_kg: last?.weight_kg ?? null, completed_at: null },
+            ],
+          };
+        }),
+      { immediate: true },
+    );
 
-  const commitField = async () => {
-    // Called on blur of an input — persist the current local state.
-    await persistEntries(entries);
-  };
+  const removeLastSet = (exIdx: number) =>
+    commit(
+      (prev) =>
+        prev.map((entry, i) =>
+          // Keep at least one set — remove the exercise instead.
+          i !== exIdx || entry.sets.length <= 1
+            ? entry
+            : { ...entry, sets: entry.sets.slice(0, -1) },
+        ),
+      { immediate: true },
+    );
 
-  const removeSetFromEntry = async (exIdx: number, setIdx: number) => {
-    const next = entries.map((entry, i) => {
-      if (i !== exIdx) return entry;
-      // Keep at least one set — deleting the last one would render the
-      // card unusable. User can remove the whole exercise instead.
-      if (entry.sets.length <= 1) return entry;
-      return { ...entry, sets: entry.sets.filter((_, j) => j !== setIdx) };
-    });
-    setEntries(next);
-    await persistEntries(next);
-  };
-
-  const removeExercise = async (exIdx: number) => {
-    const next = entries.filter((_, i) => i !== exIdx);
-    // Rebase focus / confirm state so we don't point at a stale index.
+  const removeExercise = (exIdx: number) => {
     setFocusedExIndex((v) => (v === exIdx ? null : v != null && v > exIdx ? v - 1 : v));
     setConfirmRemoveExIdx(null);
     setBwOverride((prev) => {
@@ -315,45 +358,32 @@ export default function SessionPage({
       }
       return nextOverrides;
     });
-    setEntries(next);
-    await persistEntries(next);
+    commit((prev) => prev.filter((_, i) => i !== exIdx), { immediate: true });
   };
 
-  const toggleBw = async (exIdx: number, isCurrentlyBw: boolean) => {
+  const toggleBw = (exIdx: number, isCurrentlyBw: boolean) => {
     const nextBw = !isCurrentlyBw;
     setBwOverride((prev) => ({ ...prev, [exIdx]: nextBw }));
-    // If flipping TO body-weight, blank out weight so historical volume
-    // math stays honest. Persist so the change survives a refresh.
+    // Flipping TO body-weight blanks weight so volume math stays honest.
     if (nextBw) {
-      const next = entries.map((entry, i) => {
-        if (i !== exIdx) return entry;
-        return {
-          ...entry,
-          sets: entry.sets.map((s) => ({ ...s, weight_kg: null })),
-        };
-      });
-      setEntries(next);
-      await persistEntries(next);
+      commit(
+        (prev) =>
+          prev.map((entry, i) =>
+            i !== exIdx
+              ? entry
+              : { ...entry, sets: entry.sets.map((s) => ({ ...s, weight_kg: null })) },
+          ),
+        { immediate: true },
+      );
     }
-  };
-
-  const addSetToEntry = async (exIdx: number) => {
-    const next = entries.map((entry, i) => {
-      if (i !== exIdx) return entry;
-      const last = entry.sets[entry.sets.length - 1];
-      return {
-        ...entry,
-        sets: [...entry.sets, { reps: last?.reps ?? 10, weight_kg: last?.weight_kg ?? null, completed_at: null }],
-      };
-    });
-    setEntries(next);
-    await persistEntries(next);
   };
 
   const endSession = async () => {
     setEnding(true);
     try {
-      await api.updateSession(id, { end: true, entries });
+      // Everything typed must land before we stamp ended_at.
+      await saver.flushAll();
+      await api.updateSession(id, { end: true, entries: entriesRef.current });
       try {
         sessionStorage.removeItem('gym-routine.sessionId');
       } catch {
@@ -362,9 +392,13 @@ export default function SessionPage({
       router.push(`/app/gym-routine/history`);
     } catch (e) {
       setEnding(false);
-      setError(e instanceof ApiError ? e.message : 'Could not end session.');
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : 'Some sets are not saved yet. Check your connection and try again.',
+      );
       const t = toastForError(e);
-      if (t) toast[t.variant](t.message);
+      if (t && e instanceof ApiError) toast[t.variant](t.message);
     }
   };
 
@@ -380,22 +414,40 @@ export default function SessionPage({
     );
   }
 
-  const isLive = session.ended_at == null;
-  // `editable` unlocks the set inputs. Live sessions are always editable;
-  // ended sessions become editable when the user opts in via the EDIT
-  // button in the header (v0.5.12 feedback: allow patching ENDED for
-  // missed data).
   const editable = isLive || editMode;
   const setsDone = totalSetsCompleted(entries);
   const totalPlanned = entries.reduce((s, e) => s + e.sets.length, 0);
+  const focused = focusedExIndex != null && entries[focusedExIndex] ? focusedExIndex : null;
+  const visible =
+    focused != null
+      ? [{ entry: entries[focused], exIdx: focused }]
+      : entries.map((entry, exIdx) => ({ entry, exIdx }));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', paddingTop: 'var(--space-6)', paddingBottom: 'var(--space-12)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span className="label">
-          SESSION{isLive ? ' · LIVE' : editMode ? ' · EDITING' : ' · ENDED'}
-        </span>
-        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+        paddingTop: 'var(--space-6)',
+        paddingBottom: 'var(--space-12)',
+      }}
+    >
+      <style>{`
+        .gym-set-field:focus { border-color: var(--color-accent) !important; background: var(--color-surface-raised) !important; color: var(--color-text-display) !important; }
+        .gym-set-field::placeholder { color: var(--color-text-disabled); opacity: 1; }
+        .gym-set-field:disabled { opacity: 0.6; }
+        .gym-check:active { transform: scale(0.94); }
+      `}</style>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
+          <span className="label">
+            SESSION{isLive ? ' · LIVE' : editMode ? ' · EDITING' : ' · ENDED'}
+          </span>
+          {editable && <SaveChip status={saver.status} onRetry={saver.retry} />}
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexShrink: 0 }}>
           {!isLive && (
             <button
               type="button"
@@ -448,8 +500,23 @@ export default function SessionPage({
         <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
           <MetricBlock label="ELAPSED" value={durationLabel(session.started_at, session.ended_at)} />
           <MetricBlock label="SETS" value={`${setsDone} / ${totalPlanned}`} />
-          <MetricBlock label="VOLUME · KG" value={totalVolumeKg(entries).toLocaleString()} />
+          <MetricBlock label={`VOLUME · ${weightUnitLabel}`} value={totalVolumeKg(entries).toLocaleString()} />
         </div>
+        {totalPlanned > 0 && (
+          <div
+            aria-hidden
+            style={{ height: 3, background: 'var(--color-border)', borderRadius: 2, overflow: 'hidden' }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.round((setsDone / totalPlanned) * 100)}%`,
+                background: 'var(--color-accent)',
+                transition: 'width 200ms ease',
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {error && (
@@ -459,10 +526,7 @@ export default function SessionPage({
       )}
 
       {isLive && (
-        // Sticky so the timer stays visible while the user scrolls through
-        // exercise cards to log sets. z-index above the exercise cards;
-        // background matches the shell canvas so cards don't peek through
-        // the semi-transparent RestTimer card as they scroll under it.
+        // Compact + sticky so it stays in view while scrolling cards.
         <div
           style={{
             position: 'sticky',
@@ -478,12 +542,12 @@ export default function SessionPage({
             durationSec={restDurationSec}
             onFinish={() => setRestStartedAt(null)}
             onSkip={() => setRestStartedAt(null)}
-            onAddSec={(sec) => setRestDurationSec((v) => Math.max(15, v + sec))}
+            onAddSec={adjustRest}
           />
         </div>
       )}
 
-      {focusedExIndex != null && entries[focusedExIndex] && (
+      {focused != null && (
         <div
           style={{
             display: 'flex',
@@ -492,19 +556,34 @@ export default function SessionPage({
             gap: 'var(--space-2)',
           }}
         >
-          <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-            FOCUS · {focusedExIndex + 1}/{entries.length}
-          </span>
+          <button
+            type="button"
+            onClick={() => setFocusedExIndex(Math.max(0, focused - 1))}
+            disabled={focused === 0}
+            style={{ ...ghostButtonStyle, padding: '0 var(--space-4)', opacity: focused === 0 ? 0.4 : 1 }}
+            aria-label="Previous exercise"
+          >
+            ←
+          </button>
           <button
             type="button"
             onClick={() => setFocusedExIndex(null)}
+            style={{ ...ghostButtonStyle, padding: '0 var(--space-4)' }}
+          >
+            {focused + 1}/{entries.length} · Show all
+          </button>
+          <button
+            type="button"
+            onClick={() => setFocusedExIndex(Math.min(entries.length - 1, focused + 1))}
+            disabled={focused >= entries.length - 1}
             style={{
               ...ghostButtonStyle,
-              minHeight: 36,
-              padding: '0 var(--space-3)',
+              padding: '0 var(--space-4)',
+              opacity: focused >= entries.length - 1 ? 0.4 : 1,
             }}
+            aria-label="Next exercise"
           >
-            ← Show all
+            →
           </button>
         </div>
       )}
@@ -521,25 +600,23 @@ export default function SessionPage({
         />
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {(focusedExIndex != null && entries[focusedExIndex]
-            ? [{ entry: entries[focusedExIndex], exIdx: focusedExIndex }]
-            : entries.map((entry, exIdx) => ({ entry, exIdx }))
-          ).map(({ entry, exIdx }) => {
+          {visible.map(({ entry, exIdx }) => {
             const doneCount = entry.sets.filter((s) => s.completed_at).length;
-            const active = isLive && doneCount < entry.sets.length;
+            const allDone = doneCount === entry.sets.length;
+            const active = isLive && !allDone;
             const meta = exerciseMeta[entry.exercise_id];
             const metaBW = meta ? isBodyWeightEquipment(meta.equipment) : false;
             const isBW = bwOverride[exIdx] ?? metaBW;
             const lastRef = lastByName[entry.name.trim().toLowerCase()];
-            const isFocused = focusedExIndex === exIdx;
-            // Grid columns collapse when we hide the weight input for BW
-            // exercises — reps takes the full inner span. `minmax(0, 1fr)`
-            // stops the number input's intrinsic width (~150px in Safari)
-            // from forcing the row wider than its parent card on 375-wide
-            // phones, which was pushing the whole session off-screen.
+            const lastWeight =
+              lastRef?.weight_kg != null && lastRef.weight_kg > 0 ? lastRef.weight_kg : null;
+            const isFocused = focused === exIdx;
+            const nextOpenIdx = entry.sets.findIndex((s) => !s.completed_at);
+            // `minmax(0, 1fr)` keeps the inputs from forcing the row wider
+            // than the card on 375-wide phones.
             const gridCols = isBW
-              ? '32px minmax(0,1fr) 48px'
-              : '32px minmax(0,1fr) minmax(0,1fr) 48px';
+              ? '28px minmax(0,1fr) 52px'
+              : '28px minmax(0,1fr) minmax(0,1fr) 52px';
             return (
               <li key={`${entry.exercise_id}-${exIdx}`}>
                 <div
@@ -559,19 +636,12 @@ export default function SessionPage({
                       gap: 'var(--space-2)',
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-2)',
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: 2 }}>
                       <span
                         style={{
                           color: 'var(--color-text-display)',
                           fontSize: 'var(--text-body)',
+                          fontWeight: 500,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -579,163 +649,94 @@ export default function SessionPage({
                       >
                         {entry.name}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setInfoExercise({ id: entry.exercise_id, name: entry.name })
-                        }
-                        aria-label={`How to do ${entry.name}`}
-                        title="How to"
-                        style={{
-                          // Visual glyph stays small (20px); padding + min
-                          // dimensions expand the hit target to 44×44 so the
-                          // button clears the WCAG tap-target minimum without
-                          // reshaping the header row.
-                          background: 'transparent',
-                          border: '1px solid var(--color-border-visible)',
-                          color: 'var(--color-text-secondary)',
-                          borderRadius: '999px',
-                          minWidth: 44,
-                          minHeight: 44,
-                          padding: 'var(--space-2)',
-                          fontSize: 12,
-                          lineHeight: 1,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {'ⓘ'}
-                      </button>
-                      {editable ? (
-                        <button
-                          type="button"
-                          onClick={() => void toggleBw(exIdx, isBW)}
-                          aria-pressed={isBW}
-                          aria-label={
-                            isBW
-                              ? 'Currently body weight. Tap to switch to weighted.'
-                              : 'Currently weighted. Tap to switch to body weight.'
-                          }
-                          title={isBW ? 'Body weight — tap to add weight' : 'Weighted — tap for body weight'}
-                          style={{
-                            border: `1px solid ${isBW ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
-                            color: isBW ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                            background: 'transparent',
-                            padding: '0 var(--space-2)',
-                            borderRadius: 'var(--radius-button)',
-                            fontFamily: 'var(--font-label)',
-                            fontSize: 'var(--text-label)',
-                            letterSpacing: '0.06em',
-                            textTransform: 'uppercase',
-                            lineHeight: '22px',
-                            height: 24,
-                            whiteSpace: 'nowrap',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {isBW ? '● BW' : '○ BW'}
-                        </button>
-                      ) : (
-                        isBW && (
-                          <span
-                            style={{
-                              border: '1px solid var(--color-border-visible)',
-                              color: 'var(--color-text-secondary)',
-                              padding: '0 var(--space-2)',
-                              borderRadius: 'var(--radius-button)',
-                              fontFamily: 'var(--font-label)',
-                              fontSize: 'var(--text-label)',
-                              letterSpacing: '0.06em',
-                              textTransform: 'uppercase',
-                              lineHeight: '20px',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            Body weight
-                          </span>
-                        )
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-2)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        className="data"
-                        style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-caption)' }}
-                      >
-                        {doneCount}/{entry.sets.length} DONE
+                      <span className="label" style={{ color: allDone ? 'var(--color-success)' : 'var(--color-text-secondary)' }}>
+                        {allDone ? '✓ ' : ''}{doneCount}/{entry.sets.length} SETS
+                        {lastRef && (
+                          <>
+                            {' · LAST '}
+                            <span style={{ color: 'var(--color-text-primary)' }}>
+                              {lastWeight != null
+                                ? `${lastWeight}${weightUnitLabel} × ${lastRef.reps}`
+                                : `${lastRef.reps} REPS`}
+                            </span>
+                            {` · ${formatLastDate(lastRef.ended_at)}`}
+                          </>
+                        )}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFocusedExIndex((v) => (v === exIdx ? null : exIdx))
-                        }
-                        aria-label={isFocused ? 'Collapse' : 'Focus this exercise'}
-                        title={isFocused ? 'Collapse' : 'Focus'}
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid var(--color-border-visible)',
-                          color: 'var(--color-text-secondary)',
-                          borderRadius: 'var(--radius-compact)',
-                          width: 44,
-                          height: 44,
-                          minWidth: 44,
-                          minHeight: 44,
-                          padding: 0,
-                          fontSize: 16,
-                          lineHeight: 1,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          touchAction: 'manipulation',
-                        }}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', flexShrink: 0 }}>
+                      <IconButton
+                        label={`How to do ${entry.name}`}
+                        onClick={() => setInfoExercise({ id: entry.exercise_id, name: entry.name })}
+                      >
+                        ⓘ
+                      </IconButton>
+                      <IconButton
+                        label={isFocused ? 'Show all exercises' : 'Focus this exercise'}
+                        onClick={() => setFocusedExIndex((v) => (v === exIdx ? null : exIdx))}
                       >
                         {isFocused ? '⤡' : '⤢'}
-                      </button>
+                      </IconButton>
                     </div>
                   </div>
 
-                  {lastRef && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-2)',
-                        fontFamily: 'var(--font-label)',
-                        fontSize: 'var(--text-label)',
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        color: 'var(--color-text-secondary)',
-                        paddingBottom: 'var(--space-1)',
-                      }}
-                    >
-                      <span style={{ opacity: 0.7 }}>LAST</span>
-                      <span style={{ color: 'var(--color-text-display)' }}>
-                        {lastRef.weight_kg != null && lastRef.weight_kg > 0
-                          ? `${lastRef.weight_kg}${gymSettings.weightUnit === 'kg' ? 'KG' : 'LBS'} × ${lastRef.reps}`
-                          : `${lastRef.reps} REPS`}
-                      </span>
-                      <span style={{ opacity: 0.5 }}>·</span>
-                      <span style={{ opacity: 0.7 }}>
-                        {formatLastDate(lastRef.ended_at)}
-                      </span>
-                    </div>
-                  )}
+                  {/* Column headers — the old grid had none, so KG vs REPS was a guess. */}
+                  <div
+                    className="label"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: gridCols,
+                      gap: 'var(--space-2)',
+                      alignItems: 'center',
+                      textAlign: 'center',
+                      color: 'var(--color-text-disabled)',
+                    }}
+                  >
+                    <span style={{ textAlign: 'left' }}>SET</span>
+                    {!isBW && (
+                      editable ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleBw(exIdx, isBW)}
+                          aria-label="Weighted. Tap to switch to body weight."
+                          title="Tap for body weight"
+                          style={headerToggleStyle}
+                        >
+                          {weightUnitLabel} ⇄
+                        </button>
+                      ) : (
+                        <span>{weightUnitLabel}</span>
+                      )
+                    )}
+                    {isBW ? (
+                      editable ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleBw(exIdx, isBW)}
+                          aria-label="Body weight. Tap to add weight."
+                          title="Tap to add weight"
+                          style={headerToggleStyle}
+                        >
+                          BW · REPS ⇄ {weightUnitLabel}
+                        </button>
+                      ) : (
+                        <span>BW · REPS</span>
+                      )
+                    ) : (
+                      <span>REPS</span>
+                    )}
+                    <span>DONE</span>
+                  </div>
 
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                     {entry.sets.map((set, setIdx) => {
                       const done = set.completed_at != null;
+                      const isNext = isLive && setIdx === nextOpenIdx;
+                      const prevWeight =
+                        setIdx > 0 ? entry.sets[setIdx - 1].weight_kg ?? null : null;
+                      const weightHint = isBW ? null : prevWeight ?? lastWeight;
+                      const wKey = `${exIdx}-${setIdx}-w`;
+                      const rKey = `${exIdx}-${setIdx}-r`;
                       return (
                         <li
                           key={setIdx}
@@ -744,81 +745,97 @@ export default function SessionPage({
                             gridTemplateColumns: gridCols,
                             gap: 'var(--space-2)',
                             alignItems: 'center',
+                            borderRadius: 'var(--radius-compact)',
+                            background: done ? 'var(--color-accent-subtle)' : 'transparent',
+                            transition: 'background 150ms ease',
                           }}
                         >
                           <span
                             className="data"
                             style={{
-                              color: done ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
+                              textAlign: 'center',
+                              fontWeight: isNext ? 700 : 400,
+                              color: done
+                                ? 'var(--color-text-display)'
+                                : isNext
+                                  ? 'var(--color-accent)'
+                                  : 'var(--color-text-secondary)',
                             }}
                           >
-                            {String(setIdx + 1).padStart(2, '0')}
+                            {setIdx + 1}
                           </span>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            max={999}
-                            value={set.reps}
-                            disabled={!editable}
-                            onChange={(e) => updateSetField(exIdx, setIdx, { reps: Number(e.target.value) || 0 })}
-                            onBlur={() => void commitField()}
-                            style={{
-                              ...inputStyle,
-                              padding: 'var(--space-2)',
-                              minHeight: 44,
-                              opacity: done ? 0.7 : 1,
-                            }}
-                            aria-label={`Reps for set ${setIdx + 1}`}
-                          />
                           {!isBW && (
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              min={0}
-                              max={1000}
-                              step={0.5}
-                              value={set.weight_kg ?? ''}
-                              placeholder={weightUnitLabel}
+                            <SetNumberField
+                              ref={(el) => {
+                                if (el) fieldRefs.current.set(wKey, el);
+                                else fieldRefs.current.delete(wKey);
+                              }}
+                              kind="decimal"
+                              value={set.weight_kg ?? null}
+                              placeholder={weightHint != null ? String(weightHint) : '—'}
                               disabled={!editable}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                updateSetField(exIdx, setIdx, { weight_kg: v === '' ? null : Number(v) });
-                              }}
-                              onBlur={() => void commitField()}
-                              style={{
-                                ...inputStyle,
-                                padding: 'var(--space-2)',
-                                minHeight: 44,
-                                opacity: done ? 0.7 : 1,
-                              }}
-                              aria-label={`Weight (${weightUnitLabel}) for set ${setIdx + 1}`}
+                              done={done}
+                              enterKeyHint="next"
+                              onEnter={() => fieldRefs.current.get(rKey)?.focus()}
+                              onValue={(v) => setWeight(exIdx, setIdx, v)}
+                              ariaLabel={`Weight (${weightUnitLabel}) for set ${setIdx + 1}`}
                             />
                           )}
+                          <SetNumberField
+                            ref={(el) => {
+                              if (el) fieldRefs.current.set(rKey, el);
+                              else fieldRefs.current.delete(rKey);
+                            }}
+                            kind="int"
+                            value={set.reps}
+                            disabled={!editable}
+                            done={done}
+                            enterKeyHint="done"
+                            onEnter={() => {
+                              fieldRefs.current.get(rKey)?.blur();
+                              if (!done) toggleSetComplete(exIdx, setIdx, weightHint);
+                            }}
+                            onValue={(v) => setReps(exIdx, setIdx, v)}
+                            ariaLabel={`Reps for set ${setIdx + 1}`}
+                          />
                           <button
                             type="button"
-                            onClick={() => void toggleSetComplete(exIdx, setIdx)}
-                            disabled={!editable || saving}
+                            className="gym-check"
+                            onClick={() => toggleSetComplete(exIdx, setIdx, weightHint)}
+                            disabled={!editable}
                             aria-pressed={done}
                             aria-label={done ? `Un-mark set ${setIdx + 1}` : `Mark set ${setIdx + 1} complete`}
                             style={{
-                              width: 44,
-                              height: 44,
-                              minWidth: 44,
+                              width: 52,
+                              height: 48,
                               borderRadius: 'var(--radius-compact)',
                               background: done ? 'var(--color-accent)' : 'transparent',
-                              border: `2px solid ${done ? 'var(--color-accent)' : 'var(--color-border-visible)'}`,
-                              color: done ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
+                              border: `2px solid ${
+                                done
+                                  ? 'var(--color-accent)'
+                                  : isNext
+                                    ? 'var(--color-text-display)'
+                                    : 'var(--color-border-visible)'
+                              }`,
+                              color: done
+                                ? 'var(--color-text-display)'
+                                : isNext
+                                  ? 'var(--color-text-primary)'
+                                  : 'var(--color-text-disabled)',
                               cursor: editable ? 'pointer' : 'default',
-                              fontSize: 20,
+                              fontSize: 22,
+                              fontWeight: 700,
                               lineHeight: 1,
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              padding: 0,
                               touchAction: 'manipulation',
+                              WebkitTapHighlightColor: 'transparent',
+                              transition: 'transform 80ms ease, background 150ms ease',
                             }}
                           >
-                            {done ? '✓' : ''}
+                            ✓
                           </button>
                         </li>
                       );
@@ -829,24 +846,24 @@ export default function SessionPage({
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>
                       <button
                         type="button"
-                        onClick={() => void addSetToEntry(exIdx)}
-                        style={ghostButtonStyle}
+                        onClick={() => addSetToEntry(exIdx)}
+                        disabled={entry.sets.length >= SETS_MAX}
+                        style={{ ...ghostButtonStyle, padding: '0 var(--space-4)' }}
                       >
-                        + Add set
+                        + Set
                       </button>
                       {entry.sets.length > 1 && (
                         <button
                           type="button"
-                          onClick={() =>
-                            void removeSetFromEntry(exIdx, entry.sets.length - 1)
-                          }
+                          onClick={() => removeLastSet(exIdx)}
                           style={{
                             ...ghostButtonStyle,
+                            padding: '0 var(--space-4)',
                             color: 'var(--color-text-secondary)',
                           }}
                           aria-label="Remove last set"
                         >
-                          − Remove set
+                          − Set
                         </button>
                       )}
                       <div style={{ flex: 1 }} />
@@ -854,21 +871,22 @@ export default function SessionPage({
                         <>
                           <button
                             type="button"
-                            onClick={() => void removeExercise(exIdx)}
+                            onClick={() => removeExercise(exIdx)}
                             style={{
                               ...ghostButtonStyle,
+                              padding: '0 var(--space-4)',
                               borderColor: 'var(--color-accent)',
                               color: 'var(--color-accent)',
                             }}
                           >
-                            Confirm remove
+                            Remove
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmRemoveExIdx(null)}
-                            style={ghostButtonStyle}
+                            style={{ ...ghostButtonStyle, padding: '0 var(--space-4)' }}
                           >
-                            Cancel
+                            Keep
                           </button>
                         </>
                       ) : (
@@ -877,14 +895,25 @@ export default function SessionPage({
                           onClick={() => setConfirmRemoveExIdx(exIdx)}
                           style={{
                             ...ghostButtonStyle,
+                            padding: '0 var(--space-4)',
                             color: 'var(--color-text-secondary)',
                           }}
                           aria-label={`Remove ${entry.name}`}
                         >
-                          × Remove exercise
+                          ×
                         </button>
                       )}
                     </div>
+                  )}
+
+                  {isFocused && allDone && focused != null && focused < entries.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setFocusedExIndex(focused + 1)}
+                      style={{ ...primaryButtonStyle, width: '100%' }}
+                    >
+                      Next: {entries[focused + 1].name} →
+                    </button>
                   )}
                 </div>
               </li>
@@ -896,7 +925,7 @@ export default function SessionPage({
       {isLive && (
         <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           <Link href="/app/gym-routine/exercises" style={{ textDecoration: 'none' }}>
-            <span style={ghostButtonStyle}>+ Add exercise</span>
+            <span style={{ ...ghostButtonStyle, display: 'inline-flex', alignItems: 'center' }}>+ Add exercise</span>
           </Link>
           {confirmEnd ? (
             <>
@@ -909,7 +938,7 @@ export default function SessionPage({
                   opacity: ending ? 0.6 : 1,
                 }}
               >
-                {ending ? 'Ending…' : 'Confirm end'}
+                {ending ? 'Saving…' : 'Confirm end'}
               </button>
               <button
                 type="button"
@@ -942,6 +971,93 @@ export default function SessionPage({
         onClose={() => setInfoExercise(null)}
       />
     </div>
+  );
+}
+
+const headerToggleStyle = {
+  background: 'transparent',
+  border: 0,
+  padding: 0,
+  minHeight: 24,
+  color: 'var(--color-text-secondary)',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit' as const,
+  cursor: 'pointer',
+  textDecoration: 'underline dotted',
+  textUnderlineOffset: 3,
+  whiteSpace: 'nowrap' as const,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+
+function IconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{
+        background: 'transparent',
+        border: '1px solid var(--color-border-visible)',
+        color: 'var(--color-text-secondary)',
+        borderRadius: 'var(--radius-compact)',
+        width: 44,
+        height: 44,
+        padding: 0,
+        fontSize: 16,
+        lineHeight: 1,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        touchAction: 'manipulation',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SaveChip({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
+  if (status === 'idle') return null;
+  if (status === 'error') {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="label"
+        style={{
+          background: 'transparent',
+          border: '1px solid var(--color-accent)',
+          color: 'var(--color-accent)',
+          borderRadius: 'var(--radius-button)',
+          padding: '2px var(--space-2)',
+          cursor: 'pointer',
+        }}
+      >
+        Not saved · Retry
+      </button>
+    );
+  }
+  const saved = status === 'saved';
+  return (
+    <span
+      className="label"
+      role="status"
+      style={{ color: saved ? 'var(--color-text-disabled)' : 'var(--color-text-secondary)' }}
+    >
+      {saved ? '· Saved' : '· Saving…'}
+    </span>
   );
 }
 

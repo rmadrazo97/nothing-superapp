@@ -176,6 +176,25 @@ export async function updateSession(
   });
 }
 
+/**
+ * Fire-and-forget PATCH that survives the page being hidden / unloaded
+ * (`keepalive`). Used to flush the last unsaved set edit when the user
+ * backgrounds the PWA mid-workout. Never throws.
+ */
+export function updateSessionKeepalive(id: string, body: WorkoutSessionUpdate): void {
+  try {
+    void fetch(`/api/mini-apps/gym-routine/sessions/${id}`, {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      keepalive: true,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export async function deleteSession(id: string): Promise<{ ok: true }> {
   return req(`/api/mini-apps/gym-routine/sessions/${id}`, { method: 'DELETE' });
 }

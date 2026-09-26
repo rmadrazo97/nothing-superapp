@@ -14,8 +14,8 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.6.2';
-export const APP_RELEASE_DATE = '2026-09-06'; // ISO — YYYY-MM-DD
+export const APP_VERSION = '0.6.3';
+export const APP_RELEASE_DATE = '2026-09-26'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
   version: string;
@@ -29,6 +29,16 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.6.3',
+    date: '2026-09-26',
+    highlights: [
+      'Taps no longer get swallowed. A global double-tap-zoom blocker was cancelling ANY tap that came within 300ms of the previous one, anywhere in the app, so "type reps → tap ✓" or "✓ set 1 → ✓ set 2" needed two or three tries. Removed; `touch-action` already blocks zoom.',
+      'Gym session — values you type stick. The logger used to overwrite local state with each (slow) save response, wiping whatever you were typing in the next set. Saves are now queued one at a time, latest wins, auto-retry on bad gym wifi, flushed when the app is backgrounded, and never overwrite what is on screen. A small SAVING… / SAVED / NOT SAVED · RETRY chip shows where you are.',
+      'Gym session — new set inputs. Tap selects the whole value so you type over it, "62,5" and "62.5" both work, reps/weight can no longer produce values the server rejects, and ✓ is never disabled while saving. Weight/reps typed on one set fill the following open sets; ✓ on an empty weight uses the hint from the previous set or last session.',
+      'Gym session — cleaner logger: SET / KG / REPS / DONE column headers, current set highlighted, done rows tinted, bigger 52×48 ✓ targets, a compact one-row rest timer (−15 / +15 / Skip, remembered per device), a progress bar, and prev / next arrows in focus mode.',
+    ],
+  },
   {
     version: '0.6.2',
     date: '2026-09-06',
