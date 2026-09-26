@@ -440,7 +440,12 @@ function Header({
         aria-label="Calorie views"
         style={{
           display: 'flex',
-          gap: 'var(--space-2)',
+          // Tabs share the row (v0.6.5): five tabs with fixed padding + gaps
+          // ran past a 320px screen and cut off HISTORY. Scroll is only a
+          // fallback for even narrower viewports.
+          gap: 0,
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
           borderBottom: '1px solid var(--color-border)',
         }}
       >
@@ -570,7 +575,10 @@ function TabButton({
           ? '2px solid var(--color-text-display)'
           : '2px solid transparent',
         color: active ? 'var(--color-text-display)' : 'var(--color-text-secondary)',
-        padding: 'var(--space-2) var(--space-3)',
+        flex: '1 0 auto',
+        minHeight: 44,
+        whiteSpace: 'nowrap',
+        padding: 'var(--space-2) var(--space-2)',
         fontFamily: 'var(--font-label)',
         fontSize: 'var(--text-label)',
         letterSpacing: '0.08em',

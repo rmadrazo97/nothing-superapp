@@ -29,7 +29,7 @@ import { ApiError, toastForError } from '../lib/api.ts';
 import { useToast } from '../../../web/src/lib/toast/context';
 import { SwipeableRow } from '../../../web/src/components/shell/SwipeableRow';
 import { BottomSheet } from '../../../web/src/components/shell/BottomSheet';
-import { cardStyle, ghostButtonStyle, primaryButtonStyle } from '../lib/ui.ts';
+import { cardStyle, ghostButtonStyle } from '../lib/ui.ts';
 import { toDateLabel } from '../lib/format.ts';
 import { dayLabel, sessionFromDay } from '../lib/session-from-day.ts';
 
@@ -286,17 +286,15 @@ export default function RoutinesPage() {
       <BottomSheet
         open={dayPicker !== null}
         onClose={() => setDayPicker(null)}
+        title="Pick a day"
         ariaLabel="Pick a day to train"
       >
         {dayPicker && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div>
-              <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-                PICK A DAY
-              </span>
               <h2
                 style={{
-                  margin: 'var(--space-2) 0 0 0',
+                  margin: 0,
                   fontFamily: 'var(--font-body)',
                   fontSize: 'var(--text-subheading)',
                   fontWeight: 500,
@@ -320,26 +318,51 @@ export default function RoutinesPage() {
                     type="button"
                     onClick={() => void startFromV2Day(dayPicker.routine, d)}
                     style={{
-                      ...primaryButtonStyle,
+                      // Card-shaped row, not a pill: pill radius on a tall
+                      // multi-line row looked like a stretched capsule.
                       width: '100%',
+                      minHeight: 64,
                       textAlign: 'left',
                       background: 'transparent',
                       color: 'var(--color-text-display)',
                       border: '1px solid var(--color-border-visible)',
+                      borderRadius: 'var(--radius-card)',
                       padding: 'var(--space-3) var(--space-4)',
                       display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: 'var(--space-1)',
+                      alignItems: 'center',
+                      gap: 'var(--space-3)',
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
                     }}
                   >
-                    <span className="label" style={{ color: 'var(--color-text-secondary)' }}>
-                      DAY {d.day}
+                    <span
+                      className="data"
+                      aria-hidden
+                      style={{
+                        flexShrink: 0,
+                        width: 36,
+                        height: 36,
+                        borderRadius: 'var(--radius-compact)',
+                        border: '1px solid var(--color-border-visible)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--color-text-secondary)',
+                      }}
+                    >
+                      {d.day}
                     </span>
-                    <span style={{ fontSize: 'var(--text-body)' }}>{dayLabel(d)}</span>
-                    <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
-                      {d.exercises.length} exercise{d.exercises.length === 1 ? '' : 's'}
-                      {d.focus.length > 0 ? ` · ${d.focus.join(', ')}` : ''}
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: 'var(--text-body)', fontWeight: 500, lineHeight: 1.3 }}>
+                        {dayLabel(d)}
+                      </span>
+                      <span className="caption" style={{ color: 'var(--color-text-secondary)' }}>
+                        {d.exercises.length} exercise{d.exercises.length === 1 ? '' : 's'}
+                        {d.focus.length > 0 ? ` · ${d.focus.join(', ')}` : ''}
+                      </span>
+                    </span>
+                    <span aria-hidden style={{ flexShrink: 0, color: 'var(--color-text-secondary)' }}>
+                      ▶
                     </span>
                   </button>
                 </li>

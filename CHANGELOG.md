@@ -4,6 +4,25 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.5] — 2026-09-26 — App-wide mobile layout fixes: page overflow + sheets
+
+User report with screenshots: the gym home ran off the right edge of the screen, and the routine day-picker sheet couldn't scroll (and sat under the tab bar).
+
+### Fixed
+- **Whole-app horizontal overflow** (`<Shell>`). `<body>` is a flex column and `<main>` had `margin: 0 auto`; auto cross-axis margins disable stretch, so `<main>` shrink-wrapped its content. Any long `nowrap` text (a routine name) made it grow to its 480 px max and clip on phones. Added `width: 100%` + `minWidth: 0`.
+- **Sheets/modals under the tab bar.** `<main>` had `zIndex: 1`, creating a stacking context that trapped every overlay rendered inside it (BottomSheet z 1200, MiniAppSettingsSheet 1100, OnboardingWizard 1000, copilot drawers…) below the root-level TabBar (z 40). Removed; `<BottomSheet>` also portals to `<body>`.
+- **BottomSheet body not scrollable.** The body was a flex child with `overflow-y: auto` but no `min-height: 0`, so it grew to its content and got clipped by the sheet. Added `flex: 1 1 auto; min-height: 0`.
+- **Sticky inside the shell.** `<main>` `overflow-x: hidden` → `clip`, so it no longer becomes a scroll container that breaks `position: sticky`.
+- **`<PixelBarChart>`** fixed 44 px columns + 12 px gaps made a 7-day chart 380 px wide; the label row (outside the scroller) spilled out of the card. Columns are now fluid, bars + labels share one scroller.
+- Measurements header (48 px title + chip) and the Calorie 5-tab row overflowed at 320 px; both fixed. Pomodoro settings drawer z-index raised above the tab bar.
+- `.display-xl/lg/md` font sizes are capped by viewport width (`min(token, Nvw)`).
+
+### Changed
+- Routine day picker: sheet title in the header, card-shaped rows with a day badge and chevron instead of stretched pills.
+
+### Verified
+Headless Chromium overflow audit (every element's right edge vs viewport, ignoring intentional scrollers) across 13 mini-app screens + all 5 Calorie tabs at 390 px and 320 px: 0 overflowing elements. Sheet hit-test confirms sheets cover the tab bar; rest timer still sticky.
+
 ## [0.6.4] — 2026-09-26 — Weight: expandable full history with trends
 
 ### Added

@@ -2,6 +2,10 @@
 
 Append-only. One block per shippable moment. Highest at top.
 
+## 2026-09-26 — v0.6.5 app-wide mobile layout: nothing off-screen, sheets that scroll.
+
+Two screenshots: gym home cut off on the right, routine day picker unscrollable. Both were one-line bugs in the shared shell, which is why they showed up "across the whole app". (1) `<body>` is a flex column; `<main>`'s `margin: 0 auto` disables stretch, so main shrink-wrapped to its content and a long routine name widened the entire page to 480 px. `width: 100%` fixes every screen. (2) `<main>` had `z-index: 1` → stacking context → every modal inside it rendered below the tab bar regardless of its own z-index; plus the BottomSheet body lacked `min-height: 0` so it never scrolled. Then ran an automated overflow audit over 13 screens × 2 widths and fixed the three stragglers it found (bar-chart labels, Measurements header, Calorie tabs). **Lesson: `margin: auto` on a flex item silently turns off stretch — give shell containers an explicit width.**
+
 ## 2026-09-26 — v0.6.4 weight: expand the chart, see all of it, with trends.
 
 User ask: "allow to expand the weight history chart and see it all with trends." The WEIGHT card was a fixed 30-day sparkline with no way to look further back (the client never asked the API for more than its 30-day default). Now it loads full history and ALL HISTORY opens a sheet with range chips, drag-to-inspect, a 7-day moving-average trend line over the raw weigh-ins, change + weekly rate + goal ETA, and a month-by-month table. Change and rate are computed from the 7-day average (and a least-squares fit) rather than first-vs-last weigh-in, so a single water-heavy morning can't flip the story. Verified in headless Chromium (iPhone 13) with ~14 months / 310 mocked weigh-ins.

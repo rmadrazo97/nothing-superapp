@@ -19,10 +19,13 @@ const GAP = 1;
 const CHART_ROWS = 20; // 20 × 3 + 19 × 1 = 79px chart body
 const BAR_WIDTH_CELLS = 3;
 const BAR_GAP_PX = 2;
-const GROUP_GAP_PX = 12;
-// Minimum horizontal footprint per x-label. Ensures labels have room to
-// read even when the bar group itself is only 9px wide (single-series).
-const MIN_COLUMN_PX = 44;
+const GROUP_GAP_PX = 4;
+// Columns are fluid (v0.6.5): they share the available width equally and
+// only fall back to horizontal scroll when even this minimum doesn't fit.
+// The old fixed 44px + 12px gap made a 7-day chart 380px wide — wider than
+// a card on a phone — and the label row (not in the scroller) spilled out
+// of the card and out of the screen.
+const MIN_COLUMN_PX = 20;
 
 function seriesColor(idx: number): { color: string; opacity: number } {
   // One hue family — cadmium — but stepped opacity so 2–4 series are
@@ -38,7 +41,9 @@ export function PixelBarChart({ title, xLabels, series, units }: BarChartData) {
   const max = Math.max(1, ...allValues.map((v) => (Number.isFinite(v) ? v : 0)));
   const barsPerColumn = series.length;
   const groupWidth = barsPerColumn * BAR_WIDTH_CELLS * CELL + (barsPerColumn - 1) * BAR_GAP_PX;
-  const columnWidthPx = Math.max(groupWidth, MIN_COLUMN_PX);
+  const columnMinPx = Math.max(groupWidth, MIN_COLUMN_PX);
+  const minInnerPx = xLabels.length * columnMinPx + (xLabels.length - 1) * GROUP_GAP_PX;
+  const column = { flex: '1 1 0', minWidth: columnMinPx } as const;
   const chartHeight = CHART_ROWS * CELL + (CHART_ROWS - 1) * GAP;
 
   // Rough auto-fit — if the longest label is longer than 6 chars, tilt them
@@ -63,13 +68,15 @@ export function PixelBarChart({ title, xLabels, series, units }: BarChartData) {
         </span>
       )}
 
+      {/* Bars + labels share ONE horizontal scroller so they stay aligned. */}
+      <div style={{ overflowX: 'auto', minWidth: 0 }}>
+      <div style={{ minWidth: minInnerPx, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'flex-start',
           gap: `${GROUP_GAP_PX}px`,
-          overflowX: 'auto',
           paddingBottom: 'var(--space-1)',
         }}
       >
@@ -82,8 +89,7 @@ export function PixelBarChart({ title, xLabels, series, units }: BarChartData) {
               justifyContent: 'center',
               gap: `${BAR_GAP_PX}px`,
               height: chartHeight,
-              width: columnWidthPx,
-              flexShrink: 0,
+              ...column,
             }}
           >
             {series.map((s, seriesIdx) => {
@@ -136,8 +142,7 @@ export function PixelBarChart({ title, xLabels, series, units }: BarChartData) {
           <span
             key={i}
             style={{
-              width: columnWidthPx,
-              flexShrink: 0,
+              ...column,
               fontFamily: 'var(--font-label)',
               fontSize: 'var(--text-label)',
               letterSpacing: '0.06em',
@@ -154,6 +159,8 @@ export function PixelBarChart({ title, xLabels, series, units }: BarChartData) {
             {label}
           </span>
         ))}
+      </div>
+      </div>
       </div>
 
       {/* Legend — only if >1 series (single series is self-explanatory). */}
