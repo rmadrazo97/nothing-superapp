@@ -6,7 +6,8 @@
  * DB stores weight in kg. UI reads `preferences.weight_unit` and converts
  * kg <-> lb for display + input only — nothing converted ever hits the DB.
  *
- * Chart: inline SVG (no chart libs). Date on X, weight on Y. If
+ * Chart: <WeightTrendChart> (inline SVG, no chart libs) for the last 30
+ * days, with ALL HISTORY opening <WeightHistorySheet> (v0.6.4). If
  * `weight_goal_kg` is set, we draw a dashed horizontal goal line in
  * cadmium red — the only accent-colored element in the chart, so the eye
  * lands on "am I above or below my target?" first.
@@ -20,6 +21,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, usePreferences } from '@nothing/mini-apps-runtime';
 import type { WeightEntry, WeightUnit } from '@nothing/shared';
 import { useToast } from '../../../web/src/lib/toast/context';
+import WeightTrendChart from './WeightTrendChart.tsx';
+import WeightHistorySheet from './WeightHistorySheet.tsx';
+import { filterRange, toPoints } from '../lib/weight-trend.ts';
+
+/** API max. Loads the full history for the expanded chart (v0.6.4). */
+const HISTORY_LIMIT = 500;
+const LIST_PREVIEW = 20;
 
 const LB_PER_KG = 2.20462;
 
@@ -63,6 +71,8 @@ export function WeightView() {
   const [noteInput, setNoteInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [showAllEntries, setShowAllEntries] = useState(false);
 
   const weightUnit: WeightUnit = preferences.weight_unit ?? 'kg';
   const goalKg = preferences.weight_goal_kg;
@@ -70,7 +80,7 @@ export function WeightView() {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch('/api/mini-apps/calorie-lite/weight', {
+      const res = await fetch(`/api/mini-apps/calorie-lite/weight?limit=${HISTORY_LIMIT}`, {
         credentials: 'same-origin',
       });
       if (!res.ok) {
@@ -120,6 +130,9 @@ export function WeightView() {
       .map((e) => e.weight_kg);
     return median(window);
   }, [entries, now]);
+
+  const allPoints = useMemo(() => toPoints(entries ?? []), [entries]);
+  const recentPoints = useMemo(() => filterRange(allPoints, '30d', now), [allPoints, now]);
 
   const deltaKg =
     latest != null && lastWeekBaseline != null ? latest.weight_kg - lastWeekBaseline : null;
@@ -236,12 +249,67 @@ export function WeightView() {
           />
 
           {entries.length > 0 && (
-            <WeightChart
-              entries={entries}
-              weightUnit={weightUnit}
-              goalKg={goalKg ?? null}
-            />
+            <section
+              aria-label="Weight trend"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border-visible)',
+                borderRadius: 'var(--radius-card)',
+                padding: 'var(--space-4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-3)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+                <span className="label">LAST 30 DAYS</span>
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(true)}
+                  aria-label="Expand weight history"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--color-border-visible)',
+                    color: 'var(--color-text-primary)',
+                    borderRadius: 'var(--radius-button)',
+                    minHeight: 36,
+                    padding: '0 var(--space-4)',
+                    fontFamily: 'var(--font-label)',
+                    fontSize: 'var(--text-label)',
+                    letterSpacing: '0.08em',
+                    cursor: 'pointer',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  ALL HISTORY ⤢
+                </button>
+              </div>
+              {recentPoints.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(true)}
+                  aria-label="Open weight history"
+                  style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', display: 'block', width: '100%' }}
+                >
+                  <WeightTrendChart points={recentPoints} unit={weightUnit} goalKg={goalKg ?? null} />
+                </button>
+              ) : (
+                <p className="caption" style={{ margin: 0 }}>
+                  No weigh-ins in the last 30 days. Tap ALL HISTORY to see older ones.
+                </p>
+              )}
+            </section>
           )}
+
+          <WeightHistorySheet
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            points={allPoints}
+            unit={weightUnit}
+            goalKg={goalKg ?? null}
+            totalLoaded={entries.length}
+            capped={entries.length >= HISTORY_LIMIT}
+          />
 
           {/* Log form */}
           <form
@@ -340,7 +408,7 @@ export function WeightView() {
                 flexDirection: 'column',
               }}
             >
-              {entries.slice(0, 20).map((e) => (
+              {(showAllEntries ? entries : entries.slice(0, LIST_PREVIEW)).map((e) => (
                 <li
                   key={e.id}
                   style={{
@@ -402,6 +470,28 @@ export function WeightView() {
                   </div>
                 </li>
               ))}
+              {entries.length > LIST_PREVIEW && (
+                <li style={{ paddingTop: 'var(--space-3)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllEntries((v) => !v)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--color-border-visible)',
+                      color: 'var(--color-text-primary)',
+                      borderRadius: 'var(--radius-button)',
+                      minHeight: 44,
+                      width: '100%',
+                      fontFamily: 'var(--font-label)',
+                      fontSize: 'var(--text-label)',
+                      letterSpacing: '0.08em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showAllEntries ? 'SHOW LESS' : `SHOW ALL ${entries.length}`}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </>
@@ -475,188 +565,6 @@ function LatestCard({
       >
         {trendLabel}
       </span>
-    </section>
-  );
-}
-
-// ─── Chart ──────────────────────────────────────────────────────────────────
-
-/**
- * Inline SVG line chart. Datapoints are the entries in `entries` (newest
- * first from the API). We time-normalize the X axis so the spacing reflects
- * calendar gaps rather than sequence, and clamp the Y range to a
- * ±2-unit padding around the observed data so a flat trend still shows
- * some vertical detail.
- */
-function WeightChart({
-  entries,
-  weightUnit,
-  goalKg,
-}: {
-  entries: WeightEntry[];
-  weightUnit: WeightUnit;
-  goalKg: number | null;
-}) {
-  const WIDTH = 640;
-  const HEIGHT = 180;
-  const PAD_LEFT = 40;
-  const PAD_RIGHT = 12;
-  const PAD_TOP = 12;
-  const PAD_BOTTOM = 24;
-  const plotW = WIDTH - PAD_LEFT - PAD_RIGHT;
-  const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM;
-
-  const sorted = useMemo(
-    () =>
-      [...entries]
-        .map((e) => ({ t: Date.parse(e.entered_at), kg: e.weight_kg }))
-        .filter((p) => Number.isFinite(p.t))
-        .sort((a, b) => a.t - b.t),
-    [entries],
-  );
-
-  if (sorted.length === 0) return null;
-
-  const tMin = sorted[0].t;
-  const tMax = sorted[sorted.length - 1].t;
-  const tRange = Math.max(1, tMax - tMin);
-
-  const values = sorted.map((p) => p.kg);
-  if (goalKg != null) values.push(goalKg);
-  let yMin = Math.min(...values);
-  let yMax = Math.max(...values);
-  if (yMax - yMin < 2) {
-    // Give a nearly-flat series some breathing room so the line isn't
-    // pinned to the top or bottom edge.
-    const mid = (yMax + yMin) / 2;
-    yMin = mid - 1;
-    yMax = mid + 1;
-  }
-  const yRange = yMax - yMin;
-
-  const x = (t: number) => PAD_LEFT + ((t - tMin) / tRange) * plotW;
-  const y = (kg: number) => PAD_TOP + (1 - (kg - yMin) / yRange) * plotH;
-
-  const path =
-    sorted.length === 1
-      ? // Single point: draw a short horizontal segment so there's something visible.
-        `M ${PAD_LEFT} ${y(sorted[0].kg)} L ${PAD_LEFT + plotW} ${y(sorted[0].kg)}`
-      : sorted
-          .map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.t).toFixed(2)} ${y(p.kg).toFixed(2)}`)
-          .join(' ');
-
-  const goalY = goalKg != null ? y(goalKg) : null;
-
-  // Y-axis labels: bottom, middle, top (in the user's unit).
-  const yLabels = [yMin, (yMin + yMax) / 2, yMax].map((kg) => ({
-    kg,
-    display: toDisplayWeight(kg, weightUnit).toFixed(1),
-    py: y(kg),
-  }));
-
-  return (
-    <section
-      aria-label="Weight trend"
-      style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border-visible)',
-        borderRadius: 'var(--radius-card)',
-        padding: 'var(--space-4)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
-      }}
-    >
-      <span className="label">LAST 30 DAYS</span>
-      <svg
-        role="img"
-        aria-label={`Weight trend, ${sorted.length} datapoints in ${unitLabel(weightUnit)}`}
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        style={{ width: '100%', height: 'auto', display: 'block' }}
-      >
-        {/* Y-axis label ticks + grid lines */}
-        {yLabels.map((lbl, i) => (
-          <g key={i}>
-            <line
-              x1={PAD_LEFT}
-              y1={lbl.py}
-              x2={WIDTH - PAD_RIGHT}
-              y2={lbl.py}
-              stroke="var(--color-border)"
-              strokeWidth={1}
-            />
-            <text
-              x={PAD_LEFT - 6}
-              y={lbl.py + 3}
-              textAnchor="end"
-              fontSize="10"
-              fontFamily="var(--font-mono, monospace)"
-              fill="var(--color-text-disabled)"
-              style={{ letterSpacing: '0.04em' }}
-            >
-              {lbl.display}
-            </text>
-          </g>
-        ))}
-
-        {/* Goal line — dashed, cadmium red */}
-        {goalY != null && (
-          <line
-            x1={PAD_LEFT}
-            y1={goalY}
-            x2={WIDTH - PAD_RIGHT}
-            y2={goalY}
-            stroke="var(--color-accent)"
-            strokeWidth={1.5}
-            strokeDasharray="4 4"
-          />
-        )}
-
-        {/* Data path */}
-        <path
-          d={path}
-          fill="none"
-          stroke="var(--color-text-display)"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Datapoints */}
-        {sorted.map((p, i) => (
-          <circle
-            key={i}
-            cx={x(p.t)}
-            cy={y(p.kg)}
-            r={2.5}
-            fill="var(--color-text-display)"
-          />
-        ))}
-
-        {/* X-axis end labels */}
-        <text
-          x={PAD_LEFT}
-          y={HEIGHT - 6}
-          textAnchor="start"
-          fontSize="10"
-          fontFamily="var(--font-mono, monospace)"
-          fill="var(--color-text-disabled)"
-          style={{ letterSpacing: '0.04em' }}
-        >
-          {toShortDate(new Date(tMin).toISOString())}
-        </text>
-        <text
-          x={WIDTH - PAD_RIGHT}
-          y={HEIGHT - 6}
-          textAnchor="end"
-          fontSize="10"
-          fontFamily="var(--font-mono, monospace)"
-          fill="var(--color-text-disabled)"
-          style={{ letterSpacing: '0.04em' }}
-        >
-          {toShortDate(new Date(tMax).toISOString())}
-        </text>
-      </svg>
     </section>
   );
 }

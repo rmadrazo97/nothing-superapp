@@ -25,6 +25,7 @@ import {
   type ReactNode,
   type TouchEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/mobile/body-scroll-lock';
 
 const DRAG_CLOSE_PX = 80;
@@ -106,6 +107,11 @@ const CLOSE_BTN_STYLE: CSSProperties = {
 };
 
 const BODY_STYLE: CSSProperties = {
+  // flex: 1 + minHeight: 0 let the body shrink inside the 92dvh sheet and
+  // scroll. Without them it grew to its content and the extra rows were
+  // clipped by the sheet's overflow: hidden — unscrollable (v0.6.5).
+  flex: '1 1 auto',
+  minHeight: 0,
   padding:
     'var(--space-4) var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom))',
   overflowY: 'auto',
@@ -186,9 +192,11 @@ export function BottomSheet({
     }
   }, [dragOffset, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
+  // Portal to <body> so no ancestor stacking context / transform / overflow
+  // can trap the sheet under the TabBar or clip it.
+  return createPortal(
     <>
       <style>{`@keyframes bottom-sheet-slide-in {
         from { transform: translateY(100%); }
@@ -238,6 +246,7 @@ export function BottomSheet({
           <div style={BODY_STYLE}>{children}</div>
         </aside>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

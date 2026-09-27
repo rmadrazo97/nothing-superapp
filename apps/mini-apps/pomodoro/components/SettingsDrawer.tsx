@@ -24,7 +24,7 @@ const OVERLAY: CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0, 0, 0, 0.6)',
-  zIndex: 40,
+  zIndex: 1100,
 };
 
 const DRAWER: CSSProperties = {
@@ -40,7 +40,7 @@ const DRAWER: CSSProperties = {
   flexDirection: 'column',
   gap: 'var(--space-4)',
   overflowY: 'auto',
-  zIndex: 41,
+  zIndex: 1101,
 };
 
 const FIELD_LABEL: CSSProperties = {

@@ -4,6 +4,37 @@ All notable changes to Nothing Superapp. Dates are ISO-8601; the format follows 
 
 The single source of truth for versions is `apps/web/src/lib/version.ts` (`APP_VERSION`, `APP_RELEASE_DATE`, `CHANGELOG`). Bumps MUST update it, the root `VERSION` file, and `package.json` `version` fields in the same commit. Highlights here mirror the About-card entries but with more detail per release.
 
+## [0.6.5] — 2026-09-26 — App-wide mobile layout fixes: page overflow + sheets
+
+User report with screenshots: the gym home ran off the right edge of the screen, and the routine day-picker sheet couldn't scroll (and sat under the tab bar).
+
+### Fixed
+- **Whole-app horizontal overflow** (`<Shell>`). `<body>` is a flex column and `<main>` had `margin: 0 auto`; auto cross-axis margins disable stretch, so `<main>` shrink-wrapped its content. Any long `nowrap` text (a routine name) made it grow to its 480 px max and clip on phones. Added `width: 100%` + `minWidth: 0`.
+- **Sheets/modals under the tab bar.** `<main>` had `zIndex: 1`, creating a stacking context that trapped every overlay rendered inside it (BottomSheet z 1200, MiniAppSettingsSheet 1100, OnboardingWizard 1000, copilot drawers…) below the root-level TabBar (z 40). Removed; `<BottomSheet>` also portals to `<body>`.
+- **BottomSheet body not scrollable.** The body was a flex child with `overflow-y: auto` but no `min-height: 0`, so it grew to its content and got clipped by the sheet. Added `flex: 1 1 auto; min-height: 0`.
+- **Sticky inside the shell.** `<main>` `overflow-x: hidden` → `clip`, so it no longer becomes a scroll container that breaks `position: sticky`.
+- **`<PixelBarChart>`** fixed 44 px columns + 12 px gaps made a 7-day chart 380 px wide; the label row (outside the scroller) spilled out of the card. Columns are now fluid, bars + labels share one scroller.
+- Measurements header (48 px title + chip) and the Calorie 5-tab row overflowed at 320 px; both fixed. Pomodoro settings drawer z-index raised above the tab bar.
+- `.display-xl/lg/md` font sizes are capped by viewport width (`min(token, Nvw)`).
+
+### Changed
+- Routine day picker: sheet title in the header, card-shaped rows with a day badge and chevron instead of stretched pills.
+
+### Verified
+Headless Chromium overflow audit (every element's right edge vs viewport, ignoring intentional scrollers) across 13 mini-app screens + all 5 Calorie tabs at 390 px and 320 px: 0 overflowing elements. Sheet hit-test confirms sheets cover the tab bar; rest timer still sticky.
+
+## [0.6.4] — 2026-09-26 — Weight: expandable full history with trends
+
+### Added
+- **`<WeightHistorySheet>`** (calorie-lite WEIGHT) — opened from the new ALL HISTORY ⤢ button or by tapping the 30-day chart. Range chips 30D / 90D / 6M / 1Y / ALL (ranges longer than the data are hidden), 260 px interactive chart with pointer scrubbing (readout shows the weigh-in + its 7-day average), trend stats (change, per-week rate from a least-squares fit, low/high with dates, weigh-in count, goal ETA at the current rate), and a monthly table (avg, Δ vs previous month, low–high, count).
+- **`lib/weight-trend.ts`** — pure trend math (7-day trailing moving average, linear fit, range stats, goal projection, monthly summary, nearest-point search) with unit tests.
+- Entry list: SHOW ALL toggle past the first 20.
+
+### Changed
+- WEIGHT view now loads up to 500 weigh-ins (`?limit=500`, the API max) instead of the default 30-day window; the compact card still shows the last 30 days.
+- New shared **`<WeightTrendChart>`** replaces the inline chart: raw weigh-ins de-emphasised, the 7-day average drawn as the main line, round-number y-grid, date ticks, and a viewBox that tracks the real pixel width so labels aren't shrunk to ~5 px on phones.
+- `sw.js` `SW_VERSION` bumped with the release.
+
 ## [0.6.3] — 2026-09-26 — Gym: live-session input + ✓ reliability, logger revamp
 
 User report: "The number inputs and check mark to mark complete are not working, I need to fill in multiple times." Three independent root causes, all fixed.

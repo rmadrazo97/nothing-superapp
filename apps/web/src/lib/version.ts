@@ -14,7 +14,7 @@
  * `services/growth/campaigns/nothing-superapp/ship-log.md`.
  */
 
-export const APP_VERSION = '0.6.3';
+export const APP_VERSION = '0.6.5';
 export const APP_RELEASE_DATE = '2026-09-26'; // ISO — YYYY-MM-DD
 
 export type ChangelogEntry = {
@@ -29,6 +29,24 @@ export type ChangelogEntry = {
  * `<details>` disclosure in the About card renders these as bullet points.
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.6.5',
+    date: '2026-09-26',
+    highlights: [
+      'Screens no longer run off the right edge. One long title (like a routine name) could stretch the whole app wider than the phone; the page now always fits the screen and long titles truncate with "…".',
+      'Pop-up sheets (day picker, settings, exercise how-to, weight history) now scroll properly and sit above the bottom tab bar instead of being hidden under it.',
+      'Gym — cleaner day picker, THIS WEEK chart labels stay inside the card, and the Measurements header fits small phones. Calorie — all five tabs fit on a 320px screen.',
+    ],
+  },
+  {
+    version: '0.6.4',
+    date: '2026-09-26',
+    highlights: [
+      'Weight — tap ALL HISTORY (or the chart) to open your full weight history: 30D / 90D / 6M / 1Y / ALL ranges, a 7-day trend line over your raw weigh-ins, and drag-to-inspect any day.',
+      'Weight — trend stats for the selected range: total change and rate per week (based on the 7-day average, so daily water swings don\'t mislead), low / high with dates, weigh-in count, and an estimated goal date when you\'re heading toward your goal.',
+      'Weight — month-by-month breakdown (average, change vs. previous month, low–high), full entry list via SHOW ALL, and chart labels now render at readable size on phones.',
+    ],
+  },
   {
     version: '0.6.3',
     date: '2026-09-26',

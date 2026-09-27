@@ -356,19 +356,25 @@ export default function MeasurementsPage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
+          // Wrap the chip under the title on narrow phones instead of
+          // pushing it off-screen (v0.6.5 overflow audit).
+          flexWrap: 'wrap',
           gap: 'var(--space-4)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', minWidth: 0 }}>
           <span className="label">GYM · MEASUREMENTS</span>
-          <h1 className="display-lg" style={{ margin: 0 }}>
+          <h1
+            className="display-lg"
+            style={{ margin: 0, fontSize: 'clamp(28px, 10vw, var(--text-display-lg))', overflowWrap: 'anywhere' }}
+          >
             MEASUREMENTS
           </h1>
         </div>
         <button
           type="button"
           onClick={openNew}
-          style={compactChipStyle}
+          style={{ ...compactChipStyle, flexShrink: 0, whiteSpace: 'nowrap' }}
           disabled={settingsLoading}
         >
           + NEW ENTRY
